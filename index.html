@@ -482,6 +482,12 @@ const phoneDigits=v=>(v||"").replace(/\D/g,"");
 const toFR=v=>{let s=(v||"").replace(/\D/g,""); if(/^33[67]\d{8}$/.test(s)) s="0"+s.slice(2); return s.replace(/(\d{2})(?=\d)/g,"$1 ").trim();}
 const phoneSMS=v=>{const s=(v||"").replace(/\D/g,""); if(/^0[67]\d{8}$/.test(s)) return s; if(/^33[67]\d{8}$/.test(s)) return "0"+s.slice(2); return s;};
 const telHref=v=>`tel:${phoneSMS(v||'')}`;
+function iconForChannel(r){
+  const ch = (r?.firstMsgChannel || r?.channel || null);
+  if (ch === 'sms') return '<i class="fa-solid fa-sms" title="SMS"></i>';
+  if (ch === 'wa')  return '<i class="fa-brands fa-whatsapp" title="WhatsApp"></i>';
+  return '';
+}
 function fmtNice(iso,time){
   if(!iso||!time) return '--';
   const [Y,M,D]=iso.split('-').map(v=>+v);
@@ -1384,7 +1390,7 @@ function openRDVSheet(r){
       <div class="small">${toFR(r.phone)} • ${escapeHtml(r.model||'')} • Source : ${escapeHtml(r.source||'')}</div>
       <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
-        ${r.firstMsgChannel?`<span class="bubble ${r.firstMsgChannel==='sms'?'sms':'wa'}">1er msg: ${(r.firstMsgChannel||'').toUpperCase()}</span>`:''}
+        ${iconForChannel(r)}
         ${r.status==='honored'?`<span class="bubble green">Honoré${r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : ''}</span>`:''}
         ${r.status==='no_show'?`<span class="bubble orange">Non honoré</span>`:''}
         ${r.status==='cancelled'?`<span class="bubble gray">Annulé</span>`:''}
@@ -1397,7 +1403,7 @@ function openRDVSheet(r){
         <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
         <button class="btn btn-neutral btn-xs" id="sheet_note">Note</button>
         <button class="btn btn-neutral btn-xs" id="sheet_resend">Renvoyer confirmation</button>
-        ${(!r.reminderSent)?`<button class="btn btn-neutral btn-xs" id="sheet_remind">Rappel SMS</button>`:`<button class="btn btn-ghost btn-xs" id="sheet_unremind">Annuler rappel</button>`}
+        ${(!r.reminderSent)?`<button class="btn btn-neutral btn-xs" id="sheet_remind">Rappel</button>`:`<button class="btn btn-ghost btn-xs" id="sheet_unremind">Annuler rappel</button>`}
         <button class="btn btn-neutral btn-xs" id="sheet_status">Statut</button>
         <button class="btn btn-neutral btn-xs" id="sheet_edit">Modifier</button>
         <button class="btn btn-ghost btn-xs" id="sheet_resched">Reporter</button>
@@ -1624,7 +1630,7 @@ function renderList(){
       <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
       <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
-        ${r.firstMsgChannel?`<span class="bubble ${r.firstMsgChannel==='sms'?'sms':'wa'}">1er msg: ${(r.firstMsgChannel||'').toUpperCase()}</span>`:''}
+        ${iconForChannel(r)}
         <span class="bubble gray">${statutTxt}</span>
         ${createdStr?`<span class="bubble ${creatorColor}">Placé par : ${escapeHtml(r.createdByName||'')} • ${createdStr}</span>`:''}
         ${reminderBubble}
@@ -1678,7 +1684,7 @@ function renderList(){
       const allowReminder = isFuture;
 
       if(allowReminder && !r.reminderSent){
-        const b=document.createElement('button'); b.className='btn btn-neutral btn-xs'; b.textContent='Rappel SMS';
+        const b=document.createElement('button'); b.className='btn btn-neutral btn-xs'; b.textContent='Rappel';
         b.onclick=()=>sendReminder(r); actions.appendChild(b);
       } else if(allowReminder && r.reminderSent){
         const b=document.createElement('button'); b.className='btn btn-ghost btn-xs'; b.textContent='Annuler rappel';
@@ -1757,7 +1763,7 @@ En cas d’imprévu, merci de nous prévenir afin d’en informer nos clients.
 À bientôt,
 
 L’équipe ${ag.tagline || ag.name}`;
-  const ch='sms';
+  const ch = ((r.firstMsgChannel || r.channel) === 'wa') ? 'wa' : 'sms';
   try{
     openChannelAndLog(r.phone, text, ch);
     await markReminder(r,ch);
