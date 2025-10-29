@@ -30,28 +30,16 @@ h1,h2,h3{margin:0 0 10px 0}
 h2{font-size:22px;letter-spacing:.2px;color:#111827}
 
 /* ===== Flexible gap fallback technique ===== */
-.flex-gap {
-  margin: calc(var(--g) * -0.5);
-  display:flex;
-  flex-wrap:wrap;
-}
+.flex-gap { margin: calc(var(--g) * -0.5); display:flex; flex-wrap:wrap; }
 .flex-gap > * { margin: calc(var(--g) * 0.5); }
-
-/* specialized flex containers (reuse flex-gap or adjust) */
-.row{ display:flex; flex-wrap:wrap; }
-.row-child { margin: calc(var(--g) * 0.5); }
-.tabs{ display:flex; flex-wrap:wrap; }
-.tabs > * { margin: calc(var(--g) * 0.5); }
-.rdv-actions { display:flex; flex-wrap:wrap; }
-.rdv-actions > * { margin: calc(var(--g) * 0.5); }
-.chips { display:flex; flex-wrap:wrap; }
-.chips > * { margin: calc(var(--g) * 0.5); }
-.tokenbar { display:flex; flex-wrap:wrap; }
-.tokenbar > * { margin: calc(var(--g) * 0.5); }
+.row{ display:flex; flex-wrap:wrap; } .row-child { margin: calc(var(--g) * 0.5); }
+.tabs{ display:flex; flex-wrap:wrap; } .tabs > * { margin: calc(var(--g) * 0.5); }
+.rdv-actions { display:flex; flex-wrap:wrap; } .rdv-actions > * { margin: calc(var(--g) * 0.5); }
+.chips { display:flex; flex-wrap:wrap; } .chips > * { margin: calc(var(--g) * 0.5); }
+.tokenbar { display:flex; flex-wrap:wrap; } .tokenbar > * { margin: calc(var(--g) * 0.5); }
 
 /* If grid is not supported we'll fallback to flex (older browsers) */
 .kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
-@supports (display:grid) {} /* keep grid if supported */
 @supports not (display:grid){
   .kpis{ display:flex; flex-wrap:wrap; }
   .kpis > * { margin:7px; flex:1 1 210px; }
@@ -142,11 +130,7 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 .preview{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13.5px}
 
 /* ===== AJOUTS MINIMAUX ===== */
-/* Toolbar admin responsive (évite débordement sur mobile) */
 .toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
-.toolbar .btn{flex:0 0 auto;white-space:nowrap}
-
-/* Bloc date + “Retirer” alignés */
 .date-group{display:flex;gap:8px;flex-wrap:nowrap;align-items:stretch}
 .date-group .label-inline{font-size:12.5px;color:#6b7280;display:flex;align-items:center}
 .date-group .input{max-width:170px}
@@ -167,7 +151,7 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
   .date-group .btn-xs{flex:0 0 auto}
 }
 
-/* ======= surcouche design "comme l’exemple" (uniquement visuel) ======= */
+/* ======= surcouche design (passage AUX BOUTONS MINIMALISTES) ======= */
 ::-webkit-scrollbar { display: none; }
 :root{
   --bg:#f8fafc; --ink:#0b1320; --muted:#6b7280; --line:#e2e8f0; --tile:#f1f5f9;
@@ -177,63 +161,67 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
   --violet:#8b5cf6;--violet-bg:#f5f3ff;
   --danger:#ef4444;
 }
-#cn-app{
-  border-radius:20px;
-  box-shadow:0 8px 32px rgba(0,0,0,.12);
-  background:#fff;
-}
+#cn-app{ border-radius:20px; box-shadow:0 8px 32px rgba(0,0,0,.12); background:#fff; }
 .card{padding:24px;margin:18px 0;border-radius:16px;border:1px solid var(--line);
-      box-shadow:0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06)}
+      box-shadow:0 4px 6px -1px rgba(0,0,0,.05), 0 2px 4px -1px rgba(0,0,0,.04)}
 .label{font-weight:500}
 .input,select,textarea{padding:14px 16px;border:2px solid var(--line);border-radius:12px;transition:all .2s}
-.input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
-.btn{border-radius:12px;padding:12px 16px;font-weight:600;transition:all .2s;position:relative;overflow:hidden}
-.btn-xs{padding:8px 12px;border-radius:10px}
+.input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+
+/* >>> BOUTONS MINIMALISTES */
+.btn{border-radius:10px;padding:10px 14px;font-weight:600;transition:all .18s;position:relative;background:#fff;border:1.5px solid var(--line);box-shadow:none}
 .btn:hover{transform:translateY(-1px)}
-.btn:active{transform:translateY(1px)}
-.btn-primary{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,.4)}
-.btn-primary:hover{box-shadow:0 6px 16px rgba(59,130,246,.5)}
-.btn-neutral{background:#fff;border:2px solid var(--line);color:#111827;box-shadow:0 2px 4px rgba(0,0,0,.05)}
-.btn-neutral:hover{background:#f8fafc;border-color:#cbd5e1}
-.btn-ghost{background:transparent;border:2px solid var(--line)}
-.btn-warn{background:#fff;border:2px dashed var(--danger);color:var(--danger)}
-.icon-only{width:40px;height:40px;border-radius:10px}
-.kpi{border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.btn:active{transform:translateY(0)}
+.btn-xs{padding:7px 10px;border-radius:9px}
+.btn-primary{background:#0f172a;color:#fff;border-color:#0f172a}
+.btn-primary:hover{filter:brightness(1.05)}
+.btn-neutral{background:#fff;border:1.5px solid var(--line);color:#0f172a}
+.btn-neutral:hover{background:#f8fafc}
+.btn-ghost{background:transparent;border:1.5px solid var(--line);color:#0f172a}
+.btn-warn{background:#fff;border:1.5px dashed var(--danger);color:var(--danger)}
+.icon-only{width:36px;height:36px;border-radius:10px}
+
+.kpi{border-radius:16px;padding:20px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
 .kpi b{font-size:32px;margin-bottom:8px;font-weight:700}
-.kpi.blue{background:linear-gradient(135deg,var(--blue-bg),#dbeafe);border-color:#93c5fd}
-.kpi.green{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#86efac}
-.kpi.amber{background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fcd34d}
-.kpi.violet{background:linear-gradient(135deg,#f5f3ff,#e9d5ff);border-color:#c4b5fd}
+.kpi.blue{background:#eff6ff;border-color:#93c5fd}
+.kpi.green{background:#ecfdf5;border-color:#86efac}
+.kpi.amber{background:#fffbeb;border-color:#fcd34d}
+.kpi.violet{background:#f5f3ff;border-color:#c4b5fd}
+
 .tab{padding:10px 16px;border:2px solid var(--line);border-radius:12px;transition:all .2s;font-weight:500}
 .tab:hover{background:#f8fafc;border-color:#cbd5e1}
-.tab.active{background:linear-gradient(135deg,#111827,#374151);border-color:#111827;color:#fff;box-shadow:0 4px 12px rgba(17,24,39,.3)}
+.tab.active{background:#111827;border-color:#111827;color:#fff;box-shadow:none}
+
 .list{gap:16px}
-.rdv{gap:12px;border-radius:16px;padding:20px;min-height:110px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:all .2s}
-.rdv:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-2px)}
+.rdv{gap:12px;border-radius:16px;padding:20px;min-height:110px;box-shadow:0 2px 8px rgba(0,0,0,.04);transition:all .2s}
+.rdv:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-1px)}
 .rdv .title{font-size:18px;font-weight:700}
-.badge{padding:6px 12px;border-radius:999px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);font-weight:500}
-.toast{bottom:24px;padding:12px 18px;border-radius:12px;background:linear-gradient(135deg,#111827,#374151);font-weight:500}
-.toast.ok{background:linear-gradient(135deg,#10b981,#059669)}
-.toast.warn{background:linear-gradient(135deg,#ef4444,#dc2626)}
-@keyframes pulseBlink{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}50%{box-shadow:0 0 0 8px rgba(59,130,246,.2)}}
+
+.badge{padding:6px 12px;border-radius:999px;background:#f8fafc;font-weight:500}
+.toast{bottom:24px;padding:12px 18px;border-radius:12px;background:#111827;font-weight:500}
+.toast.ok{background:#10b981}
+.toast.warn{background:#dc2626}
+
+@keyframes pulseBlink{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}50%{box-shadow:0 0 0 8px rgba(59,130,246,.18)}}
 .blink{animation:pulseBlink 1.4s ease-in-out infinite}
 .pager{gap:10px}
-.pill{border:2px solid var(--line);padding:8px 14px;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,.05)}
+.pill{border:2px solid var(--line);padding:8px 14px;font-weight:500;box-shadow:none}
 .bubble{gap:8px;border-radius:999px;padding:6px 12px;font-weight:500}
-.bubble.blue{background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd}
-.bubble.orange{background:linear-gradient(135deg,#fff7ed,#fed7aa);border-color:#fdba74}
-.bubble.green{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#86efac}
-.bubble.gray{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-color:#cbd5e1}
-.bubble.wa{background:linear-gradient(135deg,#eafaf0,#d1fae5);border-color:#86efac}
-.bubble.sms{background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd}
-.ag-card{border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:all .2s}
-.ag-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-2px)}
-.token{border:2px dashed #cbd5e1;border-radius:10px;padding:6px 10px;font-weight:500;transition:all .2s;background:linear-gradient(135deg,#f8fafc,#f1f5f9)}
-.token:hover{background:linear-gradient(135deg,#e2e8f0,#cbd5e1)}
+.bubble.blue{background:#eff6ff;border-color:#93c5fd}
+.bubble.orange{background:#fff7ed;border-color:#fdba74}
+.bubble.green{background:#ecfdf5;border-color:#86efac}
+.bubble.gray{background:#f8fafc;border-color:#cbd5e1}
+.bubble.wa{background:#ecfdf5;border-color:#86efac}
+.bubble.sms{background:#eff6ff;border-color:#93c5fd}
+
+.ag-card{border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);transition:all .2s}
+.ag-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-1px)}
+.token{border:2px dashed #cbd5e1;border-radius:10px;padding:6px 10px;font-weight:500;transition:all .2s;background:#f8fafc}
+.token:hover{background:#e2e8f0}
 .template-tabs .t{padding:8px 14px;border:2px solid var(--line);border-radius:10px;font-weight:500;transition:all .2s}
 .template-tabs .t:hover{background:#f8fafc}
-.template-tabs .t.active{font-weight:700;border-color:#111827;background:linear-gradient(135deg,#111827,#374151);color:#fff}
-.preview{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:12px;padding:16px;font-size:14px}
+.template-tabs .t.active{font-weight:700;border-color:#111827;background:#111827;color:#fff}
+.preview{background:#f8fafc;border-radius:12px;padding:16px;font-size:14px}
 
 /* ===== Suggestion de collage (nouveau) ===== */
 .paste-suggest{display:none;align-items:center;gap:8px;margin-top:6px}
@@ -273,13 +261,7 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 
     <div class="step active" data-step="1">
       <div class="label">Agence</div>
-      <select id="w_agency" class="input">
-        <option value="">Sélectionnez une agence</option>
-        <option>ID Auto (La Roche sur Yon)</option>
-        <option>MVB Automobile</option>
-        <option>Elimat Auto</option>
-        <option>BS Automobile</option>
-      </select>
+      <select id="w_agency" class="input"></select>
       <div id="e1" class="err">Merci de sélectionner une agence.</div>
       <div class="nav">
         <button class="btn btn-neutral btn-xs" disabled>Retour</button>
@@ -309,10 +291,9 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
       </div>
     </div>
 
-    <!-- === ETAPE TELEPHONE (modifiée) === -->
+    <!-- === ETAPE TELEPHONE === -->
     <div class="step" data-step="3">
       <div class="label">Numéro (WhatsApp / SMS) — 06/07 ou +33 6/7</div>
-
       <div class="row" style="gap:8px;align-items:flex-end">
         <div style="flex:1">
           <input id="w_phone" class="input" inputmode="tel"
@@ -320,14 +301,11 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
         </div>
         <button class="btn btn-neutral btn-xs" id="btnPastePhone">📋 Coller</button>
       </div>
-
-      <!-- Suggestion automatique si le presse-papiers contient un numéro -->
       <div id="pasteSuggest" class="paste-suggest small">
         <span>📋 Numéro copié détecté :</span>
         <b id="psText"></b>
         <button class="btn btn-neutral btn-xs" id="psApply">Coller</button>
       </div>
-
       <div id="e3" class="err">Numéro invalide.</div>
       <div class="nav">
         <button class="btn btn-neutral btn-xs" id="p3">Retour</button>
@@ -338,11 +316,7 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
     <div class="step" data-step="4">
       <div class="label">Date (JJ/MM/AA)</div>
       <input id="w_date" class="input" inputmode="numeric" maxlength="8" placeholder="JJ/MM/AA">
-
-      <!-- >>> BOUTONS DATES RAPIDES (NOUVEAU) -->
       <div class="chips mt8" id="quickDateRow"></div>
-      <!-- <<< -->
-
       <div id="e4" class="err">Format attendu JJ/MM/AA.</div>
       <div class="nav">
         <button class="btn btn-neutral btn-xs" id="p4">Retour</button>
@@ -393,8 +367,9 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
       <div class="nav">
         <button class="btn btn-neutral btn-xs" id="p8">Retour</button>
         <div class="row" style="gap:6px">
-          <button class="btn btn-neutral btn-xs" id="btnSMS">Envoyer par SMS</button>
-          <button class="btn btn-primary btn-xs" id="btnWA">Envoyer sur WhatsApp</button>
+          <!-- SMS en primaire (mise en avant) -->
+          <button class="btn btn-primary btn-xs" id="btnSMS">Envoyer par SMS</button>
+          <button class="btn btn-neutral btn-xs" id="btnWA">Envoyer sur WhatsApp</button>
         </div>
       </div>
       <div id="sendErr" class="err">Erreur d’enregistrement ou d’envoi.</div>
@@ -407,10 +382,8 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
       <div style="display:flex;align-items:center;gap:10px">
         <h2 id="monthTitle">Mois en cours</h2>
       </div>
-      <!-- toolbar responsive -->
       <div class="toolbar">
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnTeamPass">Mot de passe équipe</button>
-        <!-- Toujours visible, petit -->
         <button class="btn btn-warn btn-xs" id="btnPendingReq">Demandes en cours <span id="pendingCount" class="pill">0</span></button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAdminStats">Admin – Stats</button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAgencies">Agences</button>
@@ -418,7 +391,7 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
       </div>
     </div>
 
-    <div class="kpis mt12" style="margin-top:12px">
+    <div class="kpis mt12">
       <div class="kpi blue"><b id="k_created">0</b>Enregistrés</div>
       <div class="kpi green"><b id="k_reminders">0</b>Rappels envoyés</div>
       <div class="kpi amber"><b id="k_upcoming">0</b>À venir</div>
@@ -448,9 +421,8 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
       </div>
     </div>
 
-    <!-- Groupe date + Retirer (aligné) -->
     <div class="flex-gap mt12" style="align-items:center;gap:8px;margin-top:12px">
-      <input id="search" class="input" placeholder="Recherche : nom, téléphone, 3 derniers chiffres…">
+      <input id="search" class="input" placeholder="Recherche : nom, téléphone, 3 derniers chiffres… (Entrée = ouvrir la fiche)">
       <select id="filterAgency" class="input" style="max-width:240px">
         <option value="*">Toutes les agences</option>
       </select>
@@ -509,7 +481,8 @@ const jjmma_to_iso=d=>{const m=d.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);return m?`
 const phoneDigits=v=>(v||"").replace(/\D/g,"");
 const toFR=v=>{let s=(v||"").replace(/\D/g,""); if(/^33[67]\d{8}$/.test(s)) s="0"+s.slice(2); return s.replace(/(\d{2})(?=\d)/g,"$1 ").trim();}
 const phoneSMS=v=>{const s=(v||"").replace(/\D/g,""); if(/^0[67]\d{8}$/.test(s)) return s; if(/^33[67]\d{8}$/.test(s)) return "0"+s.slice(2); return s;};
-function fmtNice(iso,time){ // <-- inclut l’ANNÉE partout
+const telHref=v=>`tel:${phoneSMS(v||'')}`;
+function fmtNice(iso,time){
   if(!iso||!time) return '--';
   const [Y,M,D]=iso.split('-').map(v=>+v);
   const d=new Date(Y,M-1,D);
@@ -522,36 +495,30 @@ function fmtNice(iso,time){ // <-- inclut l’ANNÉE partout
 function notify(text,type='ok'){ const t=$('#toast'); t.textContent=text; t.className='toast show '+type; setTimeout(()=>{ t.className='toast'; }, 1600); }
 const fmtDT=(dt)=>{ if(!dt) return ''; const d=dt instanceof Date?dt: (dt?.toDate?dt.toDate():null); if(!d) return ''; return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function nowServerish(){ return new Date(); }
-/* NEW: protéger l’affichage du motif */
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));}
-
-/* --- Helpers de texte longue date/heure --- */
 function moisFR(i){return ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][i];}
-function dateLongueFR(iso){ if(!iso) return ''; const [Y,M,D]=iso.split('-').map(v=>+v); return `${D} ${moisFR(M-1)} ${Y}`; }
+function dateLongueFR(isoJJMMA){ if(!isoJJMMA) return ''; const [jj,mm,aa]=isoJJMMA.split('/').map(v=>+v); const Y=2000+aa; return `${jj} ${moisFR(mm-1)} ${Y}`; }
 function timeFR(t){ if(!t) return ''; const [H,Min]=t.split(':'); return `${+H}h${Min}`; }
-
-/* NEW: texte relatif pour les rappels (aujourd’hui / demain / date complète) */
+function dateLongueISO(iso){ if(!iso) return ''; const [Y,M,D]=iso.split('-').map(v=>+v); return `${D} ${moisFR(M-1)} ${Y}`; }
 function relativeWhen(iso, timeTxt){
   if(!iso || !timeTxt) return '';
   const t = todayISO();
   const tomo = isoOf(addDays(new Date(), 1));
-  const long = dateLongueFR(iso);
+  const long = dateLongueISO(iso);
   const h = timeFR(timeTxt);
   if(iso === t)       return `aujourd’hui à ${h}`;
   if(iso === tomo)    return `demain (${long}) à ${h}`;
   return `le ${long} à ${h}`;
 }
 
-/* ---------- Normalisation FR +33 / 0033 (NOUVEAU) ---------- */
-// Normalise en 10 chiffres FR (06/07) depuis 0..., +33..., 0033...
+/* ---------- Normalisation FR +33 / 0033 ---------- */
 function normalizeFR10(v){
   const d = (v||'').replace(/\D/g,'');
   if(/^0[67]\d{8}$/.test(d)) return d;
   if(/^33[67]\d{8}$/.test(d)) return '0' + d.slice(2);
   if(/^0033[67]\d{8}$/.test(d)) return '0' + d.slice(4);
-  return null; // invalide
+  return null;
 }
-// Affichage 10 chiffres -> "06 12 34 56 78" (tolère chaine partielle)
 function formatFR10(d){ return (d||'').replace(/(\d{2})(?=\d)/g,'$1 ').trim(); }
 
 /* ---------- Mot de passe ÉQUIPE ---------- */
@@ -815,14 +782,14 @@ async function enter(){
 
 $('#btnTeamPass').onclick=()=>{ if(ROLE.role!=='admin') return alert('Réservé à l’admin.'); openTeamPassDialog(); };
 
-/* ---------- Wizard controls (identique + hooks clipboard) ---------- */
+/* ---------- Wizard controls ---------- */
 let STEP=1; const stepsCount=8;
 function showStep(k){ 
   $$('.wiz .step').forEach(s=>s.classList.remove('active')); 
   $(`.wiz .step[data-step="${k}"]`).classList.add('active'); 
   STEP=k; 
-  if(k===3) maybeSuggestPaste(); // <--- Détection auto à l’étape téléphone
-  if(k===4) buildQuickDates();   // <--- Remplir les boutons dates rapides
+  if(k===3) maybeSuggestPaste();
+  if(k===4) buildQuickDates();
 }
 function next(){ if(STEP<stepsCount) showStep(STEP+1); }
 function prev(){ if(STEP>1) showStep(STEP-1); }
@@ -831,60 +798,26 @@ $('#n2').onclick=()=>{ if(!$('#w_civ').value || !$('#w_name').value.trim()){ $('
 
 /* === Téléphone : saisie + collage + détection === */
 const phoneInput = $('#w_phone');
-
-function setPhoneValueFrom10(n10){
-  phoneInput.value = formatFR10(n10);
-  $('#e3').style.display='none';
-}
-
+function setPhoneValueFrom10(n10){ phoneInput.value = formatFR10(n10); $('#e3').style.display='none'; }
 phoneInput.addEventListener('input', (e) => {
   const n = normalizeFR10(e.target.value);
-  if(n){
-    setPhoneValueFrom10(n);
-    if(n.length===10) setTimeout(()=>$('#n3').click(), 80);
-  }else{
-    const raw = (e.target.value||'').replace(/\D/g,'').slice(0,14);
-    e.target.value = formatFR10(raw);
-  }
+  if(n){ setPhoneValueFrom10(n); if(n.length===10) setTimeout(()=>$('#n3').click(), 80); }
+  else{ const raw=(e.target.value||'').replace(/\D/g,'').slice(0,14); e.target.value = formatFR10(raw); }
 });
-
 phoneInput.addEventListener('paste', () => {
-  setTimeout(()=>{
-    const n = normalizeFR10(phoneInput.value);
-    if(n) setPhoneValueFrom10(n);
-  },0);
+  setTimeout(()=>{ const n = normalizeFR10(phoneInput.value); if(n) setPhoneValueFrom10(n); },0);
 });
-
-// Bouton "📋 Coller"
 $('#btnPastePhone').onclick = async () => {
-  try{
-    const txt = await navigator.clipboard.readText();
-    const n = normalizeFR10(txt);
-    if(n){
-      setPhoneValueFrom10(n);
-      $('#n3').click();
-    }else{
-      alert('Le presse-papiers ne contient pas un numéro FR valide (06/07 ou +33 6/7).');
-    }
-  }catch{
-    alert('Accès au presse-papiers impossible. Colle manuellement (Ctrl/Cmd+V).');
-  }
+  try{ const txt = await navigator.clipboard.readText(); const n = normalizeFR10(txt);
+    if(n){ setPhoneValueFrom10(n); $('#n3').click(); }
+    else{ alert('Le presse-papiers ne contient pas un numéro FR valide (06/07 ou +33 6/7).'); }
+  }catch{ alert('Accès au presse-papiers impossible. Colle manuellement (Ctrl/Cmd+V).'); }
 };
-
-/* Suggestion automatique si le presse-papiers contient un numéro FR mobile */
-let lastClipboardPhone=null, lastSuggestShownAt=0;
-async function tryReadClipboardText(){
-  try{
-    if(navigator.permissions?.query){
-      try{
-        const p = await navigator.permissions.query({name:'clipboard-read'});
-        if(p.state==='denied') return null;
-      }catch(_){}
-    }
-    const txt = await navigator.clipboard.readText();
-    return txt || null;
-  }catch{ return null; }
-}
+let lastClipboardPhone=null;
+async function tryReadClipboardText(){ try{
+  if(navigator.permissions?.query){ try{ const p=await navigator.permissions.query({name:'clipboard-read'}); if(p.state==='denied') return null; }catch(_){ } }
+  const txt=await navigator.clipboard.readText(); return txt||null;
+}catch{ return null; } }
 async function maybeSuggestPaste(){
   const wrap = $('#pasteSuggest'); if(!wrap) return;
   wrap.classList.remove('show');
@@ -895,20 +828,11 @@ async function maybeSuggestPaste(){
     lastClipboardPhone = n;
     $('#psText').textContent = formatFR10(n);
     wrap.classList.add('show');
-    lastSuggestShownAt = Date.now();
   }
 }
-$('#psApply').onclick = ()=>{
-  if(lastClipboardPhone){
-    setPhoneValueFrom10(lastClipboardPhone);
-    $('#pasteSuggest').classList.remove('show');
-    $('#n3').click();
-  }
-};
-// Re-teste quand on revient sur l’onglet / fenêtre et qu’on est à l’étape 3
-window.addEventListener('focus', ()=>{ if(STEP===3) maybeSuggestPaste(); });
+$('#psApply').onclick = ()=>{ if(lastClipboardPhone){ setPhoneValueFrom10(lastClipboardPhone); $('#pasteSuggest').classList.remove('show'); $('#n3').click(); } };
 
-/* === suite du wizard === */
+/* Suite wizard */
 $('#n3').onclick=()=>{ const p10=normalizeFR10($('#w_phone').value); if(!p10){ $('#e3').style.display='block'; return;} $('#e3').style.display='none'; next(); };
 $('#n4').onclick=()=>{ const v=$('#w_date').value; if(!/^\d{2}\/\d{2}\/\d{2}$/.test(v)){ $('#e4').style.display='block'; return;} $('#e4').style.display='none'; next(); };
 $('#n5').onclick=()=>{ const v=$('#w_time').value; if(!/^\d{2}:\d{2}$/.test(v)){ $('#e5').style.display='block'; return;} $('#e5').style.display='none'; next(); };
@@ -925,41 +849,19 @@ $('#w_date').addEventListener('input',e=>{ let v=e.target.value.replace(/[^0-9]/
 });
 $('#w_time').addEventListener('input',e=>{ let v=e.target.value.replace(/[^0-9]/g,'').slice(0,4); e.target.value=(v.length>=2)? v.slice(0,2)+":"+v.slice(2) : v; if(e.target.value.length===5) setTimeout(()=>$('#n5').click(),80); });
 
-/* ===== DATES RAPIDES — AUJOURD’HUI / DEMAIN / CE LUNDI…DIMANCHE ===== */
+/* DATES RAPIDES */
 function dateToJJMMA(d){ return iso_to_jjmma(isoOf(d)); }
-function startOfWeekMonday(d){
-  const x = new Date(d);
-  const day = x.getDay();           // 0=dim, 1=lun, ... 6=sam
-  const diff = (day + 6) % 7;       // offset pour revenir au lundi
-  x.setDate(x.getDate() - diff);
-  return new Date(x.getFullYear(), x.getMonth(), x.getDate());
-}
+function startOfWeekMonday(d){ const x=new Date(d); const day=x.getDay(); const diff=(day+6)%7; x.setDate(x.getDate()-diff); return new Date(x.getFullYear(), x.getMonth(), x.getDate()); }
 function buildQuickDates(){
   const cont = $('#quickDateRow'); if(!cont) return;
   cont.innerHTML = '';
-
-  // Helper d’ajout de bouton
-  const addBtn = (label, dateObj) => {
-    const b = document.createElement('button');
-    b.className = 'chip';
-    b.textContent = label;
-    b.onclick = () => {
-      $('#w_date').value = dateToJJMMA(dateObj);
-      $('#e4').style.display='none';
-      setTimeout(()=>$('#n4').click(), 80);
-    };
-    cont.appendChild(b);
-  };
-
+  const addBtn=(label,dateObj)=>{ const b=document.createElement('button'); b.className='chip'; b.textContent=label; b.onclick=()=>{ $('#w_date').value=dateToJJMMA(dateObj); $('#e4').style.display='none'; setTimeout(()=>$('#n4').click(),80); }; cont.appendChild(b); };
   const now = new Date();
   addBtn('Aujourd’hui', now);
   addBtn('Demain', addDays(now,1));
-
   const monday = startOfWeekMonday(now);
   const jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
-  for(let i=0;i<7;i++){
-    addBtn('Ce ' + jours[i], addDays(monday, i));
-  }
+  for(let i=0;i<7;i++){ addBtn('Ce ' + jours[i], addDays(monday, i)); }
 }
 
 /* Récap */
@@ -985,13 +887,8 @@ function openChannelAndLog(phone, text, channel, preWin=null){
   try{
     if(channel==='wa'){
       const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-      if(preWin && !preWin.closed){
-        preWin.location.href = url;
-        preWin.focus();
-      }else{
-        const win = window.open(url,'_blank');
-        if(!win) throw new Error('popup');
-      }
+      if(preWin && !preWin.closed){ preWin.location.href=url; preWin.focus(); }
+      else{ const win=window.open(url,'_blank'); if(!win) throw new Error('popup'); }
     }else{
       const n=phoneSMS(phone); const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent); const sep=isIOS?'&':'?';
       window.location.href=`sms:${n}${sep}body=${encodeURIComponent(text)}`;
@@ -1005,13 +902,11 @@ function openChannelAndLog(phone, text, channel, preWin=null){
 }
 
 async function submitRDV(channel){
-  // Pré-ouvre un onglet pour WhatsApp (iOS/Safari) — geste utilisateur encore actif
   const preWin = (channel==='wa') ? window.open('', '_blank') : null;
 
   const a=$('#w_agency').value, civ=$('#w_civ').value, name=$('#w_name').value.trim(),
         dateTxt=$('#w_date').value, timeTxt=$('#w_time').value, model=$('#w_model').value.trim(),
         source=$('#w_source').value.trim();
-
   const phone10 = normalizeFR10($('#w_phone').value);
 
   if(!a||!civ||!name||!phone10||!/^\d{2}\/\d{2}\/\d{2}$/.test(dateTxt)||!/^\d{2}:\d{2}$/.test(timeTxt)||!model||!source){
@@ -1023,7 +918,13 @@ async function submitRDV(channel){
   const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt),
     model,source,channel,createdAt:firebase.firestore.FieldValue.serverTimestamp(),
     createdByName:ROLE.name,createdByRole:ROLE.role,deleted:false,status:null,statusAt:null,
-    reminderSent:false,reminderAt:null };
+    reminderSent:false,reminderAt:null,
+    noteText:null, noteDueISO:null, noteUpdatedAt:null,
+    gesteCommercial:false, gesteAmount:null, honorBilling:null,
+    /* Sauvegarde explicite du 1er canal + date */
+    firstMsgChannel: channel,
+    firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
 
   try{
     const ref=await db.collection('rdv').add(payload);
@@ -1046,15 +947,9 @@ async function submitRDV(channel){
 /* ---------- Dashboard + Liste + Pagination + Filtres ---------- */
 function countPendingRequests(){ return ALL_R.filter(r=>r.deleted===true && !!r.deleteRequest).length; }
 function updatePendingButton(){
-  const btn = $('#btnPendingReq');
-  const cnt = $('#pendingCount');
-  if(!btn || !cnt) return;
-  const n = countPendingRequests();
-  btn.classList.toggle('blink', n>0);
-  cnt.textContent = String(n);
-  btn.classList.remove('hide'); // toujours visible
+  const btn=$('#btnPendingReq'), cnt=$('#pendingCount'); if(!btn||!cnt) return;
+  const n=countPendingRequests(); btn.classList.toggle('blink',n>0); cnt.textContent=String(n); btn.classList.remove('hide');
 }
-
 function populateAgencyFilter(){
   const sel=$('#filterAgency'); if(!sel) return;
   const keys=mergedAgencyKeys();
@@ -1063,53 +958,45 @@ function populateAgencyFilter(){
 }
 function populateWizardAgencies(){
   const sel=$('#w_agency'); if(!sel) return;
-  const current = sel.value;
-  const keys = mergedAgencyKeys();
-  sel.innerHTML = '<option value="">Sélectionnez une agence</option>' + keys.map(k=>`<option>${k}</option>`).join('');
+  const current=sel.value; const keys=mergedAgencyKeys();
+  sel.innerHTML='<option value="">Sélectionnez une agence</option>'+keys.map(k=>`<option>${k}</option>`).join('');
   if(current && keys.includes(current)) sel.value=current;
 }
-
 $('#filterAgency')?.addEventListener('change',()=>{ FILTER_AGENCY=$('#filterAgency').value||'*'; PAGE=1; renderList(); });
 $('#filterPlacedOn')?.addEventListener('change',()=>{ PLACED_ON=$('#filterPlacedOn').value||null; PAGE=1; renderList(); });
 $('#clearPlaced')?.addEventListener('click',()=>{ PLACED_ON=null; $('#filterPlacedOn').value=''; PAGE=1; renderList(); });
+
+/* Recherche → Entrée = ouvre la fiche */
+$('#search').addEventListener('keydown',(e)=>{
+  if(e.key==='Enter'){
+    const q=($('#search').value||'').toLowerCase().trim();
+    if(!q) return;
+    const matches = ALL_R.filter(r=>rowMatchesQuery(r,q) && !r.deleted);
+    if(!matches.length){ notify('Aucun résultat','warn'); return; }
+    matches.sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
+    openRDVSheet(matches[0]);
+  }
+});
 
 $$('.tab').forEach(b=>b.onclick=()=>{
   const v=b.dataset.view;
   if(v==='agencies' && ROLE.role!=='admin'){ return alert('Réservé à l’admin.'); }
   $$('.tab').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  VIEW=v;
-  SELECTED.clear();
-  PAGE=1;
-  SHOW_ONLY_REQ=false;
-  renderList();
+  b.classList.add('active'); VIEW=v; SELECTED.clear(); PAGE=1; SHOW_ONLY_REQ=false; renderList();
 });
 $('#btnRefresh').onclick=()=>loadAll();
 $('#search').addEventListener('input',()=>{ PAGE=1; renderList(); });
 
-// Pagination — garde la position du pager après rendu
+/* Pagination (conserve le scroll du pager) */
 $('#prevPage').onclick = () => {
-  const pager = document.querySelector('.pager');
-  const before = pager ? pager.getBoundingClientRect().top : 0;
-  const max = parseInt($('#pageMax').textContent, 10) || 1;
-  if (PAGE > 1) {
-    PAGE--;
-    renderList();
-    const after = pager ? pager.getBoundingClientRect().top : 0;
-    window.scrollBy(0, after - before);
-  }
+  const pager=document.querySelector('.pager'); const before=pager?pager.getBoundingClientRect().top:0;
+  const max=parseInt($('#pageMax').textContent,10)||1;
+  if(PAGE>1){ PAGE--; renderList(); const after=pager?pager.getBoundingClientRect().top:0; window.scrollBy(0, after-before); }
 };
-
 $('#nextPage').onclick = () => {
-  const pager = document.querySelector('.pager');
-  const before = pager ? pager.getBoundingClientRect().top : 0;
-  const max = parseInt($('#pageMax').textContent, 10) || 1;
-  if (PAGE < max) {
-    PAGE++;
-    renderList();
-    const after = pager ? pager.getBoundingClientRect().top : 0;
-    window.scrollBy(0, after - before);
-  }
+  const pager=document.querySelector('.pager'); const before=pager?pager.getBoundingClientRect().top:0;
+  const max=parseInt($('#pageMax').textContent,10)||1;
+  if(PAGE<max){ PAGE++; renderList(); const after=pager?pager.getBoundingClientRect().top:0; window.scrollBy(0, after-before); }
 };
 
 $('#btnSelAll').onclick=()=>{ document.querySelectorAll('.selbox').forEach(cb=>{cb.checked=true; SELECTED.add(cb.dataset.id)}); };
@@ -1123,22 +1010,10 @@ $('#btnBulkDelete').onclick=async()=>{ if(VIEW!=='trash') return; if(SELECTED.si
   for (const id of SELECTED){ await db.collection('rdv').doc(id).delete(); }
   SELECTED.clear(); loadAll();
 };
-
-$('#btnPendingReq').onclick=()=>{
-  VIEW='trash'; SHOW_ONLY_REQ=true;
-  $$('.tab').forEach(x=>x.classList.remove('active'));
-  $(`.tab[data-view="trash"]`).classList.add('active');
-  PAGE=1; renderList();
-  notify(`${countPendingRequests()} demande(s) de suppression à traiter`,'ok');
-};
+$('#btnPendingReq').onclick=()=>{ VIEW='trash'; SHOW_ONLY_REQ=true; $$('.tab').forEach(x=>x.classList.remove('active')); $(`.tab[data-view="trash"]`).classList.add('active'); PAGE=1; renderList(); notify(`${countPendingRequests()} demande(s) de suppression à traiter`,'ok'); };
 
 /* ---------- Chargements groupés ---------- */
-async function loadAllData(){
-  try{
-    await loadAgenciesDB();
-    populateAgencyFilter();
-    populateWizardAgencies();
-  }catch(e){ console.warn('Agencies load error',e); }
+async function loadAllData(){ try{ await loadAgenciesDB(); populateAgencyFilter(); populateWizardAgencies(); }catch(e){ }
   await loadAll();
 }
 
@@ -1148,23 +1023,16 @@ async function loadAll(){
     const sid=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
     const s=await db.collection('stats').doc(sid).get(); const d=s.exists?s.data():{};
     $('#k_created').textContent=d.created??0; $('#k_reminders').textContent=d.reminders??0; $('#k_honored').textContent=d.honored??0;
-  }catch(e){ console.warn('Stats error',e); }
+  }catch(e){ }
   try{
     const snap=await db.collection('rdv').get();
     ALL_R=snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    ALL_R=[];
-    notify('Erreur de lecture Firestore','warn');
-  }
+  }catch(e){ ALL_R=[]; notify('Erreur de lecture Firestore','warn'); }
   const now=new Date(); const curYM=`${now.getFullYear()}-${pad(now.getMonth()+1)}`;
   const noshow=ALL_R.filter(r=>!r.deleted && r.status==='no_show' && (r.dateISO||'').startsWith(curYM)).length;
   $('#k_noshow').textContent=noshow;
 
-  computeUpcoming();
-  computeDueToday();
-  computeTodo();
-  updatePendingButton();
-  renderList();
+  computeUpcoming(); computeDueToday(); computeTodo(); updatePendingButton(); renderList();
 }
 
 function computeUpcoming(){
@@ -1198,10 +1066,10 @@ function computeTodo(){
     if(r.deleted||r.status) return false;
     const d=(r.dateISO||'');
     const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
-    const mins=m?(+m[1]*60+ +m[2]): -1;
+    const mins=m?(+m[1]*60+ +m[2]):-1;
     return (d && (d<tISO) || (d===tISO && mins>=0 && mins<=nowM));
   }).length;
-  const pill=$('#todoCount'); if(pill) pill.textContent=n;
+  $('#todoCount').textContent=n;
   const tab=document.querySelector('.tab[data-view="todo"]');
   if(tab){ tab.classList.toggle('blink', n>0); }
   return n;
@@ -1240,9 +1108,7 @@ function currFiltered(){
   } else if (VIEW==='todo'){
     arr=arr.filter(r=>{
       if(r.deleted||r.status) return false;
-      const d=(r.dateISO||'');
-      const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
-      const mins=m?(+m[1]*60+ +m[2]): -1;
+      const d=(r.dateISO||''); const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); const mins=m?(+m[1]*60+ +m[2]):-1;
       return (d && (d<tISO) || (d===tISO && mins>=0 && mins<= (now.getHours()*60+now.getMinutes())));
     });
   } else {
@@ -1277,7 +1143,7 @@ async function cancelRDV(r){
   const text=msgFromTpl('annulation', r.agency, r.dateText||'', r.timeText||'', r.model||'');
   try{
     openChannelAndLog(r.phone, text, r.channel||'wa');
-    await db.collection('rdv').doc(r.id).set({status:'cancelled',statusAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await db.collection('rdv').doc(r.id).set({status:'cancelled',statusAt:firebase.firestore.FieldValue.serverTimestamp(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
     await db.collection('messages').add({type:'cancel',rdvId:r.id,phone:r.phone,agency:(r.agency||''),channel:(r.channel||'wa'), sentAt:firebase.firestore.FieldValue.serverTimestamp()});
     notify('RDV annulé et message prêt ✔️','ok');
   }catch{ notify('Annulation enregistrée (message copié).','ok'); }
@@ -1323,10 +1189,8 @@ function openDeleteRequestDialog(r){
 /* ====== Validation / Refus (ADMIN) ====== */
 async function approveDelete(r){
   if(!confirm('Valider la suppression définitive ?')) return;
-  try{
-    await db.collection('rdv').doc(r.id).delete();
-    notify('Supprimé définitivement ✔️','ok'); loadAll();
-  }catch(e){ alert('Erreur lors de la suppression.'); }
+  try{ await db.collection('rdv').doc(r.id).delete(); notify('Supprimé définitivement ✔️','ok'); loadAll(); }
+  catch(e){ alert('Erreur lors de la suppression.'); }
 }
 async function rejectDelete(r){
   try{
@@ -1335,28 +1199,17 @@ async function rejectDelete(r){
   }catch(e){ alert('Erreur lors du refus.'); }
 }
 
-/* ===== Messages rendu ===== */
+/* ---------- Messages (onglet) ---------- */
 async function renderMessages(container){
   container.innerHTML='';
   let snap=null;
-  try{
-    snap = await db.collection('messages').get();
-  }catch(e){
-    console.warn('messages error',e);
-    container.innerHTML='<div class="small">Impossible de charger les messages.</div>';
-    $('#pageNum').textContent='1'; $('#pageMax').textContent='1';
-    return;
-  }
+  try{ snap = await db.collection('messages').get(); }
+  catch(e){ container.innerHTML='<div class="small">Impossible de charger les messages.</div>'; $('#pageNum').textContent='1'; $('#pageMax').textContent='1'; return; }
 
-  // Messages bruts
   let items = snap ? snap.docs.map(d=>({id:d.id,...d.data()})) : [];
-
-  // Filtre agence
   if(FILTER_AGENCY!=='*') items = items.filter(m=> (m.agency||'')===FILTER_AGENCY);
 
-  // Enrichir avec infos RDV (nom, civ, tel) si dispo
-  const rdvById = {};
-  (ALL_R||[]).forEach(r=>{ rdvById[r.id]=r; });
+  const rdvById = {}; (ALL_R||[]).forEach(r=>{ rdvById[r.id]=r; });
   items = items.map(m=>{
     const r = rdvById[m.rdvId];
     const civ = (r?.civ||'').trim();
@@ -1364,22 +1217,15 @@ async function renderMessages(container){
     const fullName = `${civ?civ+' ':''}${name}`.trim();
     const rawPhone = (r?.phone || m.phone || '').replace(/\D/g,'');
     const displayPhone = toFR(r?.phone || m.phone || '');
-    return {
-      ...m,
-      _name: fullName,                  // pour affichage + recherche
-      _phoneDigits: rawPhone,           // pour recherche
-      _phoneDisplay: displayPhone       // pour affichage
-    };
+    return {...m,_name:fullName,_phoneDigits:rawPhone,_phoneDisplay:displayPhone};
   });
 
-  // Tri par date d’envoi (plus récent en premier)
   items.sort((a,b)=>{
-    const da = a.sentAt?.toDate ? a.sentAt.toDate() : (a.sentAt instanceof Date ? a.sentAt : null);
-    const dbb = b.sentAt?.toDate ? b.sentAt.toDate() : (b.sentAt instanceof Date ? b.sentAt : null);
-    return (dbb?.getTime()||0) - (da?.getTime()||0);
+    const da=a.sentAt?.toDate?a.sentAt.toDate():(a.sentAt instanceof Date?a.sentAt:null);
+    const dbb=b.sentAt?.toDate?b.sentAt.toDate():(b.sentAt instanceof Date?b.sentAt:null);
+    return (dbb?.getTime()||0)-(da?.getTime()||0);
   });
 
-  // Recherche (agence, type, nom, téléphone)
   const q = ($('#search').value||'').toLowerCase().trim();
   if(q){
     items = items.filter(m=>{
@@ -1391,7 +1237,6 @@ async function renderMessages(container){
     });
   }
 
-  // Pagination
   const per=4;
   const max=Math.max(1,Math.ceil(items.length/per));
   PAGE=Math.min(PAGE,max);
@@ -1400,7 +1245,6 @@ async function renderMessages(container){
   const arr = items.slice((PAGE-1)*per, PAGE*per);
   if(arr.length===0){ container.innerHTML='<div class="small">Aucun message.</div>'; return; }
 
-  // Rendu des lignes (avec Nom + Téléphone)
   arr.forEach(m=>{
     const dt=m.sentAt?.toDate?m.sentAt.toDate():null;
     const dStr=dt?`${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`:'—';
@@ -1432,27 +1276,259 @@ async function renderMessages(container){
   });
 }
 
+/* ---------- NOTE ---------- */
+async function openNoteDialog(id){
+  const snap = await db.collection('rdv').doc(id).get(); if(!snap.exists) return alert('RDV introuvable');
+  const r = {id:snap.id, ...snap.data()};
+  const txt = r.noteText || '';
+  const due = r.noteDueISO || '';
+  const tomo = isoOf(addDays(new Date(),1));
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">📝 Note du rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px;max-width:720px">
+      <div class="small" style="margin-bottom:8px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml((r.civ||'')+' '+(r.name||''))}</div>
+      <div class="label">Contenu de la note</div>
+      <textarea id="note_text" class="input" rows="5" placeholder="Ex : Prévoir double des clés, CT en cours, etc.">${escapeHtml(txt)}</textarea>
+      <div class="row mt12" style="gap:8px;align-items:center">
+        <div style="flex:1">
+          <div class="label">Échéance (optionnelle)</div>
+          <input id="note_due" type="date" class="input" value="${due||''}">
+        </div>
+        <button id="note_tomorrow" class="btn btn-neutral btn-xs" title="Renseigne la note pour demain">Note demain</button>
+        <button id="note_clear_due" class="btn btn-ghost btn-xs">Retirer échéance</button>
+      </div>
+      <div class="row mt12" style="justify-content:flex-end;gap:8px">
+        <button id="note_delete" class="btn btn-warn btn-xs">Effacer la note</button>
+        <button id="note_save" class="btn btn-primary btn-xs">Enregistrer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  $('#note_tomorrow',dlg).onclick = ()=>{ $('#note_due',dlg).value = tomo; };
+  $('#note_clear_due',dlg).onclick = ()=>{ $('#note_due',dlg).value = ''; };
+
+  $('#note_delete',dlg).onclick = async ()=>{
+    await db.collection('rdv').doc(id).set({
+      noteText: firebase.firestore.FieldValue.delete(),
+      noteDueISO: firebase.firestore.FieldValue.delete(),
+      noteUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+    notify('Note effacée','ok'); dlg.close?.(); dlg.remove(); loadAll();
+  };
+
+  $('#note_save',dlg).onclick = async ()=>{
+    const t = $('#note_text',dlg).value.trim();
+    const d = $('#note_due',dlg).value || null;
+    await db.collection('rdv').doc(id).set({
+      noteText: t || null,
+      noteDueISO: d || null,
+      noteUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+    notify('Note enregistrée','ok'); dlg.close?.(); dlg.remove(); loadAll();
+  };
+}
+
+/* ---------- Geste commercial (montant) ---------- */
+async function openGesteDialog(rInput){
+  const snap = await db.collection('rdv').doc(rInput.id).get().catch(()=>null);
+  const r = snap?.exists ? {id:snap.id, ...snap.data()} : rInput;
+
+  const dlg=document.createElement('dialog');
+  const amount = (typeof r.gesteAmount==='number' && !isNaN(r.gesteAmount)) ? r.gesteAmount : '';
+  dlg.innerHTML=`
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">🎁 Geste commercial</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px">
+      <div class="small" style="margin-bottom:8px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+      <div class="label">Montant (en €)</div>
+      <input id="gc_amount" class="input" inputmode="decimal" placeholder="Ex : 50" value="${amount!==''?amount:''}">
+      <div class="row mt12" style="justify-content:flex-end;gap:8px">
+        ${r.gesteCommercial?`<button id="gc_remove" class="btn btn-ghost btn-xs">Retirer le geste</button>`:''}
+        <button id="gc_save" class="btn btn-primary btn-xs">${r.gesteCommercial?'Mettre à jour':'Enregistrer'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  $('#gc_remove',dlg)?.addEventListener('click', async()=>{
+    await db.collection('rdv').doc(r.id).set({gesteCommercial:false,gesteAmount:firebase.firestore.FieldValue.delete()},{merge:true});
+    notify('Geste retiré','ok'); dlg.close?.(); dlg.remove(); loadAll();
+  });
+
+  $('#gc_save',dlg).onclick=async()=>{
+    const v = ($('#gc_amount',dlg).value||'').trim().replace(',','.');
+    const n = parseFloat(v);
+    if(isNaN(n) || n<0){ alert('Montant invalide'); return; }
+    await db.collection('rdv').doc(r.id).set({gesteCommercial:true,gesteAmount:n},{merge:true});
+    notify('Geste enregistré','ok'); dlg.close?.(); dlg.remove(); loadAll();
+  };
+}
+
+/* ---------- Fiche RDV + Historique ---------- */
+function openRDVSheet(r){
+  const ag = getAgencyByKey(r.agency||'');
+  const dueNote = r.noteDueISO ? (r.noteDueISO===todayISO() ? 'aujourd’hui' : (r.noteDueISO===isoOf(addDays(new Date(),1)) ? 'demain' : dateLongueISO(r.noteDueISO))) : null;
+  const dlg=document.createElement('dialog');
+  dlg.innerHTML=`
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Fiche rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px;max-width:860px">
+      <div class="title" style="margin-bottom:6px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+      <div class="small">${toFR(r.phone)} • ${escapeHtml(r.model||'')} • Source : ${escapeHtml(r.source||'')}</div>
+      <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
+        ${r.firstMsgChannel?`<span class="bubble ${r.firstMsgChannel==='sms'?'sms':'wa'}">1er msg: ${(r.firstMsgChannel||'').toUpperCase()}</span>`:''}
+        ${r.status==='honored'?`<span class="bubble green">Honoré${r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : ''}</span>`:''}
+        ${r.status==='no_show'?`<span class="bubble orange">Non honoré</span>`:''}
+        ${r.status==='cancelled'?`<span class="bubble gray">Annulé</span>`:''}
+        ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
+        ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
+        ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().length>80?(r.noteText||'').trim().slice(0,80)+'…':(r.noteText||'').trim())}${dueNote?(' • '+dueNote):''}</span>`:''}
+      </div>
+
+      <div class="row mt12" style="gap:8px;flex-wrap:wrap">
+        <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
+        <button class="btn btn-neutral btn-xs" id="sheet_note">Note</button>
+        <button class="btn btn-neutral btn-xs" id="sheet_resend">Renvoyer confirmation</button>
+        ${(!r.reminderSent)?`<button class="btn btn-neutral btn-xs" id="sheet_remind">Rappel SMS</button>`:`<button class="btn btn-ghost btn-xs" id="sheet_unremind">Annuler rappel</button>`}
+        <button class="btn btn-neutral btn-xs" id="sheet_status">Statut</button>
+        <button class="btn btn-neutral btn-xs" id="sheet_edit">Modifier</button>
+        <button class="btn btn-ghost btn-xs" id="sheet_resched">Reporter</button>
+        ${(r.status!=='honored' && r.status!=='cancelled')?`<button class="btn btn-warn btn-xs" id="sheet_cancel">Annuler RDV</button>`:''}
+        <button class="btn btn-neutral btn-xs" id="sheet_geste">${r.gesteCommercial?('Geste '+(typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? r.gesteAmount.toFixed(0)+'€':'✓')):'Geste comm.'}</button>
+      </div>
+
+      <div class="card mt12" style="margin:16px 0">
+        <div class="label">Agence</div>
+        <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
+        <div class="small">${escapeHtml(ag.addr||'')}</div>
+        <div class="small">${ag.map?`<a href="${ag.map}" target="_blank">Plan d’accès</a>`:'—'}</div>
+        <div class="small">Slogan : ${escapeHtml(ag.tagline||'')}</div>
+      </div>
+
+      <!-- Historique -->
+      <div id="history_wrap" class="card">
+        <div class="label">Historique du client</div>
+        <div class="small">Chargement…</div>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  $('#sheet_note',dlg).onclick = ()=>{ openNoteDialog(r.id); };
+  $('#sheet_resend',dlg).onclick = ()=>{ resendConfirmation(r); };
+  $('#sheet_remind',dlg)?.addEventListener('click', ()=>sendReminder(r));
+  $('#sheet_unremind',dlg)?.addEventListener('click', ()=>undoReminder(r));
+  $('#sheet_status',dlg).onclick = ()=>{ openStatusDialog(r.id); };
+  $('#sheet_edit',dlg).onclick = ()=>{ openEditDialog(r.id); };
+  $('#sheet_resched',dlg).onclick = ()=>{ openReschedDialog(r.id); };
+  $('#sheet_cancel',dlg)?.addEventListener('click', ()=>cancelRDV(r));
+  $('#sheet_geste',dlg).onclick = ()=>{ openGesteDialog(r); };
+
+  // charge historique
+  loadAndRenderHistory(r.phone, $('#history_wrap',dlg));
+}
+
+/* Historique : tous les RDV + tous les messages pour ce téléphone */
+async function loadAndRenderHistory(phoneE164, container){
+  try{
+    const [rdvSnap, msgSnap] = await Promise.all([
+      db.collection('rdv').where('phone','==', phoneE164).get(),
+      db.collection('messages').where('phone','==', phoneE164).get()
+    ]);
+    const rdvs = rdvSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
+    const msgs = msgSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=> {
+        const da=a.sentAt?.toDate?a.sentAt.toDate():null;
+        const dbb=b.sentAt?.toDate?b.sentAt.toDate():null;
+        return (dbb?.getTime()||0)-(da?.getTime()||0);
+      });
+
+    const statusLabel = (r)=>{
+      if(r.status==='honored') return 'Honoré'+(r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : '');
+      if(r.status==='no_show') return 'Non honoré';
+      if(r.status==='cancelled') return 'Annulé';
+      return 'Prévu';
+    };
+
+    const rdvHtml = rdvs.map(r=>`
+      <div class="rdv" style="cursor:pointer" data-open="${r.id}">
+        <div>
+          <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+          <div class="meta">${escapeHtml(r.model||'')} • ${escapeHtml(r.agency||'')}</div>
+          <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="bubble gray">${statusLabel(r)}</span>
+            ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
+            ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
+            ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().slice(0,60))}${(r.noteText||'').trim().length>60?'…':''}</span>`:''}
+          </div>
+        </div>
+        <div class="rdv-actions">
+          <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
+          <!-- Bouton "Ouvrir" supprimé, le clic sur la ligne ouvre déjà la fiche -->
+        </div>
+      </div>
+    `).join('');
+
+    const msgLabel=(t)=> t==='reminder'?'Rappel': t==='reminder_cancelled'?'Rappel annulé':
+      t==='reschedule'?'Report confirmé': t==='cancel'?'RDV annulé': t==='no_show_msg'?'Message “pas venu”':
+      t==='confirmation_resent'?'Conf. renvoyée':'Confirmation';
+
+    const msgsHtml = msgs.map(m=>{
+      const d=m.sentAt?.toDate?m.sentAt.toDate():null;
+      const dStr=d?`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`:'—';
+      const chan=(m.channel||'').toUpperCase()||'—';
+      const chanClass=m.channel==='wa'?'wa':'sms';
+      return `<div class="small" style="display:flex;gap:8px;align-items:center;margin:6px 0">
+        <span class="bubble ${chanClass}">${chan}</span>
+        <b>${msgLabel(m.type||'')}</b>
+        <span class="bubble gray">${dStr}</span>
+        <span class="small" style="opacity:.8">${escapeHtml(m.agency||'')}</span>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="small" style="margin-bottom:10px">Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${rdvs.length}</b> • Messages : <b>${msgs.length}</b></div>
+      <div style="margin-bottom:16px"><b>Rendez-vous</b></div>
+      ${rdvs.length? rdvHtml : '<div class="small">Aucun RDV enregistré.</div>'}
+      <div style="margin-top:18px;margin-bottom:8px"><b>Messages</b></div>
+      ${msgs.length? msgsHtml : '<div class="small">Aucun message.</div>'}
+    `;
+
+    container.querySelectorAll('[data-open]')?.forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const id = el.getAttribute('data-open');
+        const found = ALL_R.find(x=>x.id===id);
+        if(found){ document.querySelector('dialog[open]')?.close?.(); openRDVSheet(found); }
+      });
+    });
+
+  }catch(e){
+    container.innerHTML='<div class="small">Historique indisponible.</div>';
+  }
+}
+
 /* ---------- Rendu principal ---------- */
 function renderList(){
   if (VIEW==='agencies' && ROLE.role!=='admin') VIEW='today';
-
-  const bulkBar=$('#bulkBar');
-  bulkBar.style.display=(ROLE.role==='admin' && VIEW==='trash')?'flex':'none';
+  $('#bulkBar').style.display=(ROLE.role==='admin' && VIEW==='trash')?'flex':'none';
 
   const list=$('#rdvList'); list.innerHTML='';
-
-  if(VIEW==='agencies'){
-    return renderAgencies(list);
-  }
+  if(VIEW==='agencies'){ return renderAgencies(list); }
 
   const q=($('#search').value||'').toLowerCase().trim();
-
   const cross=$('#cross'); cross.classList.add('hide'); cross.innerHTML='';
   const arr = currFiltered();
 
   if(q && VIEW!=='messages' && arr!=='messages' && !PLACED_ON){
-    const where=[];
-    const views=['today','tomorrow','upcoming','past','todo','honored','no_show','cancelled'];
+    const where=[], views=['today','tomorrow','upcoming','past','todo','honored','no_show','cancelled'];
     views.forEach(v=>{
       if(v===VIEW) return;
       const tmp=VIEW; VIEW=v;
@@ -1476,7 +1552,6 @@ function renderList(){
     return;
   }
 
-  // tri
   const tISO=todayISO(); const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
   if(VIEW==='past' && !PLACED_ON){
     arr.sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
@@ -1501,12 +1576,14 @@ function renderList(){
       : '';
     const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
 
-    // Statuts texte
     const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
     const mins=m?(+m[1]*60 + +m[2]):-1;
     const isPast = (r.dateISO||'') < tISO || ((r.dateISO||'')===tISO && mins>=0 && nowM>=mins);
     let statutTxt='';
-    if(r.status==='honored') statutTxt='Statut : Honoré';
+    if(r.status==='honored'){
+      const bill = r.honorBilling=== 'facturé' ? ' • Facturé' : (r.honorBilling==='non_facturable' ? ' • Non facturable' : '');
+      statutTxt='Statut : Honoré'+bill;
+    }
     else if(r.status==='no_show') statutTxt='Statut : Pas venu';
     else if(r.status==='cancelled') statutTxt='Statut : Annulé';
     else if(isPast) statutTxt='À faire : renseigner le statut';
@@ -1514,7 +1591,21 @@ function renderList(){
 
     const todoBubble = (!r.status && isPast) ? `<span class="bubble orange">À faire — renseigner le statut</span>` : '';
 
-    /* NEW: encart MOTIF pour corbeille */
+    let noteBubble = '';
+    if((r.noteText||'').trim()){
+      const snip = (r.noteText||'').trim();
+      const short = snip.length>60 ? snip.slice(0,60)+'…' : snip;
+      let dueTxt = '';
+      if(r.noteDueISO){
+        const ti = todayISO(), tm = isoOf(addDays(new Date(),1));
+        if(r.noteDueISO===ti) dueTxt = ' • aujourd’hui';
+        else if(r.noteDueISO===tm) dueTxt = ' • demain';
+        else dueTxt = ' • '+dateLongueISO(r.noteDueISO);
+      }
+      noteBubble = `<span class="bubble blue">📝 ${escapeHtml(short)}${dueTxt}</span>`;
+    }
+    const gesteBubble = r.gesteCommercial ? `<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>` : '';
+
     let deleteReqBox = '';
     if (VIEW==='trash' && r.deleteRequest){
       const req = r.deleteRequest || {};
@@ -1529,17 +1620,22 @@ function renderList(){
     }
 
     left.innerHTML=`
-      <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${civName}</div>
-      <div class="meta">${toFR(r.phone)} • ${r.model||''}</div>
+      <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
+      <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
       <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        ${r.agency?`<span class="badge">${r.agency}</span>`:''}
+        ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
+        ${r.firstMsgChannel?`<span class="bubble ${r.firstMsgChannel==='sms'?'sms':'wa'}">1er msg: ${(r.firstMsgChannel||'').toUpperCase()}</span>`:''}
         <span class="bubble gray">${statutTxt}</span>
-        ${createdStr?`<span class="bubble ${creatorColor}">Placé par : ${r.createdByName||''} • ${createdStr}</span>`:''}
+        ${createdStr?`<span class="bubble ${creatorColor}">Placé par : ${escapeHtml(r.createdByName||'')} • ${createdStr}</span>`:''}
         ${reminderBubble}
+        ${gesteBubble}
+        ${noteBubble}
         ${todoBubble}
       </div>
       ${deleteReqBox}
       `;
+    left.style.cursor='pointer';
+    left.onclick = ()=>{ if(VIEW!=='trash') openRDVSheet(r); };
 
     const actions=document.createElement('div'); actions.className='rdv-actions';
 
@@ -1554,16 +1650,13 @@ function renderList(){
         actions.appendChild(rest);
 
         if(r.deleteRequest){
-          const ok=document.createElement('button'); ok.className='btn btn-warn btn-xs'; ok.textContent='Valider suppression';
-          ok.onclick=()=>approveDelete(r);
-          const ko=document.createElement('button'); ko.className='btn btn-ghost btn-xs'; ko.textContent='Refuser';
-          ko.onclick=()=>rejectDelete(r);
+          const ok=document.createElement('button'); ok.className='btn btn-warn btn-xs'; ok.textContent='Valider suppression'; ok.onclick=()=>approveDelete(r);
+          const ko=document.createElement('button'); ko.className='btn btn-ghost btn-xs'; ko.textContent='Refuser'; ko.onclick=()=>rejectDelete(r);
           actions.append(ok,ko);
         }
       } else {
         if(!r.deleteRequest){
-          const ask=document.createElement('button'); ask.className='btn btn-neutral btn-xs'; ask.textContent='Demander suppression admin';
-          ask.onclick=()=>openDeleteRequestDialog(r);
+          const ask=document.createElement('button'); ask.className='btn btn-neutral btn-xs'; ask.textContent='Demander suppression admin'; ask.onclick=()=>openDeleteRequestDialog(r);
           actions.appendChild(ask);
         } else {
           const sent=document.createElement('span'); sent.className='small'; sent.textContent='Demande envoyée à l’admin';
@@ -1571,6 +1664,9 @@ function renderList(){
         }
       }
     } else {
+      const callA=document.createElement('a'); callA.className='btn btn-neutral btn-xs'; callA.href=telHref(r.phone); callA.textContent='Appeler'; actions.appendChild(callA);
+
+      const tISO=todayISO(); const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
       const isFuture = (r.dateISO>tISO) || (r.dateISO===tISO && mins>nowM);
       const within10After = (r.dateISO===tISO && nowM<=mins+10);
 
@@ -1579,16 +1675,24 @@ function renderList(){
         rc.onclick=()=>resendConfirmation(r); actions.appendChild(rc);
       }
 
-      const created=r.createdAt?.toDate? r.createdAt.toDate() : null;
-      const createdISO= created ? isoOf(created) : null;
-      const allowReminder = isFuture && createdISO!==tISO;
+      const allowReminder = isFuture;
 
       if(allowReminder && !r.reminderSent){
-        const b=document.createElement('button'); b.className='btn btn-neutral btn-xs'; b.textContent=(r.channel==='sms'?'SMS':'Rappel'); b.onclick=()=>sendReminder(r); actions.appendChild(b);
+        const b=document.createElement('button'); b.className='btn btn-neutral btn-xs'; b.textContent='Rappel SMS';
+        b.onclick=()=>sendReminder(r); actions.appendChild(b);
       } else if(allowReminder && r.reminderSent){
         const b=document.createElement('button'); b.className='btn btn-ghost btn-xs'; b.textContent='Annuler rappel';
         b.onclick=()=>undoReminder(r); actions.appendChild(b);
       }
+
+      const noteBtn=document.createElement('button'); noteBtn.className='btn btn-neutral btn-xs'; noteBtn.textContent='Note';
+      noteBtn.onclick=()=>openNoteDialog(r.id); actions.appendChild(noteBtn);
+
+      const gcBtn=document.createElement('button');
+      gcBtn.className = 'btn btn-neutral btn-xs';
+      gcBtn.textContent = r.gesteCommercial ? ('Geste '+(typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? r.gesteAmount.toFixed(0)+'€':'✓')) : 'Geste comm.';
+      gcBtn.onclick=()=>openGesteDialog(r);
+      actions.appendChild(gcBtn);
 
       const edit=document.createElement('button'); edit.className='btn btn-neutral btn-xs'; edit.textContent='Modifier'; edit.onclick=()=>openEditDialog(r.id); actions.appendChild(edit);
 
@@ -1617,7 +1721,6 @@ function renderList(){
       }
     }
 
-    // Mise en évidence des éléments "À faire"
     if(!r.status && isPast){ row.classList.add('blink'); }
 
     row.append(left,actions); $('#rdvList').appendChild(row);
@@ -1626,6 +1729,7 @@ function renderList(){
 
 /* ------- Confirmation / Rappel / NO-SHOW / Statut / Édition / Report ------- */
 async function resendConfirmation(r){
+  if(typeof r==='string'){ const s=await db.collection('rdv').doc(r).get(); if(s.exists) r={id:s.id,...s.data()}; else return; }
   const text = msgFromTpl('confirmation', r.agency, r.dateText||'', r.timeText||'', r.model||'');
   try{
     openChannelAndLog(r.phone, text, r.channel||'wa');
@@ -1634,11 +1738,10 @@ async function resendConfirmation(r){
   }catch{ notify('Erreur renvoi confirmation','warn'); }
 }
 
-/* Rappel intelligent (aujourd’hui / demain / date) */
+/* >>> Rappel toujours par SMS */
 async function sendReminder(r){
   const ag = getAgencyByKey(r.agency);
   const whenTxt = relativeWhen(r.dateISO, r.timeText);
-
   const text =
 `${ag.name} – Rappel de rendez-vous
 
@@ -1654,30 +1757,22 @@ En cas d’imprévu, merci de nous prévenir afin d’en informer nos clients.
 À bientôt,
 
 L’équipe ${ag.tagline || ag.name}`;
-
-  const ch=(r.channel||'wa');
+  const ch='sms';
   try{
     openChannelAndLog(r.phone, text, ch);
     await markReminder(r,ch);
     notify('Rappel envoyé ✔️','ok');
-  }catch{
-    notify('Erreur envoi rappel','warn');
-  }
+  }catch{ notify('Erreur envoi rappel','warn'); }
 }
 
 async function sendNoShowMessage(r){
-  const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, {
-    CIV: r.civ||'',
-    PRENOM: r.name||''
-  });
+  const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, {CIV: r.civ||'', PRENOM: r.name||''});
   const ch=(r.channel||'wa');
   try{
     openChannelAndLog(r.phone, text, ch);
     await db.collection('messages').add({type:'no_show_msg', rdvId:r.id, phone:r.phone, agency:r.agency, channel:ch, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
     notify('Message “pas venu” prêt ✔️','ok');
-  }catch{
-    notify('Erreur envoi message “pas venu”','warn');
-  }
+  }catch{ notify('Erreur envoi message “pas venu”','warn'); }
 }
 
 async function markReminder(r,channel){
@@ -1694,12 +1789,11 @@ async function undoReminder(r){
     await db.collection('stats').doc(idStat).set({reminders:firebase.firestore.FieldValue.increment(-1)},{merge:true});
     await db.collection('messages').add({type:'reminder_cancelled',rdvId:r.id,phone:r.phone,agency:r.agency,channel:r.channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
     notify('Rappel annulé','ok');
-  }catch{
-    notify('Annulation du rappel impossible','warn');
-  } finally {
-    loadAll();
-  }
+  }catch{ notify('Annulation du rappel impossible','warn'); }
+  finally{ loadAll(); }
 }
+
+/* ====== STATUT — avec facturé / non facturable ====== */
 async function openStatusDialog(id){
   const snap=await db.collection('rdv').doc(id).get(); if(!snap.exists) return alert('RDV introuvable');
   const r={id:snap.id,...snap.data()};
@@ -1708,30 +1802,35 @@ async function openStatusDialog(id){
     <div style="font-weight:800">Statut du rendez-vous</div>
     <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button></div>
     <div class="dlg-body" style="padding:16px">
-      <div class="row" style="gap:8px;align-items:center">
-        <button class="btn btn-primary btn-xs" id="s_honored">Honoré</button>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-xs" id="s_honored_fact">Honoré — Facturé</button>
+        <button class="btn btn-neutral btn-xs" id="s_honored_nfb">Honoré — Non facturable</button>
         <button class="btn btn-neutral btn-xs" id="s_noshow">Non honoré</button>
         <button class="btn btn-ghost btn-xs" id="s_clear">Retirer</button>
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
-  $('#s_honored',dlg).onclick=async()=>{ await setHonor(r,'honored'); dlg.close?.(); dlg.remove(); };
-  $('#s_noshow',dlg).onclick=async()=>{ await setHonor(r,'no_show'); dlg.close?.(); dlg.remove(); };
+  $('#s_honored_fact',dlg).onclick=async()=>{ await setHonor(r,'honored','facturé'); dlg.close?.(); dlg.remove(); };
+  $('#s_honored_nfb',dlg).onclick=async()=>{ await setHonor(r,'honored','non_facturable'); dlg.close?.(); dlg.remove(); };
+  $('#s_noshow',dlg).onclick=async()=>{ await setHonor(r,'no_show',null); dlg.close?.(); dlg.remove(); };
   $('#s_clear',dlg).onclick=async()=>{ await clearHonor(r); dlg.close?.(); dlg.remove(); };
 }
-async function setHonor(r,status){
+async function setHonor(r,status,billing=null){
   const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
   const snap=await db.collection('rdv').doc(r.id).get(); const prev=snap.exists?snap.data().status:null;
   if(prev==='honored' && status!=='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(-1)},{merge:true});
   if(prev!=='honored' && status==='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(1)},{merge:true});
-  await db.collection('rdv').doc(r.id).set({status,statusAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  const patch={status,statusAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(status==='honored'){ patch.honorBilling = billing || null; }
+  else { patch.honorBilling = firebase.firestore.FieldValue.delete(); }
+  await db.collection('rdv').doc(r.id).set(patch,{merge:true});
   computeUpcoming(); computeTodo(); renderList(); notify(status==='honored'?'Marqué honoré':'Marqué non honoré','ok'); loadAll();
 }
 async function clearHonor(r){
   const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
   const snap=await db.collection('rdv').doc(r.id).get(); const prev=snap.exists?snap.data().status:null;
   if(prev==='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(-1)},{merge:true});
-  await db.collection('rdv').doc(r.id).set({status:null,statusAt:firebase.firestore.FieldValue.delete()},{merge:true});
+  await db.collection('rdv').doc(r.id).set({status:null,statusAt:firebase.firestore.FieldValue.delete(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
   computeUpcoming(); computeTodo(); notify('Statut retiré','ok'); loadAll();
 }
 
@@ -1795,11 +1894,8 @@ async function openEditDialog(id){
     if(!agency||!civ||!name||!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
       alert('Vérifie agence, civilité, date/heure, modèle et téléphone (06/07 ou +33 6/7).'); return;
     }
-    const patch={
-      agency,civ,name,
-      dateText:d, dateISO:jjmma_to_iso(d), timeText:t,
-      model:m, source:s,
-      phone:("33"+p10.slice(1)),
+    const patch={ agency,civ,name, dateText:d, dateISO:jjmma_to_iso(d), timeText:t,
+      model:m, source:s, phone:("33"+p10.slice(1)),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     };
     await db.collection('rdv').doc(id).set(patch,{merge:true});
@@ -1834,7 +1930,7 @@ async function openReschedDialog(id){
     await db.collection('rdv').doc(id).set(patch,{merge:true});
     const text=msgFromTpl('report',r.agency, newD, newT, r.model||'', r.dateText||'', r.timeText||'');
     try{
-      openChannelAndLog(r.phone, text, channel); // WhatsApp/SMS selon bouton
+      openChannelAndLog(r.phone, text, channel);
       await db.collection('messages').add({type:'reschedule',rdvId:r.id,phone:r.phone,agency:r.agency,channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
       notify('Report confirmé ✔️','ok'); dlg.close?.(); dlg.remove(); loadAll();
     }catch{ notify('Erreur envoi confirmation','warn'); }
@@ -1862,11 +1958,12 @@ async function exportMonth(prev=false){
 
   const byA={};
   rows.forEach(r=>{
-    byA[r.agency]=byA[r.agence]||{agence:r.agency, total:0, honorés:0, non_venus:0, annulés:0};
-    byA[r.agence].total++;
-    if(r.status==='honored') byA[r.agence].honorés++;
-    if(r.status==='no_show') byA[r.agence].non_venus++;
-    if(r.status==='cancelled') byA[r.agence].annulés++;
+    const k=r.agency||'(inconnu)';
+    if(!byA[k]) byA[k]={agence:k,total:0,honorés:0,non_venus:0,annulés:0};
+    byA[k].total++;
+    if(r.status==='honored') byA[k].honorés++;
+    if(r.status==='no_show') byA[k].non_venus++;
+    if(r.status==='cancelled') byA[k].annulés++;
   });
   const header2='Agence;Total;Honorés;Non venus;Annulés';
   const csv2='\uFEFF'+[header2].concat(Object.values(byA).map(a=>[a.agence,a.total,a.honorés,a.non_venus,a.annulés].join(';'))).join('\n');
@@ -1901,21 +1998,15 @@ $('#btnAgencies')?.addEventListener('click', ()=>{
   if (ROLE.role!=='admin') return alert('Réservé à l’admin.');
   VIEW='agencies'; PAGE=1; renderList();
 });
-
 function renderAgencies(container){
   if(ROLE.role!=='admin'){ container.innerHTML='<div class="small">Réservé à l’admin.</div>'; return; }
-
   const keys=mergedAgencyKeys();
   container.innerHTML='';
-
   const head=document.createElement('div');
   head.className='row';
-  head.innerHTML=`
-    <button class="btn btn-primary btn-xs" id="btnNewAgency">+ Nouvelle agence</button>
-    <span class="small" style="align-self:center">Total : ${keys.length}</span>
-  `;
+  head.innerHTML=`<button class="btn btn-primary btn-xs" id="btnNewAgency">+ Nouvelle agence</button>
+    <span class="small" style="align-self:center">Total : ${keys.length}</span>`;
   container.appendChild(head);
-
   keys.forEach(k=>{
     const ag=getAgencyByKey(k);
     const card=document.createElement('div');
@@ -1933,18 +2024,13 @@ function renderAgencies(container){
     `;
     container.appendChild(card);
   });
-
   $('#btnNewAgency')?.addEventListener('click', ()=>openAgencyModal());
-  container.querySelectorAll('button[data-edit]').forEach(b=>{
-    b.addEventListener('click',()=>openAgencyModal(b.dataset.edit));
-  });
+  container.querySelectorAll('button[data-edit]').forEach(b=>{ b.addEventListener('click',()=>openAgencyModal(b.dataset.edit)); });
 }
-
 function openAgencyModal(key=null){
   const cur = key ? getAgencyByKey(key) : {name:'',addr:'',map:'',tagline:'', templates:null};
   const tpls = (getAgencyTemplates(key)||{}) || {};
   const dlg=document.createElement('dialog');
-
   dlg.innerHTML=`
   <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">${key?'Modifier':'Nouvelle'} agence</div>
@@ -1986,12 +2072,8 @@ function openAgencyModal(key=null){
     </div>
 
     <div class="row mt12" style="justify-content:space-between;gap:8px">
-      <div>
-        ${key?'<button class="btn btn-warn btn-xs" id="ag_delete">Supprimer agence</button>':''}
-      </div>
-      <div>
-        <button class="btn btn-neutral btn-xs" id="ag_save">Enregistrer</button>
-      </div>
+      <div>${key?'<button class="btn btn-warn btn-xs" id="ag_delete">Supprimer agence</button>':''}</div>
+      <div><button class="btn btn-neutral btn-xs" id="ag_save">Enregistrer</button></div>
     </div>
   </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
@@ -2006,12 +2088,8 @@ function openAgencyModal(key=null){
       no_show: tpls.no_show || TPL_DEFAULTS.no_show
     }
   };
-
   const $m=(s)=>$(s,dlg);
-  function refreshEditor(){
-    $m('#tpl_text').value = state.templates[state.currentTab] || '';
-    refreshPreview();
-  }
+  function refreshEditor(){ $m('#tpl_text').value = state.templates[state.currentTab] || ''; refreshPreview(); }
   function refreshPreview(){
     const demoCtx = buildCtx(
       $m('#ag_name').value || (cur.name||'Agence'),
@@ -2024,95 +2102,48 @@ function openAgencyModal(key=null){
     );
     $m('#tpl_preview').textContent = fillTokens($m('#tpl_text').value, demoCtx);
   }
-  function setActiveTab(tab){
-    state.currentTab=tab;
-    $$('.template-tabs .t',dlg).forEach(x=>x.classList.toggle('active', x.dataset.tab===tab));
-    refreshEditor();
-  }
-
+  function setActiveTab(tab){ state.currentTab=tab; $$('.template-tabs .t',dlg).forEach(x=>x.classList.toggle('active', x.dataset.tab===tab)); refreshEditor(); }
   refreshEditor();
   $$('.template-tabs .t',dlg).forEach(x=> x.onclick=()=>setActiveTab(x.dataset.tab));
   $m('#tpl_text').addEventListener('input',()=>{ state.templates[state.currentTab]=$m('#tpl_text').value; refreshPreview(); });
   $$('#ag_tokens .token',dlg).forEach(t=> t.onclick=()=>{
-    const ta=$m('#tpl_text');
-    const tok=t.dataset.token;
-    const s=ta.selectionStart||0, e=ta.selectionEnd||0;
-    const val=ta.value;
-    ta.value=val.slice(0,s)+tok+val.slice(e);
-    ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length;
-    state.templates[state.currentTab]=ta.value;
-    refreshPreview();
+    const ta=$m('#tpl_text'); const tok=t.dataset.token; const s=ta.selectionStart||0, e=ta.selectionEnd||0; const val=ta.value;
+    ta.value=val.slice(0,s)+tok+val.slice(e); ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length; state.templates[state.currentTab]=ta.value; refreshPreview();
   });
 
-  if(key){
-    $m('#ag_name').value = key;
-    $m('#ag_tagline').value = cur.tagline||'';
-    $m('#ag_addr').value = cur.addr||'';
-    $m('#ag_map').value = cur.map||'';
-  }
+  if(key){ $m('#ag_name').value = key; $m('#ag_tagline').value = cur.tagline||''; $m('#ag_addr').value = cur.addr||''; $m('#ag_map').value = cur.map||''; }
 
   $m('#ag_save').onclick=async()=>{
-    const name=($m('#ag_name').value||'').trim();
-    if(!name) return alert('Nom d’agence obligatoire.');
+    const name=($m('#ag_name').value||'').trim(); if(!name) return alert('Nom d’agence obligatoire.');
     const docRef=db.collection('agencies').doc(name);
-    const data={
-      name,
-      addr: ($m('#ag_addr').value||'').trim(),
-      map: ($m('#ag_map').value||'').trim(),
-      tagline: ($m('#ag_tagline').value||'').trim(),
-      templates: state.templates,
-      disabled: false
-    };
+    const data={ name, addr: ($m('#ag_addr').value||'').trim(), map: ($m('#ag_map').value||'').trim(),
+      tagline: ($m('#ag_tagline').value||'').trim(), templates: state.templates, disabled: false };
     try{
-      await docRef.set(data,{merge:true});
-      notify('Agence enregistrée ✔️','ok');
-      dlg.close?.(); dlg.remove();
-      await loadAgenciesDB();
-      populateWizardAgencies();
-      populateAgencyFilter();
-      if(VIEW==='agencies') renderList();
-    }catch(e){
-      alert('Erreur enregistrement agence.');
-    }
+      await docRef.set(data,{merge:true}); notify('Agence enregistrée ✔️','ok'); dlg.close?.(); dlg.remove();
+      await loadAgenciesDB(); populateWizardAgencies(); populateAgencyFilter(); if(VIEW==='agencies') renderList();
+    }catch(e){ alert('Erreur enregistrement agence.'); }
   };
 
   $m('#ag_delete')?.addEventListener('click', async()=>{
     if(!confirm('Supprimer cette agence ?')) return;
     try{
       const ref = db.collection('agencies').doc(key);
-      if (AGENCIES[key]) {
-        await ref.set({ disabled:true }, { merge:true });
-      } else {
-        await ref.delete();
-      }
-      notify('Agence supprimée ✔️','ok');
-      dlg.close?.(); dlg.remove();
-      await loadAgenciesDB();
-      populateWizardAgencies();
-      populateAgencyFilter();
-      if(VIEW==='agencies') renderList();
-    }catch(e){
-      alert('Erreur suppression agence.');
-    }
+      if (AGENCIES[key]) { await ref.set({ disabled:true }, { merge:true }); }
+      else { await ref.delete(); }
+      notify('Agence supprimée ✔️','ok'); dlg.close?.(); dlg.remove();
+      await loadAgenciesDB(); populateWizardAgencies(); populateAgencyFilter(); if(VIEW==='agencies') renderList();
+    }catch(e){ alert('Erreur suppression agence.'); }
   });
 }
 
 /* Tick auto */
-setInterval(()=>{
-  if($('#app').classList.contains('hide')) return;
-  if(document.hidden) return;
-  if(VIEW==='today'||VIEW==='past'||VIEW==='upcoming'||VIEW==='trash'||VIEW==='todo') renderList();
+setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.hidden) return;
+  if(['today','past','upcoming','trash','todo','tomorrow'].includes(VIEW)) renderList();
   computeDueToday(); computeUpcoming(); computeTodo(); updatePendingButton();
 },30*1000);
 
 /* Auto-refresh invisible */
-(function(){
-  const AUTO_REFRESH_MS = 30000;
-  async function silentReload(){
-    try { if(typeof loadAllData === 'function') await loadAllData(); } catch(e){}
-  }
-  setInterval(silentReload, AUTO_REFRESH_MS);
-})();
+(function(){ const AUTO_REFRESH_MS = 30000; async function silentReload(){ try{ if(typeof loadAllData === 'function') await loadAllData(); } catch(e){} } setInterval(silentReload, AUTO_REFRESH_MS); })();
 </script>
 
 </section>
