@@ -17,7 +17,7 @@
 /* ===== Reset & base ===== */
 :root{
   --bg:#ffffff; --ink:#0b1320; --muted:#6b7280; --line:#e9edf3; --tile:#f6f8fb;
-  --blue:#2563eb;  --blue-bg:#eef2ff;
+  --blue:#2563eb; --blue-bg:#eef2ff;
   --green:#16a34a; --green-bg:#edf9f1;
   --amber:#ca8a04; --amber-bg:#fff7e6;
   --violet:#7c3aed;--violet-bg:#f6eeff;
@@ -713,11 +713,11 @@ function buildCtx(agencyKey, dateTxt, timeTxt, model, oldD=null, oldT=null, extr
     ADRESSE: ag.addr||'',
     PLAN: ag.map ? `Plan d’accès : ${ag.map}` : '',
     TAGLINE: ag.tagline || (ag.name||agencyKey),
-    DATE_LONG: dateLongueFR(jjmma_to_iso(dateTxt||'')),
+    DATE_LONG: dateLongueFR(dateTxt||''), // ✅ corrigé: JJ/MM/AA => dateLongueFR
     DATE_TXT: dateTxt||'',
     HEURE: timeFR(timeTxt||''),
     MODELE: model||'',
-    OLD_DATE_LONG: dateLongueFR(jjmma_to_iso(oldD||'')),
+    OLD_DATE_LONG: dateLongueFR(oldD||''), // ✅ corrigé
     OLD_HEURE: timeFR(oldT||''),
     CIV: extra?.CIV || '',
     PRENOM: extra?.PRENOM || ''
@@ -909,7 +909,7 @@ async function submitRDV(channel){
         source=$('#w_source').value.trim();
   const phone10 = normalizeFR10($('#w_phone').value);
 
-  if(!a||!civ||!name||!phone10||!/^\d{2}\/\d{2}\/\d{2}$/.test(dateTxt)||!/^\d{2}:\d{2}$/.test(timeTxt)||!model||!source){
+  if(!a||!civ||!name||!phone10||!/^[\d]{2}\/[\d]{2}\/[\d]{2}$/.test(dateTxt)||!/^[\d]{2}:[\d]{2}$/.test(timeTxt)||!model||!source){
     if(preWin && !preWin.closed) preWin.close();
     $('#sendErr').textContent='Champs invalides.'; $('#sendErr').style.display='block'; return;
   }
@@ -1538,7 +1538,7 @@ function renderList(){
     });
     if(where.length){
       const mapLabel={today:"Aujourd’hui",tomorrow:"Demain",upcoming:"À venir",past:"Passés",todo:"À faire",honored:"Honorés",no_show:"Non honorés",cancelled:"Annulés"};
-      cross.innerHTML=`Trouvé aussi dans : ${where.map(w=>`<button class="btn btn-ghost btn-xs" data-go="${w}">${mapLabel[w]}</button>`).join(' ')}`;
+      cross.innerHTML=`Trouvé aussi dans : ${where.map(w=>`<button class=\"btn btn-ghost btn-xs\" data-go=\"${w}\">${mapLabel[w]}</button>`).join(' ')}`;
       cross.classList.remove('hide');
       cross.querySelectorAll('button[data-go]').forEach(b=>b.onclick=()=>{ VIEW=b.dataset.go; $$('.tab').forEach(x=>x.classList.remove('active')); $(`.tab[data-view="${VIEW}"]`).classList.add('active'); PAGE=1; renderList(); });
     }
@@ -1891,7 +1891,7 @@ async function openEditDialog(id){
           p10=normalizeFR10($('#ed_phone',dlg).value),
           m=$('#ed_model',dlg).value.trim(),
           s=$('#ed_source',dlg).value.trim();
-    if(!agency||!civ||!name||!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
+    if(!agency||!civ||!name||!/^[\d]{2}\/^[\d]{2}\/^[\d]{2}$/.test?false:!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
       alert('Vérifie agence, civilité, date/heure, modèle et téléphone (06/07 ou +33 6/7).'); return;
     }
     const patch={ agency,civ,name, dateText:d, dateISO:jjmma_to_iso(d), timeText:t,
