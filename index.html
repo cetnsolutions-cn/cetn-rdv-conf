@@ -226,6 +226,19 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 /* ===== Suggestion de collage (nouveau) ===== */
 .paste-suggest{display:none;align-items:center;gap:8px;margin-top:6px}
 .paste-suggest.show{display:flex}
+
+/* ======= AJOUTS: Stepper (jauge) + loupe ======= */
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper .dot{width:12px;height:12px;border-radius:999px;border:2px solid var(--line);background:#fff}
+.stepper .dot.done{background:var(--blue);border-color:var(--blue)}
+.stepper .bar{flex:1;height:2px;background:var(--line)}
+.stepper .bar.done{background:var(--blue)}
+.stepper .labels{display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-top:6px}
+.stepper-mini .dot{width:10px;height:10px}
+.stepper-mini .labels{font-size:11px}
+
+/* Masquer l’ancienne barre de recherche (on garde l’input pour la logique) */
+#search{display:none !important;}
 </style>
 </head>
 <body>
@@ -411,17 +424,17 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
         <button class="tab active" data-view="today">Aujourd'hui</button>
         <button class="tab" data-view="tomorrow">Demain</button>
         <button class="tab" data-view="upcoming">À venir</button>
-        <button class="tab" data-view="past">RDV passés</button>
         <button class="tab" data-view="todo">À faire <span id="todoCount" class="pill">0</span></button>
         <button class="tab" data-view="honored">RDV honorés</button>
         <button class="tab" data-view="no_show">RDV non honorés</button>
-        <button class="tab" data-view="cancelled">RDV annulés</button>
-        <button class="tab" data-view="messages">Messages envoyés</button>
         <button class="tab" data-view="trash">Corbeille</button>
       </div>
     </div>
 
     <div class="flex-gap mt12" style="align-items:center;gap:8px;margin-top:12px">
+      <!-- 🔍 Loupe (ouvre une boîte de recherche) -->
+      <button class="btn btn-neutral btn-xs icon-only" id="btnOpenSearch" title="Recherche"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <!-- on garde l’input pour la logique mais il est masqué par CSS -->
       <input id="search" class="input" placeholder="Recherche : nom, téléphone, 3 derniers chiffres… (Entrée = ouvrir la fiche)">
       <select id="filterAgency" class="input" style="max-width:240px">
         <option value="*">Toutes les agences</option>
@@ -466,7 +479,6 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 const firebaseConfig={apiKey:"AIzaSyA7-qZ8z9ET27RnWJiZBkYPsJdn3XU8ckg",authDomain:"rdv-message.firebaseapp.com",projectId:"rdv-message"};
 if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
-firebase.auth().signInAnonymously().catch(()=>{});
 firebase.auth().signInAnonymously().catch(()=>{});
 
 /* ---------- Utils ---------- */
@@ -719,11 +731,11 @@ function buildCtx(agencyKey, dateTxt, timeTxt, model, oldD=null, oldT=null, extr
     ADRESSE: ag.addr||'',
     PLAN: ag.map ? `Plan d’accès : ${ag.map}` : '',
     TAGLINE: ag.tagline || (ag.name||agencyKey),
-    DATE_LONG: dateLongueFR(dateTxt||''), // ✅ corrigé: JJ/MM/AA => dateLongueFR
+    DATE_LONG: dateLongueFR(dateTxt||''), // JJ/MM/AA => "5 octobre 2025"
     DATE_TXT: dateTxt||'',
     HEURE: timeFR(timeTxt||''),
     MODELE: model||'',
-    OLD_DATE_LONG: dateLongueFR(oldD||''), // ✅ corrigé
+    OLD_DATE_LONG: dateLongueFR(oldD||''),
     OLD_HEURE: timeFR(oldT||''),
     CIV: extra?.CIV || '',
     PRENOM: extra?.PRENOM || ''
@@ -781,6 +793,8 @@ async function enter(){
   const m=new Date(); $('#monthTitle').textContent=`${m.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}`;
   if(ROLE.role==='admin'){ $$('.admin-only').forEach(x=>x.classList.remove('hide')); }
   else { $$('.admin-only').forEach(x=>x.classList.add('hide')); }
+  bindTabs();         // ✅ rétablit les clics d’onglets
+  $('#btnRefresh').onclick = ()=> loadAll(); // ✅ rafraîchir
   populateAgencyFilter();
   populateWizardAgencies();
   await loadAllData();
@@ -915,7 +929,7 @@ async function submitRDV(channel){
         source=$('#w_source').value.trim();
   const phone10 = normalizeFR10($('#w_phone').value);
 
-  if(!a||!civ||!name||!phone10||!/^[\d]{2}\/[\d]{2}\/[\d]{2}$/.test(dateTxt)||!/^[\d]{2}:[\d]{2}$/.test(timeTxt)||!model||!source){
+  if(!a||!civ||!name||!phone10||!/^[\d]{2}\/[\d]{2}\/\d{2}$/.test(dateTxt)||!/^\d{2}:\d{2}$/.test(timeTxt)||!model||!source){
     if(preWin && !preWin.closed) preWin.close();
     $('#sendErr').textContent='Champs invalides.'; $('#sendErr').style.display='block'; return;
   }
@@ -927,7 +941,6 @@ async function submitRDV(channel){
     reminderSent:false,reminderAt:null,
     noteText:null, noteDueISO:null, noteUpdatedAt:null,
     gesteCommercial:false, gesteAmount:null, honorBilling:null,
-    /* Sauvegarde explicite du 1er canal + date */
     firstMsgChannel: channel,
     firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -972,26 +985,197 @@ $('#filterAgency')?.addEventListener('change',()=>{ FILTER_AGENCY=$('#filterAgen
 $('#filterPlacedOn')?.addEventListener('change',()=>{ PLACED_ON=$('#filterPlacedOn').value||null; PAGE=1; renderList(); });
 $('#clearPlaced')?.addEventListener('click',()=>{ PLACED_ON=null; $('#filterPlacedOn').value=''; PAGE=1; renderList(); });
 
-/* Recherche → Entrée = ouvre la fiche */
+/* ====== RECHERCHE AVEC TOLÉRANCE AUX FAUTES ====== */
+function normTxt(s){
+  return (s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // accents
+    .replace(/[^a-z0-9]/g,''); // espaces, tirets...
+}
+function lev(a,b){
+  if(a===b) return 0;
+  const al=a.length, bl=b.length;
+  if(al===0||bl===0) return Math.max(al,bl);
+  const dp=new Array(bl+1);
+  for(let j=0;j<=bl;j++) dp[j]=j;
+  for(let i=1;i<=al;i++){
+    let prev=dp[0]; dp[0]=i;
+    for(let j=1;j<=bl;j++){
+      const temp=dp[j];
+      dp[j]= (a[i-1]===b[j-1])? prev : 1+Math.min(prev, dp[j], dp[j-1]);
+      prev=temp;
+    }
+  }
+  return dp[bl];
+}
+function scoreRow(r,qRaw){
+  const qDigits=(qRaw||'').replace(/\D/g,'');
+  const q=normTxt(qRaw);
+  if(!q && !qDigits) return 0;
+
+  const name=normTxt(((r.civ||'')+' '+(r.name||'')).trim());
+  const model=normTxt(r.model||'');
+  const phone=(r.phone||'').replace(/\D/g,''); // e164 like 33...
+  const frPhone = phone.replace(/^33/,'0');
+
+  let score=0;
+
+  // Téléphone : priorité MAX
+  if(qDigits){
+    if(frPhone.endsWith(qDigits) || phone.endsWith(qDigits)) score = Math.max(score, 100 + Math.min(qDigits.length,10));
+    else if(frPhone.includes(qDigits) || phone.includes(qDigits)) score = Math.max(score, 85 + Math.min(qDigits.length,10));
+  }
+
+  // Nom / modèle : includes + Levenshtein tolérant
+  if(q.length>=2){
+    if(name.startsWith(q)) score = Math.max(score, 70);
+    else if(name.includes(q)) score = Math.max(score, 65);
+    else{
+      const d=lev(name,q);
+      if(d<=1) score = Math.max(score, 62);
+      else if(q.length>=4 && d<=2) score = Math.max(score, 58);
+    }
+    if(model.startsWith(q)) score = Math.max(score, 60);
+    else if(model.includes(q)) score = Math.max(score, 55);
+    else{
+      const dm=lev(model,q);
+      if(dm<=1) score = Math.max(score, 52);
+      else if(q.length>=4 && dm<=2) score = Math.max(score, 48);
+    }
+  }
+
+  return score;
+}
+function rowMatchesQuery(r,q){ return scoreRow(r,q)>0; }
+
+/* Recherche → Entrée = ouvre la fiche MEILLEUR SCORE (pas de “trouvé aussi dans”) */
 $('#search').addEventListener('keydown',(e)=>{
   if(e.key==='Enter'){
-    const q=($('#search').value||'').toLowerCase().trim();
-    if(!q) return;
-    const matches = ALL_R.filter(r=>rowMatchesQuery(r,q) && !r.deleted);
-    if(!matches.length){ notify('Aucun résultat','warn'); return; }
-    matches.sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
-    openRDVSheet(matches[0]);
+    const q=$('#search').value||'';
+    openBestMatch(q);
   }
 });
+function openBestMatch(q){
+  const candidates = ALL_R.filter(r=>!r.deleted);
+  let best=null, bestScore=-1;
+  for(const r of candidates){
+    const s=scoreRow(r,q);
+    if(s>bestScore){ bestScore=s; best=r; }
+    else if(s===bestScore && best){ // tie-break: plus récent
+      const keyA=((r.dateISO||'')+(r.timeText||''));
+      const keyB=((best.dateISO||'')+(best.timeText||''));
+      if(keyA>keyB) best=r;
+    }
+  }
+  if(!best || bestScore<=0){ notify('Aucun résultat','warn'); return; }
+  openRDVSheet(best);
+}
 
-$$('.tab').forEach(b=>b.onclick=()=>{
-  const v=b.dataset.view;
-  if(v==='agencies' && ROLE.role!=='admin'){ return alert('Réservé à l’admin.'); }
-  $$('.tab').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); VIEW=v; SELECTED.clear(); PAGE=1; SHOW_ONLY_REQ=false; renderList();
-});
-$('#btnRefresh').onclick=()=>loadAll();
-$('#search').addEventListener('input',()=>{ PAGE=1; renderList(); });
+/* 🔍 Fenêtre de recherche (loupe) */
+$('#btnOpenSearch').onclick = ()=>{
+  // 🔒 On mémorise l’onglet courant (Aujourd’hui / Demain / À venir / etc.)
+  const savedView = VIEW;
+
+  const dlg=document.createElement('dialog');
+  dlg.style.padding='0'; dlg.style.maxWidth='880px'; dlg.style.width='min(92vw,880px)';
+  dlg.innerHTML=`
+    <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:800">Recherche</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-xs" id="btnClearAndClose">Effacer & fermer</button>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <input id="searchDlgInput" class="input" placeholder="Nom, modèle, téléphone (Entrée = ouvrir la meilleure fiche)">
+      <div class="small mt8">Tapez pour voir les résultats ici. Entrée ouvre directement la fiche la plus pertinente.</div>
+      <div id="searchDlgList" style="margin-top:12px;display:grid;gap:10px;max-height:min(60vh,560px);overflow:auto"></div>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  const inp = $('#searchDlgInput',dlg);
+  const list= $('#searchDlgList',dlg);
+
+  // Préremplir avec la valeur courante et focus
+  inp.value = $('#search').value || '';
+  setTimeout(()=>{ inp.focus(); inp.select(); renderSearchList(inp.value); }, 0);
+
+  // 🧽 Effacer & fermer = on vide la recherche ET on ré-affiche l’onglet d’origine
+  $('#btnClearAndClose',dlg).onclick = ()=>{
+    $('#search').value = '';
+    // Si tu as d'autres filtres temporaires liés à la recherche, on peut aussi les reset ici si besoin.
+    VIEW = savedView;     // on restaure exactement l’onglet où tu étais (ex. "tomorrow")
+    PAGE = 1;             // on revient au début de la pagination
+    renderList();         // 🔁 on rerend la liste en respectant l’onglet courant
+    dlg.close?.(); dlg.remove();
+  };
+
+  // Sync texte + liste en direct (le main reste inchangé — seul le panneau de résultats bouge)
+  inp.addEventListener('input',()=>{
+    $('#search').value = inp.value || '';
+    renderSearchList(inp.value);
+  });
+
+  // Entrée = ouvrir meilleure fiche et fermer
+  inp.addEventListener('keydown',(e)=>{
+    if(e.key==='Enter'){
+      const q = inp.value || '';
+      dlg.close?.(); dlg.remove();
+      openBestMatch(q);
+    }
+  });
+
+  function renderSearchList(qRaw){
+    list.innerHTML='';
+    const q = (qRaw||'').trim();
+    if(!q){ list.innerHTML='<div class="small">Commencez à taper pour afficher les résultats ici…</div>'; return; }
+
+    // Recherche GLOBALE (tous onglets), filtre agence conservé
+    let arr = ALL_R.filter(r=>!r.deleted);
+    if(FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
+
+    // Score + tri (desc) + tie-break sur le plus récent
+    const scored = arr.map(r=>({r, s: scoreRow(r,q)})).filter(x=>x.s>0);
+    if(scored.length===0){ list.innerHTML='<div class="small">Aucun résultat</div>'; return; }
+    scored.sort((a,b)=>{
+      if(b.s!==a.s) return b.s-a.s;
+      const ka=((a.r.dateISO||'')+(a.r.timeText||'')), kb=((b.r.dateISO||'')+(b.r.timeText||''));
+      return kb.localeCompare(ka);
+    });
+
+    const top = scored.slice(0,30);
+
+    top.forEach(({r})=>{
+      const row=document.createElement('div');
+      row.className='rdv';
+      row.style.cursor='pointer';
+      const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
+      const agBadge = r.agency? `<span class="badge">${escapeHtml(r.agency)}</span>` : '';
+      const statusTxt = r.status==='honored' ? ('Honoré' + (r.honorBilling==='facturé'?' • Facturé': (r.honorBilling==='non_facturable'?' • Non facturable':''))) :
+                        r.status==='no_show' ? 'Non honoré' :
+                        r.status==='cancelled' ? 'Annulé' : 'Prévu';
+
+      row.innerHTML=`
+        <div>
+          <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
+          <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
+          <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            ${agBadge}
+            ${iconForChannel(r)}
+            <span class="bubble gray">${statusTxt}</span>
+            ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
+            ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
+          </div>
+          <div class="mt12">${progressMiniHTML(r)}</div>
+        </div>
+        <div class="rdv-actions">
+          <button class="btn btn-neutral btn-xs">Ouvrir la fiche</button>
+        </div>`;
+      row.addEventListener('click',()=>{ dlg.close?.(); dlg.remove(); openRDVSheet(r); });
+      list.appendChild(row);
+    });
+  }
+};
 
 /* Pagination (conserve le scroll du pager) */
 $('#prevPage').onclick = () => {
@@ -1016,7 +1200,7 @@ $('#btnBulkDelete').onclick=async()=>{ if(VIEW!=='trash') return; if(SELECTED.si
   for (const id of SELECTED){ await db.collection('rdv').doc(id).delete(); }
   SELECTED.clear(); loadAll();
 };
-$('#btnPendingReq').onclick=()=>{ VIEW='trash'; SHOW_ONLY_REQ=true; $$('.tab').forEach(x=>x.classList.remove('active')); $(`.tab[data-view="trash"]`).classList.add('active'); PAGE=1; renderList(); notify(`${countPendingRequests()} demande(s) de suppression à traiter`,'ok'); };
+$('#btnPendingReq').onclick=()=>{ SHOW_ONLY_REQ=true; setView('trash'); notify(`${countPendingRequests()} demande(s) de suppression à traiter`,'ok'); };
 
 /* ---------- Chargements groupés ---------- */
 async function loadAllData(){ try{ await loadAgenciesDB(); populateAgencyFilter(); populateWizardAgencies(); }catch(e){ }
@@ -1039,6 +1223,23 @@ async function loadAll(){
   $('#k_noshow').textContent=noshow;
 
   computeUpcoming(); computeDueToday(); computeTodo(); updatePendingButton(); renderList();
+
+  // ✅ Si l’onglet courant est vide mais qu’il y a des données, on bascule sur un onglet non vide
+  ensureAnyVisible();
+}
+function ensureAnyVisible(){
+  const current = currFiltered();
+  const hasAny = ALL_R.some(r=>!r.deleted);
+  if(hasAny && Array.isArray(current) && current.length===0){
+    const prefs = ['today','tomorrow','upcoming','todo','honored','no_show','past'];
+    for(const v of prefs){
+      const old=VIEW;
+      VIEW=v;
+      const arr = currFiltered();
+      if(Array.isArray(arr) && arr.length>0){ setView(v); return; }
+      VIEW=old;
+    }
+  }
 }
 
 function computeUpcoming(){
@@ -1081,64 +1282,73 @@ function computeTodo(){
   return n;
 }
 
-function rowMatchesQuery(r,q){
-  const name=((r.name||'')+'').toLowerCase();
-  const ph=(r.phone||'').replace(/\D/g,'');
-  return name.includes(q)||ph.includes(q)||ph.slice(-3)===q||name.startsWith(q);
-}
-
+/* Filtrage courant de la liste */
 function currFiltered(){
-  const q=($('#search').value||'').toLowerCase().trim();
-  const now=new Date(), tISO=todayISO();
+  const q = ($('#search').value || '').trim();
+  const hasQuery = q.length > 0;
+  const now = new Date(), tISO = todayISO();
 
-  if(PLACED_ON){
-    let arr=ALL_R.slice();
-    if(FILTER_AGENCY!=='*') arr=arr.filter(r=>(r.agency||'')===FILTER_AGENCY);
-    if(q) arr=arr.filter(r=>rowMatchesQuery(r,q));
-    arr=arr.filter(r=>{
+  if (hasQuery) {
+    let arr = ALL_R.filter(r => !r.deleted);
+    if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency || '') === FILTER_AGENCY);
+    return arr.filter(r => rowMatchesQuery(r, q));
+  }
+
+  if (PLACED_ON){
+    let arr = ALL_R.slice();
+    if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency || '') === FILTER_AGENCY);
+    arr = arr.filter(r=>{
       const created=r.createdAt?.toDate? r.createdAt.toDate():null;
-      if(!created) return false;
-      return isoOf(created)===PLACED_ON;
+      return created ? isoOf(created)===PLACED_ON : false;
     });
     return arr;
   }
 
-  let arr=ALL_R.slice();
-  if(VIEW==='trash'){
-    arr=arr.filter(r=>r.deleted===true);
-    if(SHOW_ONLY_REQ) arr=arr.filter(r=>!!r.deleteRequest);
-  } else if(VIEW==='agencies'){
+  let arr = ALL_R.slice();
+  if (VIEW === 'trash'){
+    arr = arr.filter(r => r.deleted === true);
+    if (SHOW_ONLY_REQ) arr = arr.filter(r => !!r.deleteRequest);
+  } else if (VIEW === 'agencies'){
     return 'agencies';
-  } else if (VIEW==='messages'){
+  } else if (VIEW === 'messages'){
     return 'messages';
-  } else if (VIEW==='todo'){
-    arr=arr.filter(r=>{
-      if(r.deleted||r.status) return false;
-      const d=(r.dateISO||''); const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); const mins=m?(+m[1]*60+ +m[2]):-1;
+  } else if (VIEW === 'todo'){
+    arr = arr.filter(r=>{
+      if (r.deleted || r.status) return false;
+      const d=(r.dateISO||'');
+      const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
+      const mins=m?(+m[1]*60+ +m[2]):-1;
       return (d && (d<tISO) || (d===tISO && mins>=0 && mins<= (now.getHours()*60+now.getMinutes())));
     });
   } else {
-    arr=arr.filter(r=>!r.deleted);
-    if(FILTER_AGENCY!=='*') arr=arr.filter(r=> (r.agency||'')===FILTER_AGENCY);
-    if(VIEW==='today'){ arr=arr.filter(r=>r.dateISO===tISO && !r.status); }
-    else if(VIEW==='tomorrow'){ const iso=isoOf(addDays(new Date(),1)); arr=arr.filter(r=>r.dateISO===iso && !r.status); }
-    else if(VIEW==='upcoming'){
-      arr=arr.filter(r=>{
-        if(r.status) return false;
-        if(r.dateISO>tISO) return true;
-        if(r.dateISO<tISO) return false;
+    if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
+    arr = arr.filter(r => !r.deleted);
+    if (VIEW === 'today'){
+      arr = arr.filter(r => r.dateISO === tISO && !r.status);
+    } else if (VIEW === 'tomorrow'){
+      const iso=isoOf(addDays(new Date(),1));
+      arr = arr.filter(r => r.dateISO === iso && !r.status);
+    } else if (VIEW === 'upcoming'){
+      arr = arr.filter(r=>{
+        if (r.status) return false;
+        if ((r.dateISO||'') > tISO) return true;
+        if ((r.dateISO||'') < tISO) return false;
         const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false;
-        const minutes=+m[1]*60+ +m[2]; const nowM=now.getHours()*60+now.getMinutes();
+        const minutes=+m[1]*60+ +m[2];
+        const nowM=now.getHours()*60+now.getMinutes();
         return minutes>=nowM;
       });
-    } else if(VIEW==='past'){ arr=arr.filter(r=> r.dateISO<tISO || (!!r.status && r.dateISO===tISO)); }
-    else if(VIEW==='honored'){ arr=arr.filter(r=>r.status==='honored'); }
-    else if(VIEW==='no_show'){ arr=arr.filter(r=>r.status==='no_show'); }
-    else if(VIEW==='cancelled'){ arr=arr.filter(r=>r.status==='cancelled'); }
+    } else if (VIEW === 'past'){
+      arr = arr.filter(r => r.dateISO < tISO || (!!r.status && r.dateISO===tISO));
+    } else if (VIEW === 'honored'){
+      arr = arr.filter(r => r.status === 'honored');
+    } else if (VIEW === 'no_show'){
+      arr = arr.filter(r => r.status === 'no_show');
+    } else if (VIEW === 'cancelled'){
+      arr = arr.filter(r => r.status === 'cancelled');
+    }
   }
 
-  const qv=($('#search').value||'').toLowerCase().trim();
-  if(qv) arr=arr.filter(r=>rowMatchesQuery(r,qv));
   return arr;
 }
 function calcMaxPage(arr){ if(arr==='messages'||arr==='agencies') return 1; const n=arr.length; return Math.max(1, Math.ceil(n/PER_PAGE)); }
@@ -1169,6 +1379,7 @@ function openDeleteRequestDialog(r){
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+  
 
   $('#req_send',dlg).onclick=async()=>{
     const reason=$('#req_reason',dlg).value.trim();
@@ -1375,6 +1586,35 @@ async function openGesteDialog(rInput){
   };
 }
 
+/* ---------- Jauge (stepper) ---------- */
+function progressFromRDV(r){
+  const lastLabel = r.status==='honored' ? 'Honoré' :
+                    r.status==='no_show' ? 'Non honoré' :
+                    r.status==='cancelled' ? 'Annulé' : 'À venir';
+  return {
+    steps:[
+      {key:'placed', label:'Placé', done:true},
+      {key:'confirm', label:'Confirmation', done: !!r.firstMsgAt},
+      {key:'reminder', label:'Rappel', done: !!r.reminderSent},
+      {key:'status', label:lastLabel, done: !!r.status}
+    ]
+  };
+}
+function renderStepperHTML(state, mini=false){
+  const steps=state.steps||[];
+  let html = `<div class="stepper ${mini?'stepper-mini':''}">`;
+  steps.forEach((st,i)=>{
+    html += `<div class="dot ${st.done?'done':''}" title="${escapeHtml(st.label)}"></div>`;
+    if(i<steps.length-1){
+      const barDone = steps.slice(0,i+1).every(s=>s.done);
+      html += `<div class="bar ${barDone?'done':''}"></div>`;
+    }
+  });
+  html += `</div><div class="labels" style="display:flex;justify-content:space-between">${steps.map(s=>`<span>${escapeHtml(s.label)}</span>`).join('')}</div>`;
+  return html;
+}
+function progressMiniHTML(r){ return renderStepperHTML(progressFromRDV(r), true); }
+
 /* ---------- Fiche RDV + Historique ---------- */
 function openRDVSheet(r){
   const ag = getAgencyByKey(r.agency||'');
@@ -1399,6 +1639,12 @@ function openRDVSheet(r){
         ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().length>80?(r.noteText||'').trim().slice(0,80)+'…':(r.noteText||'').trim())}${dueNote?(' • '+dueNote):''}</span>`:''}
       </div>
 
+      <!-- Jauge détaillée -->
+      <div class="card" style="margin-top:12px">
+        <div class="label">Aperçu rapide</div>
+        <div id="cn_progress_full">${renderStepperHTML(progressFromRDV(r), false)}</div>
+      </div>
+
       <div class="row mt12" style="gap:8px;flex-wrap:wrap">
         <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
         <button class="btn btn-neutral btn-xs" id="sheet_note">Note</button>
@@ -1421,8 +1667,11 @@ function openRDVSheet(r){
 
       <!-- Historique -->
       <div id="history_wrap" class="card">
-        <div class="label">Historique du client</div>
-        <div class="small">Chargement…</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="label">Historique du client</div>
+          <button class="btn btn-warn btn-xs icon-only" id="btnWipeHistory" title="Effacer tout l’historique">🗑️</button>
+        </div>
+        <div id="history_body"><div class="small">Chargement…</div></div>
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
@@ -1437,12 +1686,71 @@ function openRDVSheet(r){
   $('#sheet_cancel',dlg)?.addEventListener('click', ()=>cancelRDV(r));
   $('#sheet_geste',dlg).onclick = ()=>{ openGesteDialog(r); };
 
+  // ➜ bouton poubelle (effacer historique)
+  $('#btnWipeHistory',dlg).onclick = ()=> openWipeHistoryDialog(r);
+
   // charge historique
-  loadAndRenderHistory(r.phone, $('#history_wrap',dlg));
+  loadAndRenderHistory(r, $('#history_body',dlg));
+}
+
+/* Effacer historique (messages + option RDV -> corbeille) */
+function openWipeHistoryDialog(r){
+  const dlg=document.createElement('dialog');
+  dlg.innerHTML=`
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Effacer l’historique de ${escapeHtml((r.civ||'')+' '+(r.name||''))}</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px">
+      <div class="small">Numéro : <b>${toFR(r.phone)}</b></div>
+      <div class="mt12">
+        <label class="small" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="wipe_msgs" checked disabled>
+          <span>Supprimer <b>tous les messages</b> (WhatsApp/SMS) liés à ce numéro</span>
+        </label>
+      </div>
+      <div class="mt8">
+        <label class="small" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="wipe_rdv">
+          <span>Mettre à la <b>corbeille</b> tous ses RDV</span>
+        </label>
+      </div>
+      <div class="row mt12" style="justify-content:flex-end;gap:8px">
+        <button class="btn btn-warn btn-xs" id="wipe_confirm">Effacer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  $('#wipe_confirm',dlg).onclick = async ()=>{
+    if(!confirm('Confirmer la suppression de tout l’historique messages ?')) return;
+    try{
+      // Supprime tous les messages pour ce téléphone
+      const msgSnap = await db.collection('messages').where('phone','==', r.phone).get();
+      for(const doc of msgSnap.docs){ await db.collection('messages').doc(doc.id).delete(); }
+
+      // Option : mettre tous ses RDV à la corbeille
+      if($('#wipe_rdv',dlg).checked){
+        const rdvSnap = await db.collection('rdv').where('phone','==', r.phone).get();
+        for(const doc of rdvSnap.docs){
+          await db.collection('rdv').doc(doc.id).set({
+            deleted:true,
+            deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        }
+      }
+      notify('Historique effacé ✔️','ok');
+      dlg.close?.(); dlg.remove();
+      loadAll();
+      document.querySelector('dialog[open]')?.close?.();
+    }catch(e){
+      alert('Erreur pendant la suppression.');
+    }
+  };
 }
 
 /* Historique : tous les RDV + tous les messages pour ce téléphone */
-async function loadAndRenderHistory(phoneE164, container){
+async function loadAndRenderHistory(rInput, container){
+  const phoneE164 = rInput.phone;
   try{
     const [rdvSnap, msgSnap] = await Promise.all([
       db.collection('rdv').where('phone','==', phoneE164).get(),
@@ -1475,10 +1783,10 @@ async function loadAndRenderHistory(phoneE164, container){
             ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
             ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().slice(0,60))}${(r.noteText||'').trim().length>60?'…':''}</span>`:''}
           </div>
+          <div class="mt12">${progressMiniHTML(r)}</div>
         </div>
         <div class="rdv-actions">
           <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
-          <!-- Bouton "Ouvrir" supprimé, le clic sur la ligne ouvre déjà la fiche -->
         </div>
       </div>
     `).join('');
@@ -1508,7 +1816,7 @@ async function loadAndRenderHistory(phoneE164, container){
       ${msgs.length? msgsHtml : '<div class="small">Aucun message.</div>'}
     `;
 
-    container.querySelectorAll('[data-open]')?.forEach(el=>{
+    container.closest('#history_wrap')?.querySelectorAll('[data-open]')?.forEach(el=>{
       el.addEventListener('click', ()=>{
         const id = el.getAttribute('data-open');
         const found = ALL_R.find(x=>x.id===id);
@@ -1529,26 +1837,7 @@ function renderList(){
   const list=$('#rdvList'); list.innerHTML='';
   if(VIEW==='agencies'){ return renderAgencies(list); }
 
-  const q=($('#search').value||'').toLowerCase().trim();
-  const cross=$('#cross'); cross.classList.add('hide'); cross.innerHTML='';
   const arr = currFiltered();
-
-  if(q && VIEW!=='messages' && arr!=='messages' && !PLACED_ON){
-    const where=[], views=['today','tomorrow','upcoming','past','todo','honored','no_show','cancelled'];
-    views.forEach(v=>{
-      if(v===VIEW) return;
-      const tmp=VIEW; VIEW=v;
-      const a=currFiltered();
-      VIEW=tmp;
-      if(a.length && a.some(r=>rowMatchesQuery(r,q))) where.push(v);
-    });
-    if(where.length){
-      const mapLabel={today:"Aujourd’hui",tomorrow:"Demain",upcoming:"À venir",past:"Passés",todo:"À faire",honored:"Honorés",no_show:"Non honorés",cancelled:"Annulés"};
-      cross.innerHTML=`Trouvé aussi dans : ${where.map(w=>`<button class=\"btn btn-ghost btn-xs\" data-go=\"${w}\">${mapLabel[w]}</button>`).join(' ')}`;
-      cross.classList.remove('hide');
-      cross.querySelectorAll('button[data-go]').forEach(b=>b.onclick=()=>{ VIEW=b.dataset.go; $$('.tab').forEach(x=>x.classList.remove('active')); $(`.tab[data-view="${VIEW}"]`).classList.add('active'); PAGE=1; renderList(); });
-    }
-  }
 
   if(arr==='messages'){ return renderMessages(list); }
 
@@ -1638,6 +1927,7 @@ function renderList(){
         ${noteBubble}
         ${todoBubble}
       </div>
+      <div class="mt12">${progressMiniHTML(r)}</div>
       ${deleteReqBox}
       `;
     left.style.cursor='pointer';
@@ -1673,6 +1963,8 @@ function renderList(){
       const callA=document.createElement('a'); callA.className='btn btn-neutral btn-xs'; callA.href=telHref(r.phone); callA.textContent='Appeler'; actions.appendChild(callA);
 
       const tISO=todayISO(); const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
+      const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
+      const mins=m?(+m[1]*60 + +m[2]):-1;
       const isFuture = (r.dateISO>tISO) || (r.dateISO===tISO && mins>nowM);
       const within10After = (r.dateISO===tISO && nowM<=mins+10);
 
@@ -1744,7 +2036,7 @@ async function resendConfirmation(r){
   }catch{ notify('Erreur renvoi confirmation','warn'); }
 }
 
-/* >>> Rappel toujours par SMS */
+/* >>> Rappel (même canal que 1er message) */
 async function sendReminder(r){
   const ag = getAgencyByKey(r.agency);
   const whenTxt = relativeWhen(r.dateISO, r.timeText);
@@ -1897,7 +2189,7 @@ async function openEditDialog(id){
           p10=normalizeFR10($('#ed_phone',dlg).value),
           m=$('#ed_model',dlg).value.trim(),
           s=$('#ed_source',dlg).value.trim();
-    if(!agency||!civ||!name||!/^[\d]{2}\/^[\d]{2}\/^[\d]{2}$/.test?false:!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
+    if(!agency||!civ||!name||!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
       alert('Vérifie agence, civilité, date/heure, modèle et téléphone (06/07 ou +33 6/7).'); return;
     }
     const patch={ agency,civ,name, dateText:d, dateISO:jjmma_to_iso(d), timeText:t,
@@ -2002,7 +2294,7 @@ $('#btnAdminStats').onclick=()=>{ if(ROLE.role!=='admin') return alert('Réserv�
 /* Agencies rendering */
 $('#btnAgencies')?.addEventListener('click', ()=>{
   if (ROLE.role!=='admin') return alert('Réservé à l’admin.');
-  VIEW='agencies'; PAGE=1; renderList();
+  setView('agencies');
 });
 function renderAgencies(container){
   if(ROLE.role!=='admin'){ container.innerHTML='<div class="small">Réservé à l’admin.</div>'; return; }
@@ -2142,6 +2434,18 @@ function openAgencyModal(key=null){
   });
 }
 
+/* Tabs binding (rétabli) */
+function setView(v){
+  VIEW=v; PAGE=1;
+  $$('.tabs .tab').forEach(b=> b.classList.toggle('active', b.dataset.view===v));
+  renderList();
+}
+function bindTabs(){
+  $$('.tabs .tab').forEach(b=>{
+    b.onclick = ()=> setView(b.dataset.view);
+  });
+}
+
 /* Tick auto */
 setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.hidden) return;
   if(['today','past','upcoming','trash','todo','tomorrow'].includes(VIEW)) renderList();
@@ -2150,8 +2454,13 @@ setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.h
 
 /* Auto-refresh invisible */
 (function(){ const AUTO_REFRESH_MS = 30000; async function silentReload(){ try{ if(typeof loadAllData === 'function') await loadAllData(); } catch(e){} } setInterval(silentReload, AUTO_REFRESH_MS); })();
+
+/* ========= BOUTONS TOP BAR ========= */
+$('#btnExportCur').onclick=()=>exportMonth(false);
+$('#btnExportPrev').onclick=()=>exportMonth(true);
+$('#btnAgencies')?.addEventListener('click', ()=>{ if(ROLE.role==='admin'){ setView('agencies'); }});
 </script>
 
 </section>
-</body>
+</body>  
 </html>
