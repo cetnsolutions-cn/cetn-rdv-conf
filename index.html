@@ -977,10 +977,22 @@ async function submitRDV(channel){
         source=$('#w_source').value.trim();
   const phone10 = normalizeFR10($('#w_phone').value);
 
-  if(!a||!civ||!name||!phone10||!/^[\d]{2}\/[\d{2}]\/\d{2}$/.test(dateTxt)||!/^\d{2}:\d{2}$/.test(timeTxt)||!model||!source){
-    if(preWin && !preWin.closed) preWin.close();
-    $('#sendErr').textContent='Champs invalides.'; $('#sendErr').style.display='block'; return;
-  }
+ // ✅ Remplacer TOUT le if(...) existant par ce bloc
+if(
+  !a ||
+  !civ ||
+  !name ||
+  !phone10 ||                                // ← c'était "phone10" (sans !) : erreur
+  !/^\d{2}\/\d{2}\/\d{2}$/.test(dateTxt) ||  // ← simplifié (évite [\d{2}])
+  !/^\d{2}:\d{2}$/.test(timeTxt) ||
+  !model ||
+  !source
+){
+  if(preWin && !preWin.closed) preWin.close();
+  $('#sendErr').textContent='Champs invalides.';
+  $('#sendErr').style.display='block';
+  return;
+}
   $('#sendErr').style.display='none';
 
   const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt),
@@ -2205,14 +2217,42 @@ L’équipe ${ag.tagline || ag.name}`;
   }catch{ notify('Erreur envoi rappel','warn'); }
 }
 
+/* >>> Rappel/No-show — REMPLACER TOUTE la fonction sendNoShowMessage par ceci */
 async function sendNoShowMessage(r){
   const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, {CIV: r.civ||'', PRENOM: r.name||''});
-  const ch=(r.channel||'wa');
+  const ch = (r.channel || 'wa');
+
   try{
+    // 1) Ouvre WhatsApp/SMS + 2) log le message
     openChannelAndLog(r.phone, text, ch);
-    await db.collection('messages').add({type:'no_show_msg', rdvId:r.id, phone:r.phone, agency:r.agency, channel:ch, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
-    notify('Message “pas venu” prêt ✔️','ok');
-  }catch{ notify('Erreur envoi message “pas venu”','warn'); }
+    await db.collection('messages').add({
+      type:'no_show_msg',
+      rdvId:r.id,
+      phone:r.phone,
+      agency:r.agency,
+      channel:ch,
+      sentAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 3) ✅ Passe le RDV en "non honoré" immédiatement
+    await db.collection('rdv').doc(r.id).set({
+      status: 'no_show',
+      statusAt: firebase.firestore.FieldValue.serverTimestamp(),
+      honorBilling: firebase.firestore.FieldValue.delete()
+    }, { merge:true });
+
+    notify('Message “pas venu” envoyé • Statut passé en “Non honoré” ✔️','ok');
+
+  }catch(e){
+    console.error(e);
+    notify('Message “pas venu” non envoyé. Statut inchangé.','warn');
+  }finally{
+    // Rafraîchit l’écran/cadrans immédiatement
+    computeUpcoming(); 
+    computeTodo(); 
+    renderList(); 
+    loadAll(); // recharge propre depuis Firestore
+  }
 }
 
 async function markReminder(r,channel){
