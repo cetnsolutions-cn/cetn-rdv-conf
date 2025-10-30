@@ -391,14 +391,15 @@ html.modal-open, body.modal-open{
     </div>
 
     <div class="step" data-step="5">
-      <div class="label">Heure (HH:MM)</div>
-      <input id="w_time" class="input" inputmode="numeric" maxlength="5" placeholder="HH:MM">
-      <div id="e5" class="err">Format attendu HH:MM.</div>
-      <div class="nav">
-        <button class="btn btn-neutral btn-xs" id="p5">Retour</button>
-        <button class="btn btn-primary btn-xs" id="n5">Suivant</button>
-      </div>
-    </div>
+  <div class="label">Heure (HH:MM)</div>
+  <input id="w_time" class="input" inputmode="numeric" maxlength="5" placeholder="HH:MM">
+  <div class="chips mt8" id="quickTimeRow"></div>
+  <div id="e5" class="err">Format attendu HH:MM.</div>
+  <div class="nav">
+    <button class="btn btn-neutral btn-xs" id="p5">Retour</button>
+    <button class="btn btn-primary btn-xs" id="n5">Suivant</button>
+  </div>
+</div>
 
     <div class="step" data-step="6">
       <div class="label">Modèle du véhicule</div>
@@ -493,36 +494,29 @@ html.modal-open, body.modal-open{
       <button class="btn btn-neutral btn-xs" id="btnRefresh">Rafraîchir</button>
     </div>
 <!-- Onglets de vue -->
-<div class="tabs mt12" id="mainTabs">
+<div class="tabs" style="margin-top:10px">
   <button class="tab active" data-view="today">
     Aujourd’hui <span class="pill" id="count_today">0</span>
   </button>
+
   <button class="tab" data-view="tomorrow">
     Demain <span class="pill" id="count_tomorrow">0</span>
   </button>
+
   <button class="tab" data-view="upcoming">
     À venir <span class="pill" id="count_upcoming">0</span>
   </button>
-  <button class="tab" data-view="past">
-    Passés
-  </button>
+
   <button class="tab" data-view="todo">
     À faire <span class="pill" id="todoCount">0</span>
   </button>
-  <button class="tab" data-view="honored">
-    Honorés <span class="pill" id="count_honored">0</span>
-  </button>
-  <button class="tab" data-view="no_show">
-    Non honorés <span class="pill" id="count_no_show">0</span>
-  </button>
-  <button class="tab" data-view="cancelled">
-    Annulés
-  </button>
+
   <button class="tab" data-view="messages">
     Messages
   </button>
+
   <button class="tab" data-view="trash">
-    Corbeille <span class="pill" id="count_trash">0</span>
+    🗑️ Corbeille <span class="pill" id="count_trash">0</span>
   </button>
 </div>
     <div id="cross" class="cross hide"></div>
@@ -874,13 +868,36 @@ $('#btnTeamPass').onclick=()=>{ if(ROLE.role!=='admin') return alert('Réservé 
 
 /* ---------- Wizard controls ---------- */
 let STEP=1; const stepsCount=8;
-function showStep(k){ 
-  $$('.wiz .step').forEach(s=>s.classList.remove('active')); 
-  $(`.wiz .step[data-step="${k}"]`).classList.add('active'); 
-  STEP=k; 
-  if(k===3) maybeSuggestPaste();
-  if(k===4) buildQuickDates();
+function showStep(k){
+  // Retire l’active de toutes les étapes
+  document.querySelectorAll('.wiz .step').forEach(s=>s.classList.remove('active'));
+
+  // Trouve l'étape cible
+  const target = document.querySelector(`.wiz .step[data-step="${k}"]`);
+
+  if (target){
+    target.classList.add('active');
+    STEP = k;
+
+    // Hooks protégés : si une fonction manque, ça ne casse rien
+    try { if(k===3) maybeSuggestPaste?.(); } catch(_) {}
+    try { if(k===4) buildQuickDates?.();   } catch(_) {}
+    try { if(k===5) buildQuickTimes?.();   } catch(_) {}  // ok même si non définie
+  } else {
+    // Si l'étape n'existe pas (coquille), on revient proprement à la 1
+    console.warn('Étape introuvable, retour à la 1', k);
+    const first = document.querySelector('.wiz .step[data-step="1"]');
+    if(first){ first.classList.add('active'); STEP = 1; }
+  }
 }
+// Sécurité : si aucune étape n'est active (après modifs), force l'étape 1
+(function ensureWizardVisible(){
+  const hasActive = !!document.querySelector('.wiz .step.active');
+  if(!hasActive){
+    const first = document.querySelector('.wiz .step[data-step="1"]');
+    if(first){ first.classList.add('active'); STEP = 1; }
+  }
+})();
 function next(){ if(STEP<stepsCount) showStep(STEP+1); }
 function prev(){ if(STEP>1) showStep(STEP-1); }
 $('#n1').onclick=()=>{ if(!$('#w_agency').value){$('#e1').style.display='block';return;} $('#e1').style.display='none'; next(); };
@@ -952,6 +969,52 @@ function buildQuickDates(){
   const monday = startOfWeekMonday(now);
   const jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
   for(let i=0;i<7;i++){ addBtn('Ce ' + jours[i], addDays(monday, i)); }
+}
+function buildQuickTimes(){
+  const cont = document.querySelector('#quickTimeRow');
+  if(!cont) return;
+  cont.innerHTML = '';
+
+  // Créneaux 09:00 → 18:30, toutes les 30 min (pause sur 12:00 et 13:00)
+  const slots = [];
+  for(let h=9; h<=18; h++){
+    for(const m of ['00','30']){
+      // Option : sauter 12:00 et 13:00 pour simuler une pause
+      if((h===12 && m==='00') || (h===13 && m==='00')) continue;
+      const hh = String(h).padStart(2,'0');
+      slots.push(`${hh}:${m}`);
+    }
+  }
+
+  // Si la date choisie est aujourd’hui, ne proposer que les heures ≥ maintenant + 30 min
+  let list = slots.slice();
+  try{
+    const dTxt = document.querySelector('#w_date')?.value || '';
+    const iso = jjmma_to_iso(dTxt);
+    if(iso && iso === todayISO()){
+      const now = new Date();
+      const nowM = now.getHours()*60 + now.getMinutes() + 30; // marge 30 min
+      list = list.filter(t=>{
+        const [H,M] = t.split(':').map(Number);
+        return (H*60+M) >= nowM;
+      });
+      if(list.length===0) list = slots.slice(); // fallback si plus de créneaux
+    }
+  }catch(_){ /* pas grave */ }
+
+  // Boutons
+  list.forEach(t=>{
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = t;
+    b.onclick = ()=>{
+      document.querySelector('#w_time').value = t;
+      const e5 = document.querySelector('#e5'); if(e5) e5.style.display='none';
+      // avance automatiquement
+      setTimeout(()=>document.querySelector('#n5')?.click(), 80);
+    };
+    cont.appendChild(b);
+  });
 }
 
 /* Récap */
