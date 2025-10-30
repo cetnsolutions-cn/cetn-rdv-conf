@@ -361,6 +361,7 @@ html.modal-open, body.modal-open{
   html:not([data-theme="light"]) .kpi.green{  background:#0b1f18 !important; border-color:#166534 !important; }
   html:not([data-theme="light"]) .kpi.amber{  background:#2a1f08 !important; border-color:#92400e !important; }
   html:not([data-theme="light"]) .kpi.violet{ background:#1a1330 !important; border-color:#5b21b6 !important; }
+   html:not([data-theme="light"]) .kpi.violet{ background:#1a1330 !important; border-color:#5b21b6 !important; }
 }
 
 /* Forcer sombre (si on le décide) */
@@ -474,6 +475,12 @@ html:not([data-theme="dark"]) .template-tabs .t.active{
   color:#fff !important;
   border-color:#111827 !important;
 }
+/* Corbeille — petit espace régulier entre les boutons */
+#bulkBar{
+  gap: 6px;           /* ajuste à 4px / 8px si tu veux */
+  align-items: center;
+}
+
 </style>
 </head>
 <body>
@@ -640,12 +647,11 @@ html:not([data-theme="dark"]) .template-tabs .t.active{
     </div>
 
     <div class="kpis mt12">
-      <div class="kpi blue"><b id="k_created">0</b>Enregistrés</div>
-      <div class="kpi green"><b id="k_reminders">0</b>Rappels envoyés</div>
-      <div class="kpi amber"><b id="k_upcoming">0</b>À venir</div>
-      <div class="kpi"><b id="k_due">0</b>Rappels à faire aujourd’hui</div>
+   
+      <div class="kpi green"><b id="k_upcoming">0</b>À venir</div>
+      <div class="kpi blue"><b id="k_due">0</b>Rappels à faire aujourd’hui</div>
       <div class="kpi violet"><b id="k_honored">0</b>RDV honorés</div>
-      <div class="kpi"><b id="k_noshow">0</b>Non honorés</div>
+      <div class="kpi amber"><b id="k_noshow">0</b>Non honorés</div>
     </div>
 
     <div class="flex-gap mt12" style="align-items:flex-end">
@@ -671,7 +677,14 @@ html:not([data-theme="dark"]) .template-tabs .t.active{
         <button class="btn btn-neutral btn-xs" id="btnSelAll">Tout sélectionner</button>
         <button class="btn btn-neutral btn-xs" id="btnDeselAll">Désélectionner</button>
         <button class="btn btn-neutral btn-xs" id="btnBulkRestore">Restaurer</button>
-        <button class="btn btn-warn btn-xs" id="btnBulkDelete">Supprimer définitivement</button>
+       <!-- Dans #bulkBar, remplace le bouton actuel par : -->
+<button
+  id="btnBulkDelete"
+  class="btn btn-warn btn-xs"
+  title="Supprimer définitivement"
+  aria-label="Supprimer définitivement">
+  <i class="fa-solid fa-trash" style="font-size:12px;line-height:1"></i>
+</button>
       </div>
       <button class="btn btn-neutral btn-xs" id="btnRefresh">Rafraîchir</button>
     </div>
@@ -2464,12 +2477,17 @@ function openTrashActionDialog(r){
 
       <div class="action-dialog__grid">
         <button class="btn btn-neutral btn-xs" id="t_restore">♻️ Restaurer</button>
-        ${
-          ROLE.role==='admin'
-          ? `<button class="btn btn-warn btn-xs" id="t_delete">✅ Valider suppression définitive</button>
-             ${r.deleteRequest? `<button class="btn btn-ghost btn-xs" id="t_reject">🚫 Refuser la demande</button>`:''}`
-          : `<span class="small" style="align-self:center">En attente décision de l’admin…</span>`
-        }
+      ${
+  ROLE.role==='admin'
+  ? `<button id="t_delete"
+        class="btn btn-warn btn-xs"
+        title="Supprimer définitivement" aria-label="Supprimer définitivement"
+        style="width:28px;height:28px;min-width:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;line-height:1">
+        <i class="fa-solid fa-trash" style="font-size:12px;line-height:1"></i>
+     </button>
+     ${r.deleteRequest? `<button class="btn btn-ghost btn-xs" id="t_reject">🚫 Refuser la demande</button>`:''}`
+  : `<span class="small" style="align-self:center">En attente décision de l’admin…</span>`
+}
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
