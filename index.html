@@ -75,11 +75,33 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 .kpi.violet b{color:var(--violet)} .kpi.violet{background:#f6eeff}
 
 /* Tabs and list */
-.tab{padding:10px 16px;border:2px solid var(--line);border-radius:12px;background:#fff;color:#0f172a;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
-.tab:hover{background:#f8fafc;border-color:#cbd5e1}
-.tab.active{background:#111827;border-color:#111827;color:#fff;box-shadow:none}
-.tab .pill{margin-left:8px}
-.tab.active .pill{ color:#111827; background:#fff; border-color:#e5e7eb; } /* compteur lisible onglet actif */
+.tab{
+  padding:6px 10px;
+  border:1.5px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  cursor:pointer;
+  font-size:12.5px;
+  font-weight:600;
+  line-height:1.1;
+  transition:all .18s;
+}
+.tab:hover{ background:#f8fafc; border-color:#cbd5e1; }
+.tab.active{ background:#111827; border-color:#111827; color:#fff; box-shadow:none; }
+
+/* Pastille de compteur dans les onglets (plus petite) */
+.tab .pill{
+  margin-left:6px;
+  padding:2px 6px;
+  font-size:11px;
+  border-width:1px;
+}
+/* Reste lisible sur l'onglet actif */
+.tab.active .pill{ color:#111827; background:#fff; border-color:#e5e7eb; }
+
+/* Réduit l’espace entre les onglets (écrase .tabs > * { margin: calc(var(--g)*.5) }) */
+.tabs > *{ margin:4px; }
 
 .hide{display:none!important}
 .list{display:grid;gap:12px}
@@ -1808,10 +1830,12 @@ async function loadAndRenderHistory(rInput, container){
       db.collection('rdv').where('phone','==', phoneE164).get(),
       db.collection('messages').where('phone','==', phoneE164).get()
     ]);
+
     const rdvs = rdvSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
+
     const msgs = msgSnap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=> {
+      .sort((a,b)=>{
         const da=a.sentAt?.toDate?a.sentAt.toDate():null;
         const dbb=b.sentAt?.toDate?b.sentAt.toDate():null;
         return (dbb?.getTime()||0)-(da?.getTime()||0);
@@ -1824,25 +1848,32 @@ async function loadAndRenderHistory(rInput, container){
       return 'Prévu';
     };
 
-    const rdvHtml = rdvs.map(r=>`
-      <div class="rdv" style="cursor:pointer" data-open="${r.id}">
-        <div>
-          <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
-          <div class="meta">${escapeHtml(r.model||'')} • ${escapeHtml(r.agency||'')}</div>
-          <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <span class="bubble gray">${statusLabel(r)}</span>
-            ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
-            ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
-            ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().slice(0,60))}${(r.noteText||'').trim().length>60?'…':''}</span>`:''}
-          </div>
-          <div class="mt12">${progressMiniHTML(r)}</div>
-        </div>
-        <div class="rdv-actions">
-          <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
-        </div>
-      </div>
-    `).join('');
+    // === RDV : SANS bouton "Appeler" et fiche courante NON cliquable ===
+    const rdvHtml = rdvs.map(r=>{
+      const isCur = r.id === rInput.id; // fiche déjà ouverte ?
+      const clickableAttr  = isCur ? '' : `data-open="${r.id}"`;
+      const clickableStyle = isCur ? 'cursor:default;opacity:.9' : 'cursor:pointer';
+      const badgeCur = isCur ? `<span class="bubble gray">Fiche ouverte</span>` : '';
 
+      return `
+        <div class="rdv" style="${clickableStyle}" ${clickableAttr}>
+          <div>
+            <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+            <div class="meta">${escapeHtml(r.model||'')} • ${escapeHtml(r.agency||'')}</div>
+            <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="bubble gray">${statusLabel(r)}</span>
+              ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
+              ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
+              ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().slice(0,60))}${(r.noteText||'').trim().length>60?'…':''}</span>`:''}
+              ${badgeCur}
+            </div>
+            <div class="mt12">${progressMiniHTML(r)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // === Messages (inchangé, juste rendu propre) ===
     const msgLabel=(t)=> t==='reminder'?'Rappel': t==='reminder_cancelled'?'Rappel annulé':
       t==='reschedule'?'Report confirmé': t==='cancel'?'RDV annulé': t==='no_show_msg'?'Message “pas venu”':
       t==='confirmation_resent'?'Conf. renvoyée':'Confirmation';
@@ -1860,19 +1891,26 @@ async function loadAndRenderHistory(rInput, container){
       </div>`;
     }).join('');
 
+    // === Injection HTML ===
     container.innerHTML = `
-      <div class="small" style="margin-bottom:10px">Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${rdvs.length}</b> • Messages : <b>${msgs.length}</b></div>
+      <div class="small" style="margin-bottom:10px">
+        Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${rdvs.length}</b> • Messages : <b>${msgs.length}</b>
+      </div>
       <div style="margin-bottom:16px"><b>Rendez-vous</b></div>
       ${rdvs.length? rdvHtml : '<div class="small">Aucun RDV enregistré.</div>'}
       <div style="margin-top:18px;margin-bottom:8px"><b>Messages</b></div>
       ${msgs.length? msgsHtml : '<div class="small">Aucun message.</div>'}
     `;
 
+    // === Clic uniquement sur les autres fiches (pas la fiche en cours) ===
     container.closest('#history_wrap')?.querySelectorAll('[data-open]')?.forEach(el=>{
       el.addEventListener('click', ()=>{
         const id = el.getAttribute('data-open');
         const found = ALL_R.find(x=>x.id===id);
-        if(found){ document.querySelector('dialog[open]')?.close?.(); openRDVSheet(found); }
+        if(found){
+          document.querySelector('dialog[open]')?.close?.();
+          openRDVSheet(found);
+        }
       });
     });
 
@@ -1880,7 +1918,6 @@ async function loadAndRenderHistory(rInput, container){
     container.innerHTML='<div class="small">Historique indisponible.</div>';
   }
 }
-
 /* ---------- NOUVEAU : Panneau d’actions (⚙️ Réglages) ---------- */
 function openActionDialog(r){
   const tISO=todayISO(), now=new Date(), nowM=now.getHours()*60+now.getMinutes();
@@ -2399,7 +2436,7 @@ $('#btnAdminStats').onclick=()=>{ if(ROLE.role!=='admin') return alert('Réserv�
 /* Agencies rendering (fix) */
 $('#btnAgencies')?.addEventListener('click', ()=>{
   if (ROLE.role!=='admin') return alert('Réservé à l’admin.');
-  VIEW='agencies'; PAGE=1; renderList();
+  openAgenciesPanel(); // ← ouvre la mini-page
 });
 function renderAgencies(container){
   const isAdmin = (ROLE.role==='admin');
@@ -2633,6 +2670,66 @@ setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.h
 /* Boutons divers */
 $('#btnRefresh').onclick=()=>loadAll();
 
+function openAgenciesPanel(){
+  const keys = mergedAgencyKeys();
+
+  const dlg = document.createElement('dialog');
+  dlg.style.maxWidth = '900px';
+  dlg.style.width = 'min(96vw,900px)';
+  dlg.innerHTML = `
+    <div class="dlg-head" style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Agences</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-neutral btn-xs" id="ag_new">+ Nouvelle agence</button>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+    </div>
+    <div class="dlg-body" style="padding:16px;max-height:70vh;overflow:auto">
+      ${keys.length===0 ? `
+        <div class="small">Aucune agence définie.</div>
+      ` : `
+        <div style="display:grid;gap:10px">
+          ${keys.map(k=>{
+            const ag = getAgencyByKey(k) || {};
+            const name = ag.name || k;
+            const addr = ag.addr || '';
+            const map  = ag.map  || '';
+            const tag  = ag.tagline || name;
+            return `
+              <div class="ag-card">
+                <div style="flex:1">
+                  <div class="ag-name">${escapeHtml(name)}</div>
+                  <div class="small">${addr ? escapeHtml(addr) : '<i>Adresse non renseignée</i>'}</div>
+                  <div class="small">${map ? `<a href="${map}" target="_blank">Plan d’accès</a>` : '<i>Plan non renseigné</i>'}</div>
+                  <div class="small">Slogan : ${escapeHtml(tag)}</div>
+                </div>
+                <div class="row" style="gap:6px">
+                  <button class="btn btn-neutral btn-xs" data-edit="${escapeHtml(k)}">Modifier</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  `;
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  // Nouveau
+  dlg.querySelector('#ag_new')?.addEventListener('click', ()=>{
+    dlg.close?.(); dlg.remove();
+    openAgencyModal(); // réutilise ton éditeur d’agence existant
+  });
+
+  dlg.querySelectorAll('button[data-edit]')?.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.getAttribute('data-edit');
+      dlg.close?.(); dlg.remove();
+      openAgencyModal(key); // ouvre l’éditeur pour cette agence
+    });
+  });
+}
 </script>
 
 </section>
