@@ -270,6 +270,28 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
   display:flex;justify-content:space-between;
   font-size:12.5px;color:#64748b;margin-top:8px
 }
+/* === Overlay blanc + transition pour les <dialog> === */
+#cn-white-overlay{
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;             /* ne bloque pas les clics du dialog */
+  transition: opacity .24s ease;    /* fondu */
+  z-index: 999;                     /* au-dessus de l'app (le dialog reste au top layer) */
+}
+
+/* Visible */
+#cn-white-overlay.is-visible{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Quand un dialog est ouvert, on fige le fond */
+html.modal-open, body.modal-open{
+  overflow: hidden !important;
+  touch-action: none !important;    /* iOS */
+}
 </style>
 </head>
 <body>
@@ -2388,6 +2410,7 @@ async function openReschedDialog(id){
   const snap=await db.collection('rdv').doc(id).get(); if(!snap.exists) return alert('RDV introuvable');
   const r={id:snap.id,...snap.data()};
   if(r.status==='honored'){ alert('Un RDV honoré ne peut pas être reporté.'); return; }
+
   const dlg=document.createElement('dialog');
   dlg.innerHTML=`<div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">Reporter le rendez-vous</div>
@@ -2403,18 +2426,53 @@ async function openReschedDialog(id){
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
   async function doResend(channel){
     const newD=$('#rs_date',dlg).value.trim(), newT=$('#rs_time',dlg).value.trim();
     if(!/^\d{2}\/\d{2}\/\d{2}$/.test(newD)||!/^\d{2}:\d{2}$/.test(newT)){ alert('Vérifie la date/heure.'); return; }
-    const patch={dateText:newD,timeText:newT,dateISO:jjmma_to_iso(newD),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+
+    const patch={
+      dateText:newD,
+      timeText:newT,
+      dateISO:jjmma_to_iso(newD),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      // ✅ On remet le RDV en “À venir”
+      reminderSent:false,
+      reminderAt:firebase.firestore.FieldValue.delete(),
+      reminderChannel:firebase.firestore.FieldValue.delete()
+    };
+
+    // Si le RDV était "Annulé" ou "Non honoré", on enlève le statut pour le remettre dans À venir
+    if(r.status==='cancelled' || r.status==='no_show'){
+      patch.status = firebase.firestore.FieldValue.delete();
+      patch.statusAt = firebase.firestore.FieldValue.delete();
+      patch.honorBilling = firebase.firestore.FieldValue.delete();
+    }
+
+    // S’il était à la corbeille, on le restaure
+    if(r.deleted===true){
+      patch.deleted=false;
+      patch.deletedAt = firebase.firestore.FieldValue.delete();
+      patch.deleteRequest = firebase.firestore.FieldValue.delete();
+    }
+
     await db.collection('rdv').doc(id).set(patch,{merge:true});
-    const text=msgFromTpl('report',r.agency, newD, newT, r.model||'', r.dateText||'', r.timeText||'');
+
+    const text=msgFromTpl('report', r.agency, newD, newT, r.model||'', r.dateText||'', r.timeText||'');
     try{
       openChannelAndLog(r.phone, text, channel);
-      await db.collection('messages').add({type:'reschedule',rdvId:r.id,phone:r.phone,agency:r.agency,channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
-      notify('Report confirmé ✔️','ok'); dlg.close?.(); dlg.remove(); loadAll();
-    }catch{ notify('Erreur envoi confirmation','warn'); }
+      await db.collection('messages').add({
+        type:'reschedule', rdvId:r.id, phone:r.phone, agency:r.agency, channel,
+        sentAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      notify('Report confirmé ✔️','ok');
+      dlg.close?.(); dlg.remove();
+      loadAll();
+    }catch{
+      notify('Erreur envoi confirmation','warn');
+    }
   }
+
   $('#rs_sms',dlg).onclick=()=>doResend('sms');
   $('#rs_wa',dlg).onclick=()=>doResend('wa');
 }
@@ -2709,6 +2767,46 @@ setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.h
 
 /* Boutons divers */
 $('#btnRefresh').onclick=()=>loadAll();
+// === Overlay blanc + scroll-lock quand un <dialog> est ouvert ===
+(function(){
+  // Crée l'overlay s'il n'existe pas
+  let overlay = document.getElementById('cn-white-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'cn-white-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  const root = document.documentElement;
+
+  function showOverlay(){
+    overlay.classList.add('is-visible');
+    root.classList.add('modal-open');
+    document.body.classList.add('modal-open');
+  }
+  function hideOverlay(){
+    overlay.classList.remove('is-visible');
+    root.classList.remove('modal-open');
+    document.body.classList.remove('modal-open');
+  }
+  function syncOverlay(){
+    const anyOpen = !!document.querySelector('dialog[open]');
+    if(anyOpen) showOverlay(); else hideOverlay();
+  }
+
+  // Observe l'ouverture/fermeture de n'importe quel <dialog>
+  const mo = new MutationObserver(syncOverlay);
+  mo.observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['open']});
+
+  // Sécurités : ESC/close -> resync
+  window.addEventListener('keydown', e => { if(e.key === 'Escape') setTimeout(syncOverlay, 0); });
+  document.addEventListener('close', e => {
+    if(e.target?.nodeName === 'DIALOG') setTimeout(syncOverlay, 0);
+  }, true);
+
+  // Initial
+  syncOverlay();
+})();
 
 function openAgenciesPanel(){
   const keys = mergedAgencyKeys();
