@@ -162,6 +162,14 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 .date-group .label-inline{font-size:12.5px;color:#6b7280;display:flex;align-items:center}
 .date-group .input{max-width:170px}
 .date-group .btn-xs{display:flex;align-items:center;justify-content:center;padding-left:10px;padding-right:10px}
+/* QuickDate — puces mini et serrées */
+#quickDateRow > *{ margin:3px !important; }
+#quickDateRow .chip,
+.chip.chip--mini{
+  padding:4px 8px;
+  font-size:12px;
+  border-radius:8px;
+}
 
 /* Mobile */
 @media (max-width:520px){
@@ -270,15 +278,23 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
   display:flex;justify-content:space-between;
   font-size:12.5px;color:#64748b;margin-top:8px
 }
-/* === Overlay blanc + transition pour les <dialog> === */
+/* === Overlay + transition pour les <dialog> === */
 #cn-white-overlay{
   position: fixed;
   inset: 0;
-  background: #ffffff;
+  background: var(--bg);
   opacity: 0;
-  pointer-events: none;             /* ne bloque pas les clics du dialog */
-  transition: opacity .24s ease;    /* fondu */
-  z-index: 999;                     /* au-dessus de l'app (le dialog reste au top layer) */
+  pointer-events: none;           /* ne bloque pas les clics du dialog */
+  transition: opacity .24s ease;  /* fondu */
+  z-index: 999;                   /* au-dessus de l'app (le dialog reste au top layer) */
+}
+#cn-white-overlay.is-visible{
+  opacity: 1;
+  pointer-events: auto;
+}
+html.modal-open, body.modal-open{
+  overflow: hidden !important;
+  touch-action: none !important;  /* iOS */
 }
 
 /* Visible */
@@ -291,6 +307,172 @@ select{ padding-right:40px; background-repeat:no-repeat; background-position:cal
 html.modal-open, body.modal-open{
   overflow: hidden !important;
   touch-action: none !important;    /* iOS */
+}
+/* === Mode clair/sombre automatique ====================================== */
+/* Auto: si l’OS est en sombre ET qu’on n’a pas forcé "light", on applique les vars sombres */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --bg:#0b1220; --ink:#e5e7eb; --muted:#9aa3b2; --line:#273349; --tile:#0f172a;
+    --blue:#60a5fa;  --blue-bg:#0b1b33;
+    --green:#34d399; --green-bg:#0b1f18;
+    --amber:#fbbf24; --amber-bg:#2a1f08;
+    --violet:#a78bfa;--violet-bg:#1a1330;
+    --danger:#f87171;
+  }
+
+  html:not([data-theme="light"]) body{
+    background:var(--bg);
+    color:var(--ink);
+  }
+
+  /* Overrides des composants qui avaient des couleurs "en dur" (fond blanc) */
+  html:not([data-theme="light"]) #cn-app,
+  html:not([data-theme="light"]) .card,
+  html:not([data-theme="light"]) .kpi,
+  html:not([data-theme="light"]) .rdv,
+  html:not([data-theme="light"]) .badge,
+  html:not([data-theme="light"]) .chip,
+  html:not([data-theme="light"]) .input,
+  html:not([data-theme="light"]) select,
+  html:not([data-theme="light"]) textarea,
+  html:not([data-theme="light"]) .btn,
+  html:not([data-theme="light"]) .pill,
+  html:not([data-theme="light"]) .bubble,
+  html:not([data-theme="light"]) .preview{
+    background:#0f172a !important;
+    color:var(--ink) !important;
+    border-color:var(--line) !important;
+  }
+
+  /* Onglets */
+  html:not([data-theme="light"]) .tab{
+    background:#0f172a !important;
+    color:var(--ink) !important;
+    border-color:var(--line) !important;
+  }
+  html:not([data-theme="light"]) .tab.active{
+    background:#e5e7eb !important;
+    color:#0f172a !important;
+    border-color:#e5e7eb !important;
+  }
+
+  /* KPI toniques */
+  html:not([data-theme="light"]) .kpi.blue{   background:#0b1b33 !important; border-color:#1e3a8a !important; }
+  html:not([data-theme="light"]) .kpi.green{  background:#0b1f18 !important; border-color:#166534 !important; }
+  html:not([data-theme="light"]) .kpi.amber{  background:#2a1f08 !important; border-color:#92400e !important; }
+  html:not([data-theme="light"]) .kpi.violet{ background:#1a1330 !important; border-color:#5b21b6 !important; }
+}
+
+/* Forcer sombre (si on le décide) */
+html[data-theme="dark"]{
+  --bg:#0b1220; --ink:#e5e7eb; --muted:#9aa3b2; --line:#273349; --tile:#0f172a;
+  --blue:#60a5fa;  --blue-bg:#0b1b33;
+  --green:#34d399; --green-bg:#0b1f18;
+  --amber:#fbbf24; --amber-bg:#2a1f08;
+  --violet:#a78bfa;--violet-bg:#1a1330;
+  --danger:#f87171;
+}
+html[data-theme="dark"] body{
+  background:var(--bg);
+  color:var(--ink);
+}
+html[data-theme="dark"] #cn-app,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .kpi,
+html[data-theme="dark"] .rdv,
+html[data-theme="dark"] .badge,
+html[data-theme="dark"] .chip,
+html[data-theme="dark"] .input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .btn,
+html[data-theme="dark"] .pill,
+html[data-theme="dark"] .bubble,
+html[data-theme="dark"] .preview{
+  background:#0f172a !important;
+  color:var(--ink) !important;
+  border-color:var(--line) !important;
+}
+html[data-theme="dark"] .tab{
+  background:#0f172a !important;
+  color:var(--ink) !important;
+  border-color:var(--line) !important;
+}
+html[data-theme="dark"] .tab.active{
+  background:#e5e7eb !important;
+  color:#0f172a !important;
+  border-color:#e5e7eb !important;
+}
+html[data-theme="dark"] .kpi.blue{   background:#0b1b33 !important; border-color:#1e3a8a !important; }
+html[data-theme="dark"] .kpi.green{  background:#0b1f18 !important; border-color:#166534 !important; }
+html[data-theme="dark"] .kpi.amber{  background:#2a1f08 !important; border-color:#92400e !important; }
+html[data-theme="dark"] .kpi.violet{ background:#1a1330 !important; border-color:#5b21b6 !important; }
+
+/* (Optionnel) mini-ajustements pour les puces date si besoin */
+/* #quickDateRow > *{ margin:3px !important; } */
+/* === Fix wizard : retire la bande blanche + lisibilité des textes ========== */
+.wiz .nav{
+  /* Le fond blanc venait d’ici ; on laisse voir le fond de la carte */
+  background: transparent !important;
+  box-shadow: none !important;
+  border-top: 0 !important;
+}
+
+/* Forcer les couleurs de texte à utiliser la palette (clair/sombre) */
+.label{ color: var(--muted) !important; }
+.small, .rdv .meta{ color: var(--muted) !important; }
+.rdv .title, h1, h2, h3{ color: var(--ink) !important; }
+.badge{ color: var(--ink) !important; }
+.tab{ color: var(--ink); }                 /* plus de !important ici */
+.tab.active{ color:#fff; }                 /* en clair; en sombre tu as déjà la règle dédiée */
+
+/* Placeholders un peu plus visibles en sombre */
+::placeholder{ color: var(--muted); opacity: .9; }
+/* Dialog & overlay suivent le thème */
+dialog{
+  background: var(--bg) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+dialog .ag-card,
+dialog .card,
+dialog .preview{
+  background: var(--tile) !important;
+  border-color: var(--line) !important;
+}
+/* === Jetons disponibles (éditeur d'agence) : lisibles en sombre === */
+dialog .token{
+  background: var(--tile) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important; /* on garde le style dashed existant */
+}
+dialog .token:hover{ filter: brightness(1.06); }
+dialog .token:active{ transform: translateY(1px); }
+dialog .token:focus{ outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* === Onglets des modèles (Confirmation / Rappel / ...) : contraste en sombre === */
+html:not([data-theme="light"]) .template-tabs .t,
+html[data-theme="dark"]           .template-tabs .t{
+  background:#0f172a !important;
+  color:var(--ink) !important;
+  border-color:var(--line) !important;
+}
+html:not([data-theme="light"]) .template-tabs .t.active,
+html[data-theme="dark"]           .template-tabs .t.active{
+  background:#e5e7eb !important;
+  color:#0f172a !important;
+  border-color:#e5e7eb !important;
+}
+/* === Éditeur d'agence : onglets lisibles en mode clair === */
+html:not([data-theme="dark"]) .template-tabs .t{
+  background:#fff !important;
+  color:#0f172a !important;
+  border-color:var(--line) !important;
+}
+html:not([data-theme="dark"]) .template-tabs .t.active{
+  background:#111827 !important;
+  color:#fff !important;
+  border-color:#111827 !important;
 }
 </style>
 </head>
@@ -960,15 +1142,48 @@ $('#w_time').addEventListener('input',e=>{ let v=e.target.value.replace(/[^0-9]/
 function dateToJJMMA(d){ return iso_to_jjmma(isoOf(d)); }
 function startOfWeekMonday(d){ const x=new Date(d); const day=x.getDay(); const diff=(day+6)%7; x.setDate(x.getDate()-diff); return new Date(x.getFullYear(), x.getMonth(), x.getDate()); }
 function buildQuickDates(){
-  const cont = $('#quickDateRow'); if(!cont) return;
+  const cont = document.querySelector('#quickDateRow');
+  if(!cont) return;
   cont.innerHTML = '';
-  const addBtn=(label,dateObj)=>{ const b=document.createElement('button'); b.className='chip'; b.textContent=label; b.onclick=()=>{ $('#w_date').value=dateToJJMMA(dateObj); $('#e4').style.display='none'; setTimeout(()=>$('#n4').click(),80); }; cont.appendChild(b); };
+
+  // Anti-doublons (ex.: Demain == Ce samedi)
+  const used = new Set();
+  const addBtn = (label, dateObj)=>{
+    const iso = isoOf(dateObj);
+    if(used.has(iso)) return;
+    used.add(iso);
+
+    const b = document.createElement('button');
+    b.className = 'chip chip--mini';
+    b.textContent = label;
+    b.onclick = ()=>{
+      document.querySelector('#w_date').value = dateToJJMMA(dateObj);
+      const e4 = document.querySelector('#e4'); if(e4) e4.style.display='none';
+      setTimeout(()=>document.querySelector('#n4')?.click(), 80);
+    };
+    cont.appendChild(b);
+  };
+
   const now = new Date();
+
+  // 1) Aujourd’hui + Demain
   addBtn('Aujourd’hui', now);
-  addBtn('Demain', addDays(now,1));
-  const monday = startOfWeekMonday(now);
+  addBtn('Demain', addDays(now, 1));
+
+  // 2) Reste de la semaine courante en "Ce …"
+  const monday = startOfWeekMonday(now);                  // lundi de la semaine en cours
   const jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
-  for(let i=0;i<7;i++){ addBtn('Ce ' + jours[i], addDays(monday, i)); }
+  const todayIndex = (now.getDay()+6)%7;                  // 0=lundi … 6=dimanche
+  for(let i=todayIndex+1; i<7; i++){
+    const d = addDays(monday, i);
+    addBtn(`Ce ${jours[i]}`, d);
+  }
+
+  // 3) Toute la semaine prochaine en "… prochain"
+  const nextMonday = addDays(monday, 7);
+  for(let i=0; i<7; i++){
+    addBtn(`${jours[i]} prochain`, addDays(nextMonday, i));
+  }
 }
 function buildQuickTimes(){
   const cont = document.querySelector('#quickTimeRow');
@@ -2931,6 +3146,7 @@ function openAgenciesPanel(){
     });
   });
 }
+
 </script>
 
 </section>
