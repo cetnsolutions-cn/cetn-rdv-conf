@@ -1440,17 +1440,15 @@ function openBestMatch(q){
   openRDVSheet(best);
 }
 
-/* 🔍 Fenêtre de recherche (loupe) */
+/* 🔍 Fenêtre de recherche (loupe) — MODIFIÉE : un seul bouton “Fermer” qui efface tout */
 $('#btnOpenSearch').onclick = ()=>{
-  const dlg=document.createElement('dialog');
-  dlg.style.padding='0'; dlg.style.maxWidth='880px'; dlg.style.width='min(92vw,880px)';
+ const dlg=document.createElement('dialog');
+window._searchDlg = dlg; // référence du dialog de recherche
+dlg.style.padding='0'; dlg.style.maxWidth='880px'; dlg.style.width='min(92vw,880px)';
   dlg.innerHTML=`
     <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:800">Recherche</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-xs" id="btnClearAndClose">Effacer & fermer</button>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-      </div>
+      <button class="btn btn-neutral btn-xs" id="btnCloseSearch">Fermer</button>
     </div>
     <div style="padding:14px">
       <input id="searchDlgInput" class="input" placeholder="Nom, modèle, téléphone (Entrée = ouvrir la meilleure fiche)">
@@ -1463,22 +1461,26 @@ $('#btnOpenSearch').onclick = ()=>{
   const inp = $('#searchDlgInput',dlg);
   const list= $('#searchDlgList',dlg);
 
+  // Valeur initiale = celle du champ principal
   inp.value = $('#search').value || '';
   setTimeout(()=>{ inp.focus(); inp.select(); renderSearchList(inp.value); }, 0);
 
-  $('#btnClearAndClose',dlg).onclick = ()=>{
+  // 🔘 Bouton unique : efface la recherche globale et ferme
+  $('#btnCloseSearch',dlg).onclick = ()=>{
     $('#search').value = '';
     $('#search').dispatchEvent(new Event('input',{bubbles:true}));
     dlg.close?.(); dlg.remove();
     renderList(); // revenir au contexte (onglet courant)
   };
 
+  // Synchronisation live des résultats + du champ global
   inp.addEventListener('input',()=>{
     $('#search').value = inp.value || '';
     $('#search').dispatchEvent(new Event('input',{bubbles:true}));
     renderSearchList(inp.value);
   });
 
+  // Entrée = ouvrir meilleure fiche (sans vider)
   inp.addEventListener('keydown',(e)=>{
     if(e.key==='Enter'){
       const q = inp.value || '';
@@ -1752,6 +1754,7 @@ async function cancelRDV(r){
 /* ====== Demande de suppression (ÉQUIPE) ====== */
 function openDeleteRequestDialog(r){
   const dlg=document.createElement('dialog');
+  // après: const dlg = document.createElement('dialog');
   dlg.innerHTML=`<div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">Demander la suppression</div>
     <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button></div>
@@ -2120,14 +2123,17 @@ function openWipeHistoryDialog(r){
         <button class="btn btn-warn btn-xs" id="wipe_confirm">Effacer</button>
       </div>
     </div>`;
-  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
 
   $('#wipe_confirm',dlg).onclick = async ()=>{
     if(!confirm('Confirmer la suppression de tout l’historique messages ?')) return;
     try{
+      // 1) Supprimer tous les messages liés à ce numéro
       const msgSnap = await db.collection('messages').where('phone','==', r.phone).get();
       for(const doc of msgSnap.docs){ await db.collection('messages').doc(doc.id).delete(); }
 
+      // 2) Optionnel : mettre tous ses RDV à la corbeille
       if($('#wipe_rdv',dlg).checked){
         const rdvSnap = await db.collection('rdv').where('phone','==', r.phone).get();
         for(const doc of rdvSnap.docs){
@@ -2137,10 +2143,20 @@ function openWipeHistoryDialog(r){
           }, {merge:true});
         }
       }
+
       notify('Historique effacé ✔️','ok');
       dlg.close?.(); dlg.remove();
+
+      // 3) Recharger les données globales (liste, compteurs…)
       loadAll();
-      document.querySelector('dialog[open]')?.close?.();
+
+      // 4) 👉 Rester sur la fiche ouverte et rafraîchir juste son historique
+      const sheet = getTopRDVSheet?.();
+      if (sheet) {
+        const body = sheet.querySelector('#history_body');
+        if (body) loadAndRenderHistory(r, body);
+      }
+
     }catch(e){
       alert('Erreur pendant la suppression.');
     }
@@ -2710,7 +2726,8 @@ async function openReschedDialog(id){
   const dlg=document.createElement('dialog');
   dlg.innerHTML=`<div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">Reporter le rendez-vous</div>
-    <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button></div>
+    <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
     <div class="dlg-body" style="padding:16px">
       <div class="row">
         <div style="flex:1"><div class="label">Nouvelle date (JJ/MM/AA)</div><input id="rs_date" class="input" value="${r.dateText||''}"></div>
@@ -3111,7 +3128,7 @@ function openAgenciesPanel(){
   dlg.style.maxWidth = '900px';
   dlg.style.width = 'min(96vw,900px)';
   dlg.innerHTML = `
-    <div class="dlg-head" style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+    <div class="dlg-head" style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:800">Agences</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-neutral btn-xs" id="ag_new">+ Nouvelle agence</button>
@@ -3164,9 +3181,20 @@ function openAgenciesPanel(){
     });
   });
 }
-
+function getSearchDialog(){
+  return (window._searchDlg && document.body.contains(window._searchDlg)) ? window._searchDlg : null;
+}
+function getTopRDVSheet(){
+  const all = Array.from(document.querySelectorAll('dialog[open]'));
+  const searchDlg = getSearchDialog();
+  return all.reverse().find(d => d !== searchDlg) || null;
+}
+function closeTopRDVSheet(){
+  const d = getTopRDVSheet();
+  d?.close?.();
+  d?.remove?.();
+}
 </script>
-
 </section>
-</body>  
+</body>
 </html>
