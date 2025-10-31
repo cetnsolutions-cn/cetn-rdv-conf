@@ -2172,9 +2172,17 @@ async function loadAndRenderHistory(rInput, container){
       db.collection('messages').where('phone','==', phoneE164).get()
     ]);
 
-    const rdvs = rdvSnap.docs.map(d=>({id:d.id,...d.data()}))
+    // Tous les RDV triés (du plus récent au plus ancien)
+    let rdvs = rdvSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
 
+    // On garde un total "vrai"…
+    const totalRdvCount = rdvs.length;
+
+    // …mais on n’affiche PAS la fiche déjà ouverte dans la liste historique
+    const rdvsToShow = rdvs.filter(rr => rr.id !== rInput.id);
+
+    // Messages triés (du plus récent au plus ancien)
     const msgs = msgSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{
         const da=a.sentAt?.toDate?a.sentAt.toDate():null;
@@ -2189,15 +2197,10 @@ async function loadAndRenderHistory(rInput, container){
       return 'Prévu';
     };
 
-    // === RDV : SANS bouton "Appeler" et fiche courante NON cliquable ===
-    const rdvHtml = rdvs.map(r=>{
-      const isCur = r.id === rInput.id; // fiche déjà ouverte ?
-      const clickableAttr  = isCur ? '' : `data-open="${r.id}"`;
-      const clickableStyle = isCur ? 'cursor:default;opacity:.9' : 'cursor:pointer';
-      const badgeCur = isCur ? `<span class="bubble gray">Fiche ouverte</span>` : '';
-
+    // Cartes RDV (sans la fiche courante)
+    const rdvHtml = rdvsToShow.map(r=>{
       return `
-        <div class="rdv" style="${clickableStyle}" ${clickableAttr}>
+        <div class="rdv" style="cursor:pointer" data-open="${r.id}">
           <div>
             <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
             <div class="meta">${escapeHtml(r.model||'')} • ${escapeHtml(r.agency||'')}</div>
@@ -2206,7 +2209,6 @@ async function loadAndRenderHistory(rInput, container){
               ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
               ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
               ${(r.noteText||'').trim()?`<span class="bubble blue">📝 ${escapeHtml((r.noteText||'').trim().slice(0,60))}${(r.noteText||'').trim().length>60?'…':''}</span>`:''}
-              ${badgeCur}
             </div>
             <div class="mt12">${progressMiniHTML(r)}</div>
           </div>
@@ -2214,7 +2216,6 @@ async function loadAndRenderHistory(rInput, container){
       `;
     }).join('');
 
-    // === Messages (inchangé, juste rendu propre) ===
     const msgLabel=(t)=> t==='reminder'?'Rappel': t==='reminder_cancelled'?'Rappel annulé':
       t==='reschedule'?'Report confirmé': t==='cancel'?'RDV annulé': t==='no_show_msg'?'Message “pas venu”':
       t==='confirmation_resent'?'Conf. renvoyée':'Confirmation';
@@ -2232,18 +2233,18 @@ async function loadAndRenderHistory(rInput, container){
       </div>`;
     }).join('');
 
-    // === Injection HTML ===
+    // Rendu
     container.innerHTML = `
       <div class="small" style="margin-bottom:10px">
-        Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${rdvs.length}</b> • Messages : <b>${msgs.length}</b>
+        Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${totalRdvCount}</b> • Messages : <b>${msgs.length}</b>
       </div>
-      <div style="margin-bottom:16px"><b>Rendez-vous</b></div>
-      ${rdvs.length? rdvHtml : '<div class="small">Aucun RDV enregistré.</div>'}
+      <div style="margin-bottom:16px"><b>Rendez-vous</b> <span class="small" style="opacity:.7">(hors fiche ouverte)</span></div>
+      ${rdvsToShow.length? rdvHtml : '<div class="small">Aucun autre RDV.</div>'}
       <div style="margin-top:18px;margin-bottom:8px"><b>Messages</b></div>
       ${msgs.length? msgsHtml : '<div class="small">Aucun message.</div>'}
     `;
 
-    // === Clic uniquement sur les autres fiches (pas la fiche en cours) ===
+    // Ouverture d’une autre fiche depuis l’historique
     container.closest('#history_wrap')?.querySelectorAll('[data-open]')?.forEach(el=>{
       el.addEventListener('click', ()=>{
         const id = el.getAttribute('data-open');
