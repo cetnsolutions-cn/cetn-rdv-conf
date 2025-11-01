@@ -134,17 +134,74 @@ dialog .token{background:var(--tile)!important;color:var(--ink)!important;border
 #bulkBar{gap:6px;align-items:center}
 #quickDateRow>*{margin:3px!important}.chip.chip--mini{padding:4px 8px;font-size:12px;border-radius:8px}
 @media (max-width:520px){.btn{padding:9px 10px;font-size:13px}.btn-xs{padding:6px 8px;font-size:11.5px}.icon-only{width:30px;height:30px;font-size:15px}.toolbar{gap:6px}.date-group{flex:1 1 100%}.date-group .input{flex:1}}
-/* Fiche RDV (dialog) : sur mobile, mettre le nom d'agence en bas et le faire retourner à la ligne */
+/* ====== MOBILE — fiche RDV compacte, rien ne dépasse ====== */
 @media (max-width:520px){
-  .sheet-meta .badge{
-    order: 99;           /* pousse la pastille agence à la fin du groupe */
-    flex: 1 1 100%;      /* occupe toute la largeur, donc passe à la ligne */
-    max-width: 100%;
-    white-space: normal; /* autorise les retours à la ligne */
-    overflow-wrap: anywhere; /* coupe si besoin, évite tout dépassement */
-    text-align: left;
+  dialog{
+    max-width:100vw !important;
+    width:100vw !important;
+    margin:0;
+    border-radius:0 !important;
+  }
+  /* corps de fiche = colonne, on pousse l'agence en bas */
+  .dlg-body{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    padding:14px;
+  }
+  /* grille 2 colonnes pour les actions => plus de débordement */
+  .sheet-actions{
+    display:grid !important;
+    grid-template-columns:1fr 1fr;
+    gap:8px !important;
+    flex-wrap:unset !important;
+  }
+  /* bloc agence collé en bas de la fiche */
+  .rdv-agency{
+    order:999;
+    margin-top:auto;
+  }
+  .rdv-agency .ag-line{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    font-size:14px;
+  }
+  /* casse les longues chaînes (URLs, badges, bulles…) */
+  .dlg-body a,
+  .small,
+  .badge,
+  .bubble,
+  .rdv .meta,
+  .preview{
+    word-break:break-word;
+    overflow-wrap:anywhere;
+  }
+  /* titres un poil plus petits */
+  .dlg-body .title{ font-size:16px !important; }
+}
+/* ====== MOBILE — Historique/Messages : pas de dépassement du nom d'agence ====== */
+@media (max-width:520px){
+  /* coupe tout scroll horizontal en historique */
+  .history, .client-history, .messages{ overflow-x:hidden; }
+
+  /* cible les zones où le nom d'agence apparaît (badge / titre / bulle / lien) */
+  .history .msg .agency-name,
+  .history .msg .badge,
+  .history .msg .title,
+  .history .msg .bubble,
+  .history .msg a,
+  .history .msg .meta{
+    display:block;
+    max-width:100%;
+    word-break:break-word;        /* casse les mots trop longs */
+    overflow-wrap:anywhere;       /* casse aussi les longues chaînes */
+    hyphens:auto;
   }
 }
+
+/* (Option ellipsis 1 ligne au lieu de retour à la ligne)
+.agency-ellipsis{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } */
 </style>
 </head>
 <body>
@@ -943,7 +1000,7 @@ $('#btnOpenSearch').onclick = ()=>{
         <div>
           <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
           <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
-          <div class="mt8 sheet-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             ${agBadge} ${iconForChannel(r)} <span class="bubble gray">${statusTxt}</span>
             ${r.reminderSent?`<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>`:''}
             ${r.gesteCommercial?`<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>`:''}
@@ -1354,7 +1411,7 @@ function openRDVSheet(r){
         <div id="cn_progress_full">${renderStepperHTML(progressFromRDV(r), false)}</div>
       </div>
 
-      <div class="row mt12" style="gap:8px;flex-wrap:wrap">
+      <div class="row mt12 sheet-actions" style="gap:8px">
         <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
         <button class="btn btn-neutral btn-xs" id="sheet_note">Note</button>
         <button class="btn btn-neutral btn-xs" id="sheet_resend">Renvoyer confirmation</button>
@@ -1366,13 +1423,14 @@ function openRDVSheet(r){
         <button class="btn btn-neutral btn-xs" id="sheet_geste">${r.gesteCommercial?('Geste '+(typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? r.gesteAmount.toFixed(0)+'€':'✓')):'Geste comm.'}</button>
       </div>
 
-      <div class="card mt12" style="margin:16px 0">
-        <div class="label">Agence</div>
-        <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
-        <div class="small">${escapeHtml(ag.addr||'')}</div>
-        <div class="small">${ag.map?`<a href="${ag.map}" target="_blank">Plan d’accès</a>`:'—'}</div>
-        <div class="small">Slogan : ${escapeHtml(ag.tagline||'')}</div>
-      </div>
+      <div class="card mt12 rdv-agency">
+  <div class="label">Agence</div>
+  <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
+  ${ag.addr ? `<div class="ag-line">📍 <span>${escapeHtml(ag.addr)}</span></div>` : ''}
+  ${ag.map  ? `<div class="ag-line">🗺️ <a href="${ag.map}" target="_blank" rel="noopener">Plan d’accès</a></div>` : ''}
+  ${ag.phone ? `<div class="ag-line">📞 <a href="tel:${ag.phone.replace(/\D/g,'')}">${escapeHtml(ag.phone)}</a></div>` : ''}
+  ${ag.tagline ? `<div class="ag-line">🏷️ <span>${escapeHtml(ag.tagline)}</span></div>` : ''}
+</div>
 
       <div id="history_wrap" class="card">
         <div style="display:flex;align-items:center;justify-content:space-between">
