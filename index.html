@@ -355,6 +355,22 @@ html[data-theme="dark"] .kpi.blue   b{ color:#60a5fa !important; }
 html[data-theme="dark"] .kpi.green  b{ color:#34d399 !important; }
 html[data-theme="dark"] .kpi.amber  b{ color:#fbbf24 !important; }
 html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
+/* === Segment status clair/sombre (sélection visible) === */
+.seg {
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+}
+.seg .opt {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 12px; border:1px solid var(--line); border-radius:10px;
+  background: var(--tile); color: var(--ink); cursor:pointer; user-select:none;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .06s ease;
+}
+.seg .opt:active { transform: translateY(1px); }
+.seg .opt.is-active,
+.seg .opt[aria-pressed="true"]{
+  background: var(--ink); color: var(--bg); border-color: var(--ink);
+}
+.seg .opt .k { font-weight:700; font-variant-numeric: tabular-nums; }
 </style>
 
 <script>
@@ -2395,6 +2411,286 @@ setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.h
 
 /* Divers */
 $('#btnRefresh').onclick=()=>loadAll();
+// ======= 🔄 Réactivité fiche RDV (ajouts) =======
+let CURRENT_SHEET = null;
+function getRDVById(id){ return ALL_R.find(x=>x.id===id) || null; }
+function patchRDV(id, patch={}){ const r=getRDVById(id); if(!r) return null; Object.assign(r, patch); return r; }
+
+function sheetStatusLabel(r){
+  if(r.status==='honored') return 'Honoré' + (r.honorBilling==='facturé' ? ' • Facturé' : (r.honorBilling==='non_facturable'?' • Non facturable':''));
+  if(r.status==='no_show') return 'Non honoré';
+  if(r.status==='cancelled') return 'Annulé';
+  return 'Prévu';
+}
+
+function renderSheetBubblesHTML(r){
+  const ag = getAgencyByKey(r.agency||'');
+  const name = ((r.civ||'')+' '+(r.name||'')).trim();
+  const dueNote = r.noteDueISO ? (r.noteDueISO===todayISO() ? 'aujourd’hui' : (r.noteDueISO===isoOf(addDays(new Date(),1)) ? 'demain' : dateLongueISO(r.noteDueISO))) : null;
+
+  const statusB =
+    r.status==='honored' ? `<span class="bubble green">Honoré${r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : ''}</span>` :
+    r.status==='no_show' ? `<span class="bubble orange">Non honoré</span>` :
+    r.status==='cancelled' ? `<span class="bubble gray">Annulé</span>` : '';
+
+  const remindB = r.reminderSent ? `<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>` : '';
+  const gesteB = r.gesteCommercial ? `<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>` : '';
+  const noteB = (r.noteText||'').trim()
+    ? `<span class="bubble blue">📝 ${escapeHtml(((r.noteText||'').trim().length>80)?(r.noteText||'').trim().slice(0,80)+'…':(r.noteText||'').trim())}${dueNote?(' • '+dueNote):''}</span>`
+    : '';
+
+  return `
+    ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
+    ${iconForChannel(r)}
+    ${statusB}
+    ${remindB}
+    ${gesteB}
+    ${noteB}
+  `;
+}
+
+function renderSheetActionsHTML(r){
+  const allowResched = r.status!=='honored';
+  const allowCancel  = r.status!=='honored' && r.status!=='cancelled';
+  const ch = (r.firstMsgChannel||r.channel||'').toUpperCase();
+  const gesteLabel = r.gesteCommercial ? ('Geste '+(typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? r.gesteAmount.toFixed(0)+'€' : '✓')) : 'Geste comm.';
+  return `
+    <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
+    <button class="btn btn-neutral btn-xs" id="sheet_note">Note</button>
+    <button class="btn btn-neutral btn-xs" id="sheet_resend">Renvoyer confirmation</button>
+    ${!r.reminderSent
+      ? `<button class="btn btn-neutral btn-xs" id="sheet_remind">Rappel</button>`
+      : `<button class="btn btn-ghost btn-xs" id="sheet_unremind">Annuler rappel</button>`}
+    <button class="btn btn-neutral btn-xs" id="sheet_status">Statut</button>
+    <button class="btn btn-neutral btn-xs" id="sheet_edit">Modifier</button>
+    ${allowResched ? `<button class="btn btn-ghost btn-xs" id="sheet_resched">Reporter</button>` : ''}
+    ${allowCancel ? `<button class="btn btn-warn btn-xs" id="sheet_cancel">Annuler RDV</button>` : ''}
+    <button class="btn btn-neutral btn-xs" id="sheet_geste">${gesteLabel}</button>
+  `;
+}
+
+function wireSheetActionButtons(dlg, r){
+  $('#sheet_note',dlg).onclick = ()=> openNoteDialog(r.id);
+  $('#sheet_resend',dlg).onclick = ()=> resendConfirmation(r);
+  $('#sheet_remind',dlg)?.addEventListener('click', ()=> sendReminder(r));
+  $('#sheet_unremind',dlg)?.addEventListener('click', ()=> undoReminder(r));
+  $('#sheet_status',dlg).onclick = ()=> openStatusDialog(r.id);
+  $('#sheet_edit',dlg).onclick = ()=> openEditDialog(r.id);
+  $('#sheet_resched',dlg)?.addEventListener('click', ()=> openReschedDialog(r.id));
+  $('#sheet_cancel',dlg)?.addEventListener('click', ()=> cancelRDV(r));
+  $('#sheet_geste',dlg).onclick = ()=> openGesteDialog(r);
+}
+
+function refreshOpenSheet(id){
+  if(!CURRENT_SHEET || CURRENT_SHEET.id!==id) return;
+  const dlg = CURRENT_SHEET.dlg;
+  const r = getRDVById(id); if(!r) return;
+
+  // Stepper
+  const prog = dlg.querySelector('#cn_progress_full');
+  if(prog) prog.innerHTML = renderStepperHTML(progressFromRDV(r), false);
+
+  // Bubbles (entête)
+  const bubbles = dlg.querySelector('#sheet_bubbles');
+  if(bubbles) bubbles.innerHTML = renderSheetBubblesHTML(r);
+
+  // Actions (ligne boutons)
+  const actions = dlg.querySelector('.sheet-actions');
+  if(actions){ actions.innerHTML = renderSheetActionsHTML(r); wireSheetActionButtons(dlg, r); }
+}
+
+// ======= 🛠️ on remplace openRDVSheet pour poser 2 IDs (#sheet_bubbles + .sheet-actions) =======
+const _openRDVSheet_original = openRDVSheet;
+openRDVSheet = function(r){
+  // on reconstruit la même fiche mais avec un id sur les bulles
+  const ag = getAgencyByKey(r.agency||'');
+  const dueNote = r.noteDueISO ? (r.noteDueISO===todayISO() ? 'aujourd’hui' : (r.noteDueISO===isoOf(addDays(new Date(),1)) ? 'demain' : dateLongueISO(r.noteDueISO))) : null;
+  const dlg=document.createElement('dialog');
+  dlg.innerHTML=`
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Fiche rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px;max-width:860px">
+      <div class="title" style="margin-bottom:6px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+      <div class="small">${toFR(r.phone)} • ${escapeHtml(r.model||'')} • Source : ${escapeHtml(r.source||'')}</div>
+
+      <div id="sheet_bubbles" class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${renderSheetBubblesHTML(r)}
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="label">Aperçu rapide</div>
+        <div id="cn_progress_full">${renderStepperHTML(progressFromRDV(r), false)}</div>
+      </div>
+
+      <div class="row mt12 sheet-actions" style="gap:8px">
+        ${renderSheetActionsHTML(r)}
+      </div>
+
+      <div class="card mt12 rdv-agency">
+        <div class="label">Agence</div>
+        <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
+        ${ag.addr ? `<div class="ag-line">📍 <span>${escapeHtml(ag.addr)}</span></div>` : ''}
+        ${ag.map  ? `<div class="ag-line">🗺️ <a href="${ag.map}" target="_blank" rel="noopener">Plan d’accès</a></div>` : ''}
+        ${ag.phone ? `<div class="ag-line">📞 <a href="tel:${ag.phone.replace(/\D/g,'')}">${escapeHtml(ag.phone)}</a></div>` : ''}
+        ${ag.tagline ? `<div class="ag-line">🏷️ <span>${escapeHtml(ag.tagline)}</span></div>` : ''}
+      </div>
+
+      <div id="history_wrap" class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="label">Historique du client</div>
+          <button class="btn btn-warn btn-xs icon-only" id="btnWipeHistory" title="Effacer tout l’historique">🗑️</button>
+        </div>
+        <div id="history_body"><div class="small">Chargement…</div></div>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  CURRENT_SHEET = { id: r.id, dlg };
+  dlg.addEventListener('close', ()=>{ if(CURRENT_SHEET?.dlg===dlg) CURRENT_SHEET=null; });
+  dlg.addEventListener('cancel',()=>{ if(CURRENT_SHEET?.dlg===dlg) CURRENT_SHEET=null; });
+
+  wireSheetActionButtons(dlg, r);
+
+  $('#btnWipeHistory',dlg).onclick = ()=> openWipeHistoryDialog(r);
+  loadAndRenderHistory(r, $('#history_body',dlg));
+};
+
+// ======= ⚡ Surcharges: mise à jour immédiate après action =======
+const _markReminder_original = markReminder;
+markReminder = async function(r, channel){
+  await _markReminder_original(r, channel);
+  // optimiste + refresh
+  const patched = patchRDV(r.id, {reminderSent:true, reminderChannel:channel, reminderAt: new Date()});
+  refreshOpenSheet(r.id);
+};
+
+const _undoReminder_original = undoReminder;
+undoReminder = async function(r){
+  await _undoReminder_original(r);
+  patchRDV(r.id, {reminderSent:false, reminderChannel:undefined, reminderAt:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _setHonor_original = setHonor;
+setHonor = async function(r, status, billing=null){
+  await _setHonor_original(r, status, billing);
+  const patch = { status, statusAt:new Date() };
+  if(status==='honored'){ patch.honorBilling = billing || null; } else { patch.honorBilling = undefined; }
+  patchRDV(r.id, patch);
+  refreshOpenSheet(r.id);
+};
+
+const _clearHonor_original = clearHonor;
+clearHonor = async function(r){
+  await _clearHonor_original(r);
+  patchRDV(r.id, {status:null, statusAt:undefined, honorBilling:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _cancelRDV_original = cancelRDV;
+cancelRDV = async function(r){
+  await _cancelRDV_original(r);
+  patchRDV(r.id, {status:'cancelled', statusAt:new Date(), honorBilling:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _openReschedDialog_original = openReschedDialog;
+openReschedDialog = async function(id){
+  // on utilise l'original, mais on accroche une petite mise à jour après succès
+  const before = JSON.stringify(getRDVById(id)||{});
+  await _openReschedDialog_original(id);
+  // Si la date/heure a bougé, on rafraîchit
+  const after = getRDVById(id);
+  if(after){ refreshOpenSheet(id); }
+};
+// ======== Statut: UI qui se met à jour immédiatement ========
+
+// Si utilitaire absent, on le définit (ne casse rien si déjà défini)
+if (typeof getRDVById !== 'function') {
+  window.getRDVById = (id)=> (window.ALL_R||[]).find(x=>x.id===id) || null;
+}
+
+function statusKeyOf(r){
+  if(!r || !r.status) return 'none';
+  if(r.status==='honored') return (r.honorBilling==='non_facturable' ? 'honor_nf' : 'honor_fact');
+  if(r.status==='no_show') return 'no_show';
+  if(r.status==='cancelled') return 'cancelled';
+  return 'none';
+}
+
+function renderStatusSegmentHTML(r){
+  const cur = statusKeyOf(r);
+  const opt = (value, label, sub='')=>{
+    const active = (cur===value) ? ' is-active aria-pressed="true"' : ' aria-pressed="false"';
+    return `<button type="button" class="opt${active}" data-value="${value}">
+      <span class="k">${label}</span>${sub?`<span class="sub">${sub}</span>`:''}
+    </button>`;
+  };
+  return `<div class="seg" id="status_seg">
+    ${opt('honor_fact','Honoré • facturé')}
+    ${opt('honor_nf','Honoré • non facturable')}
+    ${opt('no_show','Non honoré')}
+    ${opt('cancelled','Annulé')}
+    ${opt('none','Retirer le statut')}
+  </div>`;
+}
+
+// — override soft: on remplace l’existant proprement
+const _openStatusDialog_original = window.openStatusDialog;
+
+window.openStatusDialog = function(id){
+  const r = getRDVById(id);
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Statut du rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div style="padding:16px;min-width:320px;max-width:520px">
+      <div class="label">Choix</div>
+      ${renderStatusSegmentHTML(r)}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-neutral" id="stat_validate">Valider</button>
+        <button class="btn btn-ghost" onclick="this.closest('dialog').close()">Annuler</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  // Sélection visuelle qui suit le clic
+  let choice = statusKeyOf(r);
+  const seg = dlg.querySelector('#status_seg');
+  seg.addEventListener('click', (e)=>{
+    const b = e.target.closest('.opt'); if(!b) return;
+    choice = b.getAttribute('data-value');
+    seg.querySelectorAll('.opt').forEach(x=>{
+      x.classList.toggle('is-active', x===b);
+      x.setAttribute('aria-pressed', x===b ? 'true' : 'false');
+    });
+  });
+
+  // Action fonctionnelle (réutilise tes fonctions existantes patchées)
+  dlg.querySelector('#stat_validate').addEventListener('click', async ()=>{
+    try{
+      if(choice==='honor_fact'){
+        await setHonor(r, 'honored', 'facturé');
+      }else if(choice==='honor_nf'){
+        await setHonor(r, 'honored', 'non_facturable');
+      }else if(choice==='no_show'){
+        await setHonor(r, 'no_show');
+      }else if(choice==='cancelled'){
+        await setHonor(r, 'cancelled');
+      }else{
+        await clearHonor(r);
+      }
+      // la fiche se rafraîchit déjà grâce à tes surcharges setHonor/clearHonor
+    }finally{
+      dlg.close();
+      setTimeout(()=> dlg.remove(), 0);
+    }
+  });
+};
 </script>
 </section>
 </body>
