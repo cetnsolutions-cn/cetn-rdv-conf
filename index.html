@@ -2071,12 +2071,15 @@ async function clearHonor(r){
   computeUpcoming(); computeTodo(); notify('Statut retiré','ok'); loadAll();
 }
 
-/* Modifier RDV */
+/* Modifier RDV — avec choix du canal par défaut */
 async function openEditDialog(id){
   const snap=await db.collection('rdv').doc(id).get(); if(!snap.exists) return alert('RDV introuvable');
   const r={id:snap.id,...snap.data()};
   const frPhone = toFR(r.phone||'');
   const agencyOptions = mergedAgencyKeys().map(a=>`<option ${r.agency===a?'selected':''}>${a}</option>`).join('');
+
+  // Canal actuel (préférence) : priorise r.channel, sinon firstMsgChannel, sinon WA
+  const currentCh = ((r.channel || r.firstMsgChannel || 'wa')+'').toLowerCase();
   const dlg=document.createElement('dialog');
   dlg.innerHTML=`<div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">Modifier le rendez-vous</div>
@@ -2095,24 +2098,52 @@ async function openEditDialog(id){
         <div style="flex:1"><div class="label">Date (JJ/MM/AA)</div><input id="ed_date" class="input" value="${r.dateText||''}" inputmode="numeric"></div>
         <div style="flex:1"><div class="label">Heure (HH:MM)</div><input id="ed_time" class="input" value="${r.timeText||''}" inputmode="numeric"></div>
       </div>
+
       <div class="label">Téléphone (06/07 — 10 chiffres ou +33 6/7)</div>
       <input id="ed_phone" class="input" value="${frPhone}" inputmode="tel" placeholder="06 12 34 56 78 ou +33 6 12 34 56 78">
+
       <div class="label">Modèle</div><input id="ed_model" class="input" value="${r.model||''}">
       <div class="label">Source</div><input id="ed_source" class="input" value="${r.source||''}">
-      <div class="row mt12" style="justify-content:flex-end;gap:8px"><button id="ed_save" class="btn btn-primary btn-xs">Enregistrer</button></div>
+
+      <!-- ⬇️ NOUVEAU : Canal préféré -->
+      <div class="label">Canal par défaut pour les messages</div>
+      <select id="ed_channel" class="input">
+        <option value="wa" ${currentCh==='wa'?'selected':''}>WhatsApp</option>
+        <option value="sms" ${currentCh==='sms'?'selected':''}>SMS</option>
+      </select>
+
+      <div class="row mt12" style="justify-content:flex-end;gap:8px">
+        <button id="ed_save" class="btn btn-primary btn-xs">Enregistrer</button>
+      </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  // Normalisation live du téléphone
   $('#ed_phone',dlg).addEventListener('input', e=>{
     const n = normalizeFR10(e.target.value);
     e.target.value = n ? formatFR10(n) : formatFR10((e.target.value||'').replace(/\D/g,''));
   });
+
+  // Enregistrer
   $('#ed_save',dlg).onclick=async()=>{
     const agency=$('#ed_agency',dlg).value, civ=$('#ed_civ',dlg).value, name=$('#ed_name',dlg).value.trim(),
           d=$('#ed_date',dlg).value.trim(), t=$('#ed_time',dlg).value.trim(),
-          p10=normalizeFR10($('#ed_phone',dlg).value), m=$('#ed_model',dlg).value.trim(), s=$('#ed_source',dlg).value.trim();
+          p10=normalizeFR10($('#ed_phone',dlg).value), m=$('#ed_model',dlg).value.trim(), s=$('#ed_source',dlg).value.trim(),
+          ch=$('#ed_channel',dlg).value; // 'wa' | 'sms'
+
     if(!agency||!civ||!name||!/^\d{2}\/\d{2}\/\d{2}$/.test(d)||!/^\d{2}:\d{2}$/.test(t)||!m||!p10){
-      alert('Vérifie agence, civilité, date/heure, modèle et téléphone (06/07 ou +33 6/7).'); return; }
-    const patch={ agency,civ,name, dateText:d, dateISO:jjmma_to_iso(d), timeText:t, model:m, source:s, phone:("33"+p10.slice(1)), updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
+      alert('Vérifie agence, civilité, date/heure, modèle et téléphone (06/07 ou +33 6/7).'); return;
+    }
+
+    const patch={
+      agency,civ,name,
+      dateText:d, dateISO:jjmma_to_iso(d), timeText:t,
+      model:m, source:s,
+      phone:("33"+p10.slice(1)),
+      channel: ch, // ⬅️ on enregistre la préférence
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    };
+
     await db.collection('rdv').doc(id).set(patch,{merge:true});
     dlg.close?.(); dlg.remove(); loadAll();
   };
