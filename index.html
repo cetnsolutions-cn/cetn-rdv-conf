@@ -202,6 +202,67 @@ dialog .token{background:var(--tile)!important;color:var(--ink)!important;border
 
 /* (Option ellipsis 1 ligne au lieu de retour à la ligne)
 .agency-ellipsis{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } */
+/* ===== HISTORIQUE — Messages : layout minimal & mobile-first ===== */
+.history-messages{ padding:8px; }
+
+.msg-row{
+  display:grid;
+  grid-template-columns: 40px 1fr;
+  gap:12px;
+  align-items:start;
+  padding:10px 0;
+  border-bottom:1px solid var(--line);
+}
+.msg-row:last-child{ border-bottom:0; }
+
+.msg-avatar{
+  width:36px; height:36px; border-radius:9999px;
+  background:var(--tile);
+  display:grid; place-items:center;
+  font-weight:600; font-size:12px; color:var(--blue);
+  user-select:none;
+}
+
+.msg-main{ min-width:0; }
+
+.msg-top{
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:8px; margin-bottom:4px;
+}
+
+.msg-agency{
+  font-weight:600; font-size:14px; line-height:1.2;
+  max-width:70%;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+.msg-time{ font-size:12px; color:var(--muted); flex:0 0 auto; }
+
+.msg-bubble{
+  display:block;
+  padding:10px 12px;
+  background:#fff;                 /* minimal & net */
+  border:1px solid var(--line);
+  border-radius:12px;
+  font-size:14px; line-height:1.35;
+  word-break:break-word; overflow-wrap:anywhere; hyphens:auto;
+  color:var(--ink);
+}
+
+.msg-tags{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+.msg-tag{
+  font-size:11px; padding:3px 6px;
+  border:1px solid var(--line);
+  border-radius:9999px; color:var(--muted); background:#fff;
+}
+
+/* Très petits écrans : un peu plus de place pour le nom */
+@media (max-width:420px){
+  .msg-agency{ max-width:65%; }
+}
+
+/* Pas de débordement horizontal dans l'historique */
+.history, .client-history, .history-messages{ overflow-x:hidden; }
 </style>
 </head>
 <body>
@@ -1491,6 +1552,8 @@ function openWipeHistoryDialog(r){
     }catch(e){ alert('Erreur pendant la suppression.'); }
   };
 }
+
+/* === ✨ Nouveau rendu "Messages" dans l'historique — mobile-first, sans débordement === */
 async function loadAndRenderHistory(rInput, container){
   const phoneE164 = rInput.phone;
   try{
@@ -1498,18 +1561,24 @@ async function loadAndRenderHistory(rInput, container){
       db.collection('rdv').where('phone','==', phoneE164).get(),
       db.collection('messages').where('phone','==', phoneE164).get()
     ]);
+
+    // RDV (autres fiches)
     let rdvs = rdvSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=> (b.dateISO||'').localeCompare(a.dateISO||'') || (b.timeText||'').localeCompare(a.timeText||''));
     const totalRdvCount = rdvs.length;
     const rdvsToShow = rdvs.filter(rr => rr.id !== rInput.id);
+
+    // Messages (tri récents → anciens)
     const msgs = msgSnap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>{ const da=a.sentAt?.toDate?a.sentAt.toDate():null; const dbb=b.sentAt?.toDate?b.sentAt.toDate():null; return (dbb?.getTime()||0)-(da?.getTime()||0); });
+
     const statusLabel = (r)=>{
       if(r.status==='honored') return 'Honoré'+(r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : '');
       if(r.status==='no_show') return 'Non honoré';
       if(r.status==='cancelled') return 'Annulé';
       return 'Prévu';
     };
+
     const rdvHtml = rdvsToShow.map(r=>`
         <div class="rdv" style="cursor:pointer" data-open="${r.id}">
           <div>
@@ -1524,21 +1593,58 @@ async function loadAndRenderHistory(rInput, container){
             <div class="mt12">${progressMiniHTML(r)}</div>
           </div>
         </div>`).join('');
+
+    // Helper pour avatar (2 lettres)
+    const initials = (name, ch) => {
+      const s = (name||'').trim();
+      if(s) {
+        const parts = s.split(/\s+|\(|\)|-|,|\./).filter(Boolean);
+        const first = (parts[0]||'')[0]||'';
+        const second = (parts[1]||'')[0] || (parts[0]||'')[1] || '';
+        return (first+second).toUpperCase();
+      }
+      return (ch==='wa'?'WA':'SM');
+    };
     const msgLabel=(t)=> t==='reminder'?'Rappel': t==='reminder_cancelled'?'Rappel annulé': t==='reschedule'?'Report confirmé': t==='cancel'?'RDV annulé': t==='no_show_msg'?'Message “pas venu”': t==='confirmation_resent'?'Conf. renvoyée':'Confirmation';
+
+    // Nouveau: rendu en liste "chat"
     const msgsHtml = msgs.map(m=>{
-      const d=m.sentAt?.toDate?m.sentAt.toDate():null; const dStr=d?`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`:'—';
-      const chan=(m.channel||'').toUpperCase()||'—'; const chanClass=m.channel==='wa'?'wa':'sms';
-      return `<div class="small" style="display:flex;gap:8px;align-items:center;margin:6px 0">
-        <span class="bubble ${chanClass}">${chan}</span><b>${msgLabel(m.type||'')}</b><span class="bubble gray">${dStr}</span><span class="small" style="opacity:.8">${escapeHtml(m.agency||'')}</span>
-      </div>`;
+      const d=m.sentAt?.toDate?m.sentAt.toDate():null;
+      const dStr=d?`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`:'—';
+      const ag = m.agency || '';
+      const chan = (m.channel||'').toLowerCase()==='wa' ? 'WA' : 'SMS';
+      const type = msgLabel(m.type||'');
+      const nameTag = (rInput.civ||rInput.name) ? `👤 ${escapeHtml(((rInput.civ||'')+' '+(rInput.name||'')).trim())}` : '';
+      const phoneTag = toFR(rInput.phone);
+      return `
+        <div class="msg-row">
+          <div class="msg-avatar">${escapeHtml(initials(ag, m.channel))}</div>
+          <div class="msg-main">
+            <div class="msg-top">
+              <div class="msg-agency" title="${escapeHtml(ag)}">${escapeHtml(ag)}</div>
+              <time class="msg-time">${dStr}</time>
+            </div>
+            <p class="msg-bubble"><b>${escapeHtml(type)}</b></p>
+            <div class="msg-tags">
+              <span class="msg-tag">${chan}</span>
+              ${nameTag ? `<span class="msg-tag">${nameTag}</span>` : ''}
+              <span class="msg-tag">📞 ${escapeHtml(phoneTag)}</span>
+            </div>
+          </div>
+        </div>`;
     }).join('');
+
     container.innerHTML = `
       <div class="small" style="margin-bottom:10px">Téléphone : <b>${toFR(phoneE164)}</b> • Total RDV : <b>${totalRdvCount}</b> • Messages : <b>${msgs.length}</b></div>
+
       <div style="margin-bottom:16px"><b>Rendez-vous</b> <span class="small" style="opacity:.7">(hors fiche ouverte)</span></div>
       ${rdvsToShow.length? rdvHtml : '<div class="small">Aucun autre RDV.</div>'}
+
       <div style="margin-top:18px;margin-bottom:8px"><b>Messages</b></div>
-      ${msgs.length? msgsHtml : '<div class="small">Aucun message.</div>'}
+      ${msgs.length? `<div class="history-messages">${msgsHtml}</div>` : '<div class="small">Aucun message.</div>'}
     `;
+
+    // clic pour ouvrir une autre fiche
     container.closest('#history_wrap')?.querySelectorAll('[data-open]')?.forEach(el=>{
       el.addEventListener('click', ()=>{
         const id = el.getAttribute('data-open');
@@ -1546,7 +1652,10 @@ async function loadAndRenderHistory(rInput, container){
         if(found){ document.querySelector('dialog[open]')?.close?.(); openRDVSheet(found); }
       });
     });
-  }catch(e){ container.innerHTML='<div class="small">Historique indisponible.</div>'; }
+
+  }catch(e){
+    container.innerHTML='<div class="small">Historique indisponible.</div>';
+  }
 }
 
 /* ---------- Panneau ⚙️ Réglages ---------- */
