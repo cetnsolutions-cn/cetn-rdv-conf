@@ -1922,25 +1922,76 @@ function renderList(){
       ${deleteReqBox}`;
     left.style.cursor='pointer'; left.onclick = ()=>{ if(VIEW!=='trash') openRDVSheet(r); };
 
-    const actions=document.createElement('div'); actions.className='rdv-actions';
-    if (VIEW==='trash') {
-      if (ROLE.role==='admin') {
-        const cb=document.createElement('input'); cb.type='checkbox'; cb.className='selbox'; cb.dataset.id=r.id;
-        cb.onchange=(e)=>{ if(e.target.checked) SELECTED.add(r.id); else SELECTED.delete(r.id); };
-        actions.appendChild(cb);
-      }
-      const gear=document.createElement('button'); gear.className='btn btn-neutral btn-xs icon-only'; gear.title='Réglages'; gear.innerHTML='<i class="fa-solid fa-gear"></i>';
-      gear.onclick=()=>openTrashActionDialog(r); actions.appendChild(gear);
-    } else {
-      const gear=document.createElement('button'); gear.className='btn btn-neutral btn-xs icon-only'; gear.title='Réglages'; gear.innerHTML='<i class="fa-solid fa-gear"></i>';
-      gear.onclick=()=>openActionDialog(r); actions.appendChild(gear);
-    }
-    if(!r.status && isPast){ row.classList.add('blink'); }
-    row.append(left,actions); $('#rdvList').appendChild(row);
-  });
+const actions=document.createElement('div'); actions.className='rdv-actions';
+if (VIEW==='trash') {
+  if (ROLE.role==='admin') {
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.className='selbox'; cb.dataset.id=r.id;
+    cb.onchange=(e)=>{ if(e.target.checked) SELECTED.add(r.id); else SELECTED.delete(r.id); };
+    actions.appendChild(cb);
+  }
+  const gear=document.createElement('button'); gear.className='btn btn-neutral btn-xs icon-only'; gear.title='Réglages'; gear.innerHTML='<i class="fa-solid fa-gear"></i>';
+  gear.onclick=()=>openTrashActionDialog(r); actions.appendChild(gear);
+} else {
+  // (ON) : bouton Rappel visible pour les RDV d'aujourd'hui non rappelés et encore à venir
+  try {
+    const tISO = todayISO();
+    const m = (r.timeText||'').match(/(\d{2}):(\d{2})/);
+    const mins = m ? (+m[1]*60 + +m[2]) : -1;
+    const now = new Date();
+    const nowM = now.getHours()*60 + now.getMinutes();
 
-  updateTabCounts();
-  updateStatusChips();
+    // Affiche le bouton uniquement si le RDV est pour aujourd'hui, pas encore rappelé, et dans le futur
+    if (r.dateISO === tISO && !r.reminderSent && mins > nowM) {
+      const btnRappel = document.createElement('button');
+      btnRappel.className = 'btn btn-primary btn-xs';
+      btnRappel.textContent = 'Rappel';
+      btnRappel.setAttribute('aria-label', 'Envoyer rappel');
+
+      btnRappel.onclick = async (ev) => {
+        // évite d'ouvrir la fiche si le clic déclenche aussi un click sur la ligne
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+
+        // prévention multi-clic + UI optimiste : cacher le bouton immédiatement
+        btnRappel.disabled = true;
+        btnRappel.style.display = 'none';
+
+        try {
+          // mise à jour locale optimiste
+          patchRDV(r.id, { reminderSent: true, reminderAt: new Date(), reminderChannel: (r.firstMsgChannel||r.channel||'wa') });
+          refreshOpenSheet(r.id);
+
+          // envoi réel (ouvre WA/SMS et marque en base)
+          await sendReminder(r);
+
+          // sendReminder/markReminder devraient rafraîchir la liste ou le statut automatiquement
+        } catch (err) {
+          console.error('Erreur rappel :', err);
+          notify('Erreur lors de l\'envoi du rappel','warn');
+
+          // restaurer l'affichage du bouton si échec + annuler le patch local
+          btnRappel.disabled = false;
+          btnRappel.style.display = 'inline-block';
+          patchRDV(r.id, { reminderSent: false, reminderAt: undefined, reminderChannel: undefined });
+          refreshOpenSheet(r.id);
+        }
+      };
+
+      actions.appendChild(btnRappel);
+    }
+  } catch (e) {
+    console.error('Patch rappel : erreur de calcul horaire', e);
+  }
+
+  // Gear (réglages) — inchangé, après le bouton Rappel
+  const gear=document.createElement('button'); gear.className='btn btn-neutral btn-xs icon-only'; gear.title='Réglages'; gear.innerHTML='<i class="fa-solid fa-gear"></i>';
+  gear.onclick=()=>openActionDialog(r); actions.appendChild(gear);
+}
+if(!r.status && isPast){ row.classList.add('blink'); }
+row.append(left,actions); $('#rdvList').appendChild(row);
+});
+
+updateTabCounts();
+updateStatusChips();
 }
 
 /* Corbeille : panneau */
