@@ -929,36 +929,22 @@ $('#n2').onclick=()=>{ if(!$('#w_civ').value || !$('#w_name').value.trim()){ $('
 /* === Téléphone === */
 const phoneInput = $('#w_phone');
 function setPhoneValueFrom10(n10){ phoneInput.value = formatFR10(n10); $('#e3').style.display='none'; }
+
 phoneInput.addEventListener('input', (e) => {
   const n = normalizeFR10(e.target.value);
-  if(n){ setPhoneValueFrom10(n); if(n.length===10) setTimeout(()=>$('#n3').click(), 80); }
-  else{ const raw=(e.target.value||'').replace(/\D/g,'').slice(0,14); e.target.value = formatFR10(raw); }
-});
-phoneInput.addEventListener('paste', () => { setTimeout(()=>{ const n = normalizeFR10(phoneInput.value); if(n) setPhoneValueFrom10(n); },0); });
-$('#btnPastePhone').onclick = async () => {
-  try{ const txt = await navigator.clipboard.readText(); const n = normalizeFR10(txt);
-    if(n){ setPhoneValueFrom10(n); $('#n3').click(); }
-    else{ alert('Le presse-papiers ne contient pas un numéro FR valide (06/07 ou +33 6/7).'); }
-  }catch{ alert('Accès au presse-papiers impossible. Colle manuellement (Ctrl/Cmd+V).'); }
-};
-let lastClipboardPhone=null;
-async function tryReadClipboardText(){ try{
-  if(navigator.permissions?.query){ try{ const p=await navigator.permissions.query({name:'clipboard-read'}); if(p.state==='denied') return null; }catch(_){ } }
-  const txt=await navigator.clipboard.readText(); return txt||null;
-}catch{ return null; } }
-async function maybeSuggestPaste(){
-  const wrap = $('#pasteSuggest'); if(!wrap) return;
-  wrap.style.display='none';
-  const txt = await tryReadClipboardText();
-  const n = normalizeFR10(txt);
-  const cur = normalizeFR10(phoneInput.value);
-  if(n && n!==cur){
-    lastClipboardPhone = n;
-    $('#psText').textContent = formatFR10(n);
-    wrap.style.display='flex';
+  if(n){
+    setPhoneValueFrom10(n);
+    if(n.length===10) setTimeout(()=>$('#n3').click(), 80);
+  } else {
+    const raw = (e.target.value||'').replace(/\D/g,'').slice(0,14);
+    e.target.value = formatFR10(raw);
   }
-}
-$('#psApply').onclick = ()=>{ if(lastClipboardPhone){ setPhoneValueFrom10(lastClipboardPhone); $('#pasteSuggest').style.display='none'; $('#n3').click(); } };
+});
+
+/* Si l'utilisateur colle manuellement (Ctrl/Cmd+V), on formate après le paste */
+phoneInput.addEventListener('paste', () => {
+  setTimeout(()=>{ const n = normalizeFR10(phoneInput.value); if(n) setPhoneValueFrom10(n); }, 0);
+});
 
 /* Suite wizard */
 $('#n3').onclick=()=>{ const p10=normalizeFR10($('#w_phone').value); if(!p10){ $('#e3').style.display='block'; return;} $('#e3').style.display='none'; next(); };
