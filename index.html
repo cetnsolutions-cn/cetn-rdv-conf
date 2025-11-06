@@ -1001,7 +1001,14 @@ function buildQuickDates(){
 }
 function buildQuickTimes(){
   const cont = document.querySelector('#quickTimeRow'); if(!cont) return; cont.innerHTML = '';
-  const slots=[]; for(let h=9; h<=18; h++){ for(const m of ['00','30']){ if((h===12&&m==='00')||(h===13&&m==='00')) continue; slots.push(`${String(h).padStart(2,'0')}:${m}`); } }
+  const slots=[]; 
+  for(let h=9; h<=18; h++){
+    for(const m of ['00','30']){
+      // J'ai enlevé l'exclusion de 12:00 (midi) — on n'exclut maintenant que 13:00 si tu veux le garder exclu
+      if((h===13 && m==='00')) continue;
+      slots.push(`${String(h).padStart(2,'0')}:${m}`);
+    }
+  }
   let list = slots.slice();
   try{
     const dTxt = $('#w_date')?.value || ''; const iso = jjmma_to_iso(dTxt);
@@ -1032,7 +1039,6 @@ function buildRecap(){
   ];
   const box=$('#recap'); box.innerHTML=''; chips.forEach(c=>{ const b=document.createElement('button'); b.className='chip'; b.textContent=`${c.k}: ${c.v||'—'}`; b.onclick=()=>showStep(c.step); box.appendChild(b); });
 }
-
 /* Envoi / Enregistrement */
 $('#btnWA').onclick = ()=>submitRDV('wa');
 $('#btnSMS').onclick = ()=>submitRDV('sms');
