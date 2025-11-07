@@ -377,6 +377,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 /* Init thème : respecte l’OS par défaut. Pour forcer :
    document.documentElement.dataset.theme='dark' ou 'light' */
 (() => {
+ (() => {
   try {
     const saved = localStorage.getItem('cn_theme');
     if (saved === 'dark' || saved === 'light') {
@@ -384,11 +385,17 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
     }
     // expose un helper optionnel :
     window.CN_setTheme = (mode)=>{
-      if(mode!=='dark' && mode!=='light'){ delete document.documentElement.dataset.theme; localStorage.removeItem('cn_theme'); return; }
-      document.documentElement.dataset.theme=mode; localStorage.setItem('cn_theme', mode);
+      if(mode!=='dark' && mode!=='light'){
+        delete document.documentElement.dataset.theme;
+        localStorage.removeItem('cn_theme');
+        return;
+      }
+      document.documentElement.dataset.theme=mode;
+      localStorage.setItem('cn_theme', mode);
     };
   } catch(_) {}
 })();
+</script>
 <script>
 // === Auto refresh doux global (1s) ===
 // Déclenche un évènement "app:refresh" et appelle tes hooks si présents.
@@ -459,6 +466,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
   // Premier run immédiat
   fullRefresh();
 })();
+
 </script>
 </head>
 <body>
@@ -604,7 +612,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
     </div>
   </div>
 
-  <!-- Stats + filtres -->
+ <!-- Stats + filtres -->
   <div class="card">
     <div class="flex-gap" style="align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:10px">
@@ -622,6 +630,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 
     <div class="kpis mt12">
       <div class="kpi green"><b id="k_upcoming">0</b>À venir</div>
+      <div class="kpi green"><b id="k_revenue">0€</b>Chiffre d'affaires du jour</div>
       <div class="kpi blue"><b id="k_due">0</b>Rappels à faire aujourd’hui</div>
       <div class="kpi violet"><b id="k_honored">0</b>RDV honorés</div>
       <div class="kpi amber"><b id="k_noshow">0</b>Non honorés</div>
@@ -724,7 +733,22 @@ function relativeWhen(iso, timeTxt){
   const t = todayISO(); const tomo = isoOf(addDays(new Date(), 1)); const long = dateLongueISO(iso); const h = timeFR(timeTxt);
   if(iso===t) return `aujourd’hui à ${h}`; if(iso===tomo) return `demain (${long}) à ${h}`; return `le ${long} à ${h}`;
 }
+// Helpers utilisés par le bouton "Rappel" dans la liste
+function patchRDV(id, patch){
+  try{
+    const i = (Array.isArray(ALL_R)? ALL_R.findIndex(x=>x.id===id) : -1);
+    if(i>=0) ALL_R[i] = { ...ALL_R[i], ...patch };
+  }catch(_){}
+}
 
+function refreshOpenSheet(id){
+  try{
+    // on se contente d’actualiser les compteurs + la liste
+    computeDueToday?.();
+    updateReminderButton?.();
+    renderList?.();
+  }catch(_){}
+}
 /* ---------- Normalisation FR +33 / 0033 ---------- */
 function normalizeFR10(v){
   const d=(v||'').replace(/\D/g,'');
@@ -813,8 +837,18 @@ async function loadAgenciesDB(){
   AGENCIES_DB = {};
   if(snap){
     snap.docs.forEach(d=>{
-      const v=d.data()||{}; const k=v.name || d.id;
-      AGENCIES_DB[k]={name:k,addr:v.addr||'',map:v.map||'',tagline:v.tagline||k,templates:v.templates||null,disabled:v.disabled===true};
+      const v = d.data() || {};
+      const k = v.name || d.id;
+      AGENCIES_DB[k] = {
+        name: k,
+        addr: v.addr || '',
+        map: v.map || '',
+        tagline: v.tagline || k,
+        templates: v.templates || null,
+        disabled: v.disabled === true,
+        // ⬇️ NOUVEAU : prix TTC par RDV honoré
+        priceHonorTTC: (typeof v.priceHonorTTC === 'number' && !isNaN(v.priceHonorTTC)) ? v.priceHonorTTC : null
+      };
     });
   }
 }
@@ -916,7 +950,34 @@ function msgFromTpl(type, agency, dateTxt, timeTxt, model, oldD=null, oldT=null,
   const tpl = agencyTpls?.[type] || TPL_DEFAULTS[type];
   return fillTokens(tpl, buildCtx(agency,dateTxt,timeTxt,model,oldD,oldT,extra));
 }
+// === Prix agence & KPI CA du jour ===
+function getAgencyPrice(key){
+  const ag = getAgencyByKey(key);
+  const p  = ag?.priceHonorTTC;
+  return (typeof p === 'number' && !isNaN(p)) ? p : 0;
+}
 
+function computeRevenueToday(){
+  const tISO = todayISO();
+  const total = (ALL_R||[]).reduce((acc, r)=>{
+    if (r.deleted) return acc;
+    if (r.dateISO === tISO && r.status === 'honored' && r.honorBilling === 'facturé'){
+      return acc + getAgencyPrice(r.agency);
+    }
+    return acc;
+  }, 0);
+  const el = document.getElementById('k_revenue');
+  if (el) el.textContent = `${Math.round(total).toLocaleString('fr-FR')}€`;
+  return total;
+}
+
+// regroupe les KPI appelés par tes timers 1s
+function refreshKpis(){
+  try{ computeUpcoming(); }catch(e){}
+  try{ computeDueToday(); }catch(e){}
+  try{ computeTodo(); }catch(e){}
+  try{ computeRevenueToday(); }catch(e){}
+}
 /* ---------- Login / rôles ---------- */
 const ADMIN_PIN="972";
 let ROLE={role:null,name:null};
@@ -1306,6 +1367,7 @@ async function loadAll(){
   $('#k_noshow').textContent=noshow;
 
   computeUpcoming(); computeDueToday(); computeTodo();
+  computeRevenueToday();
   updateReminderButton(); 
   updatePendingButton();
   updateTabCounts();
@@ -2309,7 +2371,7 @@ async function clearHonor(r){
   const snap=await db.collection('rdv').doc(r.id).get(); const prev=snap.exists?snap.data().status:null;
   if(prev==='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(-1)},{merge:true});
   await db.collection('rdv').doc(r.id).set({status:null,statusAt:firebase.firestore.FieldValue.delete(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
-  computeUpcoming(); computeTodo(); notify('Statut retiré','ok'); loadAll();
+  computeUpcoming(); computeTodo();computeRevenueToday(); computeRevenueToday();notify('Statut retiré','ok'); loadAll();
 }
 
 /* Modifier RDV — avec choix du canal par défaut */
@@ -2528,6 +2590,9 @@ function openAgencyModal(key=null){
     <div class="label">Adresse</div>
     <input id="ag_addr" class="input" placeholder="Rue, CP Ville" value="${cur.addr||''}">
     <div class="label">Lien plan (Google Maps)</div>
+    <div class="label">Prix TTC par RDV honoré (€)</div>
+    <input id="ag_price" class="input" inputmode="decimal" placeholder="Ex : 50"
+           value="${(typeof cur.priceHonorTTC==='number' && !isNaN(cur.priceHonorTTC)) ? cur.priceHonorTTC : ''}">
     <input id="ag_map" class="input" placeholder="https://..." value="${cur.map||''}">
     <div class="label mt12">Jetons disponibles (cliquer pour insérer)</div>
     <div class="tokenbar" id="ag_tokens">
@@ -2583,8 +2648,26 @@ function openAgencyModal(key=null){
     const docRef=db.collection('agencies').doc(name);
     const data={ name, addr: ($m('#ag_addr').value||'').trim(), map: ($m('#ag_map').value||'').trim(),
       tagline: ($m('#ag_tagline').value||'').trim(), templates: state.templates, disabled: false };
+
+    // === 5.b — récupérer & normaliser le prix TTC AVANT docRef.set(...) ===
+    const rawPrix = ($m('#ag_price')?.value ?? '').trim();
+    if (rawPrix !== '') {
+      const cleaned = rawPrix.replace(/[^\d,.\-]/g, '').replace(',', '.');
+      const prix = Number(cleaned);
+      if (!Number.isFinite(prix) || prix < 0) {
+        alert('Prix TTC invalide. Exemple : 50 ou 50,00');
+        return; // stoppe la sauvegarde
+      }
+      const prixEuros = Math.round(prix * 100) / 100; // ex: 50.00
+      const prixCents = Math.round(prix * 100);       // ex: 5000
+      data.priceHonorTTC   = prixEuros;  // number (euros)
+      data.priceHonorCents = prixCents;  // integer (centimes)
+    }
+    // === fin 5.b ===
+
     try{
-      await docRef.set(data,{merge:true}); notify('Agence enregistrée ✔️','ok'); dlg.close?.(); dlg.remove();
+      await docRef.set(data,{merge:true});
+      notify('Agence enregistrée ✔️','ok'); dlg.close?.(); dlg.remove();
       await loadAgenciesDB(); populateWizardAgencies(); populateAgencyFilter(); if(VIEW==='agencies') renderList();
     }catch(e){ alert('Erreur enregistrement agence.'); }
   };
@@ -3027,6 +3110,7 @@ window.openStatusDialog = function(id){
     }
   });
 })();
+
 </script>
 </section>
 </body>
