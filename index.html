@@ -1,4 +1,4 @@
-<!doctype html>
+ <!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
@@ -630,7 +630,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 
     <div class="kpis mt12">
       <div class="kpi green"><b id="k_upcoming">0</b>À venir</div>
-      <div class="kpi green"><b id="k_revenue">0€</b>Chiffre d'affaires du jour</div>
+     <div class="kpi green admin-only hide"><b id="k_revenue">0€</b>Chiffre d'affaires du jour</div>
       <div class="kpi blue"><b id="k_due">0</b>Rappels à faire aujourd’hui</div>
       <div class="kpi violet"><b id="k_honored">0</b>RDV honorés</div>
       <div class="kpi amber"><b id="k_noshow">0</b>Non honorés</div>
@@ -958,6 +958,13 @@ function getAgencyPrice(key){
 }
 
 function computeRevenueToday(){
+  // ⬇️ Ne pas afficher le CA aux membres équipe — uniquement admin
+  if (typeof ROLE !== 'undefined' && ROLE.role !== 'admin') {
+    const el = document.getElementById('k_revenue');
+    if (el) el.textContent = '—';
+    return 0;
+  }
+
   const tISO = todayISO();
   const total = (ALL_R||[]).reduce((acc, r)=>{
     if (r.deleted) return acc;
@@ -3114,4 +3121,4 @@ window.openStatusDialog = function(id){
 </script>
 </section>
 </body>
-</html>
+</html> 
