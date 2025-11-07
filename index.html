@@ -958,13 +958,6 @@ function getAgencyPrice(key){
 }
 
 function computeRevenueToday(){
-  // ⬇️ Ne pas afficher le CA aux membres équipe — uniquement admin
-  if (typeof ROLE !== 'undefined' && ROLE.role !== 'admin') {
-    const el = document.getElementById('k_revenue');
-    if (el) el.textContent = '—';
-    return 0;
-  }
-
   const tISO = todayISO();
   const total = (ALL_R||[]).reduce((acc, r)=>{
     if (r.deleted) return acc;
