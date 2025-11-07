@@ -414,7 +414,51 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
   // Premier refresh immédiat
   softRefresh();
 })();
+// ===== LIVE REFRESH GLOBAL (toutes les 1s) =====
+(function(){
+  // évite les doublons
+  if (window.__globalRefreshTimer) clearInterval(window.__globalRefreshTimer);
 
+  let running = false;
+
+  async function fullRefresh(){
+    if (running) return;
+    running = true;
+    try {
+      // 1) Notifie l'app (vos écrans peuvent écouter cet event)
+      window.dispatchEvent(new CustomEvent('app:refresh'));
+
+      // 2) Si vous avez des fonctions de data/DOM, on les appelle si elles existent
+      try { typeof refreshAppointments === 'function' && await refreshAppointments(); } catch(e){}
+      try { typeof refreshKpis === 'function'         && await refreshKpis(); }         catch(e){}
+      try { typeof refreshFilters === 'function'      && await refreshFilters(); }      catch(e){}
+      try { typeof updateReminderButton === 'function'&&      updateReminderButton(); } catch(e){}
+
+      // 3) Si la modale Rappels est ouverte, on force son re-render immédiat
+      const dlg = document.getElementById('remindersDlg');
+      if (dlg && typeof dlg.__rerender === 'function') {
+        dlg.__rerender();
+      }
+    } finally {
+      running = false;
+    }
+  }
+
+  // Tick toutes les 1000 ms uniquement si l’onglet est visible
+  window.__globalRefreshTimer = setInterval(()=>{
+    if (document.visibilityState !== 'visible') return;
+    fullRefresh();
+  }, 1000);
+
+  // Rafraîchis aussi au retour focus / visibilité
+  window.addEventListener('focus', fullRefresh);
+  document.addEventListener('visibilitychange', ()=> {
+    if (document.visibilityState === 'visible') fullRefresh();
+  });
+
+  // Premier run immédiat
+  fullRefresh();
+})();
 </script>
 </head>
 <body>
@@ -1320,6 +1364,9 @@ function openRemindersPanel(){
       <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,680px);overflow:auto"></div>
     </div>`;
 
+  // ID pour le rafraîchissement global (le script 1s la repère via #remindersDlg)
+  dlg.id = 'remindersDlg';
+
   document.body.appendChild(dlg);
   (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
 
@@ -1330,6 +1377,7 @@ function openRemindersPanel(){
   function renderList(){
     const items = (typeof dueRemindersToday === 'function') ? dueRemindersToday() : [];
     list.innerHTML = '';
+
     if(header) header.innerHTML = items.length
       ? `À rappeler : <b id="rem_total">${items.length}</b>`
       : `Aucun rappel à faire pour aujourd’hui.`;
@@ -1340,50 +1388,54 @@ function openRemindersPanel(){
       return;
     }
 
-    for(const r of items){
+    for (const r of items){
       const row = document.createElement('div');
       row.className = 'rdv';
       const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
+      const safe = (v)=> (typeof escapeHtml==='function' ? escapeHtml(v) : v);
+
       row.innerHTML = `
         <div style="min-width:0">
-          <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
-          <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
+          <div class="title">${(typeof fmtNice==='function' ? fmtNice(r.dateISO,r.timeText) : `${r.dateISO} ${r.timeText||''}`)} — ${safe(civName)}</div>
+          <div class="meta">${(typeof toFR==='function'? toFR(r.phone) : (r.phone||''))} • ${safe(r.model||'')}</div>
           <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
+            ${r.agency?`<span class="badge">${safe(r.agency)}</span>`:''}
             ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
-            <span class="bubble gray">Prévu ${relativeWhen(r.dateISO, r.timeText)}</span>
+            <span class="bubble gray">Prévu ${(typeof relativeWhen==='function'? relativeWhen(r.dateISO, r.timeText) : '')}</span>
           </div>
         </div>
         <div class="rdv-actions">
-          <button class="btn btn-primary btn-xs" data-rem="${r.id}">Rappel</button>
+          <button class="btn btn-primary btn-xs" data-rem="1">Rappel</button>
         </div>`;
+
+      // Action "Rappel" (envoie le message puis rafraîchit la liste)
+      const remBtn = row.querySelector('[data-rem]');
+      remBtn?.addEventListener('click', async ()=>{
+        if (!remBtn) return;
+        const prev = remBtn.textContent;
+        remBtn.disabled = true;
+        remBtn.textContent = '…';
+        try {
+          if (typeof sendReminder === 'function') {
+            await sendReminder(r);
+          }
+        } catch(e) {
+          console.error(e);
+        } finally {
+          remBtn.disabled = false;
+          remBtn.textContent = prev;
+          // Re-rendu + pastille
+          renderList();
+          try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
+        }
+      });
 
       list.appendChild(row);
     }
-
-    // Rappeler un par un
-    list.querySelectorAll('[data-rem]').forEach(b=>{
-      b.addEventListener('click', async (e)=>{
-        const id = e.currentTarget.getAttribute('data-rem');
-        const r  = (typeof getRDVById==='function') ? getRDVById(id) : null;
-        if(!r) return;
-        b.disabled = true; b.textContent = '…';
-        try { await sendReminder(r); } catch(_){}
-        // Recalcul et rafraîchissement (si le rappel est parti, l’item sort ; sinon il reste)
-        renderList();
-        try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
-      });
-    });
   }
 
-  // — Live refresh : se re-rendre dès que l’app “tick” —
-  const __remOnRefresh = () => renderList();
-  window.addEventListener('app:refresh', __remOnRefresh);
-
-  // Nettoyage au close
-  dlg.addEventListener('close', () => {
-    window.removeEventListener('app:refresh', __remOnRefresh);
-  });
+  // Hook utilisé par le rafraîchissement global (tick 1s)
+  dlg.__rerender = renderList;
 
   renderList();
 }
@@ -2916,7 +2968,65 @@ window.openStatusDialog = function(id){
   });
 };
 
+// === AUTO-REFRESH GLOBAL — à coller juste avant </body> ===
+(function(){
+  const PERIOD = 1000; // 1 seconde
 
+  // Évite les doublons si injecté deux fois
+  if (window.__autoRefTimer) clearInterval(window.__autoRefTimer);
+
+  function findRefreshButton(){
+    const all = Array.from(document.querySelectorAll('button, [role="button"], [data-refresh], .btn'));
+    return all.find(el=>{
+      const t = (el.textContent||'').toLowerCase();
+      const id = (el.id||'').toLowerCase();
+      const title = (el.title||'').toLowerCase();
+      return el.hasAttribute('data-refresh')
+        || /refresh|rafraich|rafraîch|actualis/.test(id)
+        || /refresh|rafraich|rafraîch|actualis/.test(title)
+        || /rafraîchir|rafraichir|actualiser|refresh/.test(t);
+    }) || null;
+  }
+
+  function doRefresh(){
+    try{
+      // 1) Ta/tes fonctions internes si elles existent
+      if (typeof refreshAll === 'function') return void refreshAll();
+      if (typeof reloadAll  === 'function') return void reloadAll();
+      if (typeof loadData   === 'function') return void loadData();
+      if (typeof renderAll  === 'function') return void renderAll();
+
+      // 2) Clique le bouton "Rafraîchir" si présent
+      const btn = findRefreshButton();
+      if (btn) { btn.click(); return; }
+
+      // 3) Si le panneau Rappels est ouvert, forcer juste son re-render
+      const dlg = document.querySelector('#remindersDlg');
+      if (dlg && typeof dlg.__rerender === 'function') dlg.__rerender();
+
+      // 4) (Optionnel) Dernier recours : recharger la page en dur
+      // location.reload(); // ← décommente si tu veux un vrai reload
+    }catch(e){
+      console.error('auto refresh error', e);
+    }
+  }
+
+  // Lance maintenant puis toutes les 1 s
+  doRefresh();
+  window.__autoRefTimer = setInterval(doRefresh, PERIOD);
+
+  // Optionnel : pause si onglet caché pour éviter de spammer
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden) {
+      if (window.__autoRefTimer){ clearInterval(window.__autoRefTimer); window.__autoRefTimer=null; }
+    } else {
+      if (!window.__autoRefTimer){
+        window.__autoRefTimer = setInterval(doRefresh, PERIOD);
+        doRefresh();
+      }
+    }
+  });
+})();
 </script>
 </section>
 </body>
