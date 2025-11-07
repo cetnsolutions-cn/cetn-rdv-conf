@@ -389,6 +389,32 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
     };
   } catch(_) {}
 })();
+<script>
+// === Auto refresh doux global (1s) ===
+// Déclenche un évènement "app:refresh" et appelle tes hooks si présents.
+(function(){
+  if (window.__autoRefreshTimer) clearInterval(window.__autoRefreshTimer);
+
+  async function softRefresh(){
+    // Notifie tous les écrans d’actualiser leur rendu
+    window.dispatchEvent(new CustomEvent('app:refresh'));
+    // Tes fonctions de refresh si elles existent (protégées)
+    try { typeof refreshAppointments === 'function' && await refreshAppointments(); } catch(e){}
+    try { typeof refreshKpis === 'function' && await refreshKpis(); } catch(e){}
+    try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
+    try { typeof refreshFilters === 'function' && refreshFilters(); } catch(e){}
+  }
+
+  // Tick toutes les 1000 ms (uniquement si l’onglet est visible)
+  window.__autoRefreshTimer = setInterval(()=>{
+    if (document.visibilityState !== 'visible') return;
+    softRefresh();
+  }, 1000);
+
+  // Premier refresh immédiat
+  softRefresh();
+})();
+
 </script>
 </head>
 <body>
@@ -1273,43 +1299,48 @@ function updateReminderButton(){
   btn.classList.toggle('blink', n>0);
 }
 
-// Ouvre un panel listant les rappels à faire aujourd’hui
+// Ouvre un panel listant les rappels à faire aujourd’hui (plein écran-ish + live refresh)
 function openRemindersPanel(){
-  const arr = dueRemindersToday();
   const dlg = document.createElement('dialog');
-  dlg.style.maxWidth='880px';
-  dlg.style.width='min(96vw,880px)';
+  dlg.style.maxWidth = '980px';
+  dlg.style.width = 'min(98vw,980px)';
+  dlg.style.padding = '0';
+  dlg.style.border = 'none';
+  dlg.style.borderRadius = '12px';
+  dlg.style.overflow = 'hidden';
   dlg.innerHTML = `
-    <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--cardBg, #fff);position:sticky;top:0;z-index:2">
       <div style="font-weight:800">Rappels à faire — Aujourd'hui</div>
       <div style="display:flex;gap:8px">
-        ${arr.length ? '<button class="btn btn-primary btn-xs" id="rem_all">Tout rappeler</button>' : ''}
         <button class="btn btn-neutral btn-xs" id="rem_close">Fermer</button>
       </div>
     </div>
     <div style="padding:14px">
-      ${arr.length ? '<div class="small">À rappeler : <b id="rem_total">'+arr.length+'</b></div>' : '<div class="small">Aucun rappel à faire pour aujourd’hui.</div>'}
-      <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(60vh,560px);overflow:auto"></div>
+      <div class="small" id="rem_header"></div>
+      <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,680px);overflow:auto"></div>
     </div>`;
+
   document.body.appendChild(dlg);
-  dlg.showModal?.() ?? dlg.setAttribute('open','');
+  (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
 
   const list = dlg.querySelector('#rem_list');
+  const header = dlg.querySelector('#rem_header');
   dlg.querySelector('#rem_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
 
   function renderList(){
-    const items = dueRemindersToday();
-    const totalEl = dlg.querySelector('#rem_total');
-    if(totalEl) totalEl.textContent = String(items.length);
+    const items = (typeof dueRemindersToday === 'function') ? dueRemindersToday() : [];
     list.innerHTML = '';
+    if(header) header.innerHTML = items.length
+      ? `À rappeler : <b id="rem_total">${items.length}</b>`
+      : `Aucun rappel à faire pour aujourd’hui.`;
 
     if(items.length===0){
       list.innerHTML = '<div class="small">Tout est à jour ✔️</div>';
-      updateReminderButton();
+      try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
       return;
     }
 
-    items.forEach(r=>{
+    for(const r of items){
       const row = document.createElement('div');
       row.className = 'rdv';
       const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
@@ -1319,57 +1350,43 @@ function openRemindersPanel(){
           <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
           <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
-            ${iconForChannel(r)}
+            ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
             <span class="bubble gray">Prévu ${relativeWhen(r.dateISO, r.timeText)}</span>
           </div>
         </div>
         <div class="rdv-actions">
-          <button class="btn btn-neutral btn-xs" data-open="${r.id}">Ouvrir</button>
           <button class="btn btn-primary btn-xs" data-rem="${r.id}">Rappel</button>
         </div>`;
 
       list.appendChild(row);
-    });
-
-    // Ouvrir la fiche
-    list.querySelectorAll('[data-open]').forEach(b=>{
-      b.addEventListener('click', (e)=>{
-        const id=e.currentTarget.getAttribute('data-open');
-        const r = getRDVById?.(id);
-        if(r){ dlg.close?.(); dlg.remove(); openRDVSheet(r); }
-      });
-    });
+    }
 
     // Rappeler un par un
     list.querySelectorAll('[data-rem]').forEach(b=>{
       b.addEventListener('click', async (e)=>{
-        const id=e.currentTarget.getAttribute('data-rem');
-        const r = getRDVById?.(id);
+        const id = e.currentTarget.getAttribute('data-rem');
+        const r  = (typeof getRDVById==='function') ? getRDVById(id) : null;
         if(!r) return;
         b.disabled = true; b.textContent = '…';
-        try{ await sendReminder(r); }catch(_){}
-        // Recalcul et rafraîchissement de la liste + pastille
+        try { await sendReminder(r); } catch(_){}
+        // Recalcul et rafraîchissement (si le rappel est parti, l’item sort ; sinon il reste)
         renderList();
-        updateReminderButton();
+        try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
       });
     });
   }
 
-  // Tout rappeler (séquentiel)
-  dlg.querySelector('#rem_all')?.addEventListener('click', async ()=>{
-    const items = dueRemindersToday();
-    if(items.length===0) return;
-    if(!confirm(`Confirmer l’envoi de ${items.length} rappel(s) ?`)) return;
-    for(const r of items){
-      try{ await sendReminder(r); }catch(_){}
-    }
-    renderList();
-    updateReminderButton();
+  // — Live refresh : se re-rendre dès que l’app “tick” —
+  const __remOnRefresh = () => renderList();
+  window.addEventListener('app:refresh', __remOnRefresh);
+
+  // Nettoyage au close
+  dlg.addEventListener('close', () => {
+    window.removeEventListener('app:refresh', __remOnRefresh);
   });
 
   renderList();
 }
-
 /* === Compteurs / filtres === */
 function countUpcoming(){
   const now=new Date(); const tISO=todayISO(); const nowM=now.getHours()*60+now.getMinutes();
@@ -2898,6 +2915,8 @@ window.openStatusDialog = function(id){
     }
   });
 };
+
+
 </script>
 </section>
 </body>
