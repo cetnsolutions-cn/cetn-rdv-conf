@@ -545,6 +545,7 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
         <button class="btn btn-warn btn-xs" id="btnPendingReq">Demandes en cours <span id="pendingCount" class="pill">0</span></button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAdminStats">Admin – Stats</button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAgencies">Agences</button>
+        <button class="btn btn-neutral btn-xs" id="btnReminders">Rappels <span id="remCount" class="pill">0</span></button>
         <button class="btn btn-neutral btn-xs" id="btnLogout">Se déconnecter</button>
       </div>
     </div>
@@ -1235,9 +1236,137 @@ async function loadAll(){
   $('#k_noshow').textContent=noshow;
 
   computeUpcoming(); computeDueToday(); computeTodo();
+  updateReminderButton(); 
   updatePendingButton();
   updateTabCounts();
   updateStatusChips();
+  renderList();
+}
+/* ====== Rappels du jour — helpers & panel ====== */
+// Liste des RDV à rappeler aujourd’hui (même logique que computeDueToday)
+function dueRemindersToday(){
+  const now = new Date();
+  const tISO = todayISO();
+  const nowM = now.getHours()*60 + now.getMinutes();
+  return (ALL_R||[])
+    .filter(r=>{
+      if(r.deleted || r.reminderSent || r.dateISO!==tISO) return false;
+      // on ne rappelle pas ceux créés aujourd’hui
+      const created = r.createdAt?.toDate ? r.createdAt.toDate() : null;
+      const createdISO = created ? isoOf(created) : null;
+      if(createdISO===tISO) return false;
+      // on rappelle seulement si l’heure est encore à venir
+      const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false;
+      const minutes=+m[1]*60 + +m[2];
+      return minutes>nowM;
+    })
+    .sort((a,b)=> (a.timeText||'').localeCompare(b.timeText||''));
+}
+
+// Met à jour la pastille du bouton "Rappels"
+function updateReminderButton(){
+  const el = document.getElementById('remCount');
+  const btn = document.getElementById('btnReminders');
+  if(!el || !btn) return;
+  const n = dueRemindersToday().length;
+  el.textContent = String(n);
+  btn.classList.toggle('blink', n>0);
+}
+
+// Ouvre un panel listant les rappels à faire aujourd’hui
+function openRemindersPanel(){
+  const arr = dueRemindersToday();
+  const dlg = document.createElement('dialog');
+  dlg.style.maxWidth='880px';
+  dlg.style.width='min(96vw,880px)';
+  dlg.innerHTML = `
+    <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Rappels à faire — Aujourd'hui</div>
+      <div style="display:flex;gap:8px">
+        ${arr.length ? '<button class="btn btn-primary btn-xs" id="rem_all">Tout rappeler</button>' : ''}
+        <button class="btn btn-neutral btn-xs" id="rem_close">Fermer</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      ${arr.length ? '<div class="small">À rappeler : <b id="rem_total">'+arr.length+'</b></div>' : '<div class="small">Aucun rappel à faire pour aujourd’hui.</div>'}
+      <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(60vh,560px);overflow:auto"></div>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  const list = dlg.querySelector('#rem_list');
+  dlg.querySelector('#rem_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
+
+  function renderList(){
+    const items = dueRemindersToday();
+    const totalEl = dlg.querySelector('#rem_total');
+    if(totalEl) totalEl.textContent = String(items.length);
+    list.innerHTML = '';
+
+    if(items.length===0){
+      list.innerHTML = '<div class="small">Tout est à jour ✔️</div>';
+      updateReminderButton();
+      return;
+    }
+
+    items.forEach(r=>{
+      const row = document.createElement('div');
+      row.className = 'rdv';
+      const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
+      row.innerHTML = `
+        <div style="min-width:0">
+          <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
+          <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
+          <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
+            ${iconForChannel(r)}
+            <span class="bubble gray">Prévu ${relativeWhen(r.dateISO, r.timeText)}</span>
+          </div>
+        </div>
+        <div class="rdv-actions">
+          <button class="btn btn-neutral btn-xs" data-open="${r.id}">Ouvrir</button>
+          <button class="btn btn-primary btn-xs" data-rem="${r.id}">Rappel</button>
+        </div>`;
+
+      list.appendChild(row);
+    });
+
+    // Ouvrir la fiche
+    list.querySelectorAll('[data-open]').forEach(b=>{
+      b.addEventListener('click', (e)=>{
+        const id=e.currentTarget.getAttribute('data-open');
+        const r = getRDVById?.(id);
+        if(r){ dlg.close?.(); dlg.remove(); openRDVSheet(r); }
+      });
+    });
+
+    // Rappeler un par un
+    list.querySelectorAll('[data-rem]').forEach(b=>{
+      b.addEventListener('click', async (e)=>{
+        const id=e.currentTarget.getAttribute('data-rem');
+        const r = getRDVById?.(id);
+        if(!r) return;
+        b.disabled = true; b.textContent = '…';
+        try{ await sendReminder(r); }catch(_){}
+        // Recalcul et rafraîchissement de la liste + pastille
+        renderList();
+        updateReminderButton();
+      });
+    });
+  }
+
+  // Tout rappeler (séquentiel)
+  dlg.querySelector('#rem_all')?.addEventListener('click', async ()=>{
+    const items = dueRemindersToday();
+    if(items.length===0) return;
+    if(!confirm(`Confirmer l’envoi de ${items.length} rappel(s) ?`)) return;
+    for(const r of items){
+      try{ await sendReminder(r); }catch(_){}
+    }
+    renderList();
+    updateReminderButton();
+  });
+
   renderList();
 }
 
@@ -2277,9 +2406,12 @@ $('#btnAdminStats').onclick=()=>{ if(ROLE.role!=='admin') return alert('Réserv�
 
 /* Agences (liste + modale) */
 $('#btnAgencies')?.addEventListener('click', ()=>{
+    document.getElementById('btnReminders')?.addEventListener('click', ()=>{ openRemindersPanel(); });
   if (ROLE.role!=='admin') return alert('Réservé à l’admin.');
   openAgenciesPanel();
 });
+// ...
+document.getElementById('btnReminders')?.addEventListener('click', openRemindersPanel);
 function renderAgencies(container){
   const isAdmin = (ROLE.role==='admin');
   container.innerHTML='';
@@ -2468,6 +2600,7 @@ function bindStatusChips(){
 setInterval(()=>{ if($('#app').classList.contains('hide')) return; if(document.hidden) return;
   if(['today','past','upcoming','trash','todo','tomorrow','honored','no_show','cancelled'].includes(VIEW)) renderList();
   computeDueToday(); computeUpcoming(); computeTodo(); updatePendingButton();
+  updateReminderButton();
 },30*1000);
 
 /* Overlay blanc + scroll-lock quand un <dialog> est ouvert */
