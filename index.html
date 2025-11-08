@@ -2172,8 +2172,9 @@ function renderList(){
       </div>
       <div class="mt12">${progressMiniHTML(r)}</div>
       ${deleteReqBox}`;
-    left.style.cursor='pointer'; left.onclick = ()=>{ if(VIEW!=='trash') openRDVSheet(r); };
-
+// Désactive l'ouverture par clic sur la ligne : ⚙️ uniquement
+left.style.cursor='default';
+left.onclick = (e)=>{ e?.stopPropagation?.(); /* no-op */ };
 const actions=document.createElement('div'); actions.className='rdv-actions';
 if (VIEW==='trash') {
   if (ROLE.role==='admin') {
