@@ -476,150 +476,80 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 </script>
 
 <script>
-/* === Consolidation : une seule implémentation de patchRDV === */
-function patchRDV(id, patch = {}) {
-  try {
-    // si ALL_R est un tableau, apply localement
-    if (Array.isArray(ALL_R)) {
-      const i = ALL_R.findIndex(x => x.id === id);
-      if (i >= 0) {
-        ALL_R[i] = { ...ALL_R[i], ...patch };
-        // si la fiche ouverte est la même, on rafraîchit l'affichage
-        if (typeof CURRENT_SHEET !== 'undefined' && CURRENT_SHEET && CURRENT_SHEET.id === id) {
-          refreshOpenSheet?.(id);
-        }
-        return ALL_R[i];
-      }
+// === Renvoyer la confirmation (WA/SMS) ===
+async function resendConfirmation(r){
+  try{
+    if (typeof r === 'string'){
+      const snap = await db.collection('rdv').doc(r).get();
+      if (!snap.exists){ alert('RDV introuvable'); return; }
+      r = { id:snap.id, ...snap.data() };
     }
-    // fallback : si getRDVById existe, patch l'objet trouvé
-    if (typeof getRDVById === 'function') {
-      const r = getRDVById(id);
-      if (r) { Object.assign(r, patch); refreshOpenSheet?.(id); return r; }
+    if (!r || !r.id){ alert('RDV introuvable'); return; }
+    const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
+    if (!(r.agency && r.dateText && r.timeText && r.model && r.phone)){
+      alert('Champs manquants (agence, date, heure, modèle, téléphone).'); return;
     }
-  } catch (e) {
-    console.error('patchRDV error', e);
-  }
-  return null;
-}
-
-/* === Consolidation : refreshOpenSheet (unique) ===
-   Met à jour compteurs + fiche ouverte (si présente) de façon sûre. */
-function refreshOpenSheet(id) {
-  try {
-    // Raffraîchir KPI / compteurs
-    try { typeof computeDueToday === 'function' && computeDueToday(); } catch (e) {}
-    try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch (e) {}
-    try { typeof refreshKpis === 'function' && refreshKpis(); } catch (e) {}
-    try { typeof renderList === 'function' && renderList(); } catch (e) {}
-
-    // Si une fiche est ouverte pour cet id, mettre à jour uniquement son DOM (optimiste)
-    if (typeof CURRENT_SHEET !== 'undefined' && CURRENT_SHEET && CURRENT_SHEET.id === id) {
-      const dlg = CURRENT_SHEET.dlg;
-      const r = (typeof getRDVById === 'function') ? getRDVById(id) : null;
-      if (!dlg || !r) return;
-
-      // Stepper
-      const prog = dlg.querySelector('#cn_progress_full');
-      if (prog) prog.innerHTML = typeof renderStepperHTML === 'function' ? renderStepperHTML(progressFromRDV(r), false) : '';
-
-      // Bulles entête
-      const bubbles = dlg.querySelector('#sheet_bubbles');
-      if (bubbles && typeof renderSheetBubblesHTML === 'function') {
-        bubbles.innerHTML = renderSheetBubblesHTML(r);
-      }
-
-      // Boutons/action row
-      const actions = dlg.querySelector('.sheet-actions');
-      if (actions && typeof renderSheetActionsHTML === 'function' && typeof wireSheetActionButtons === 'function') {
-        actions.innerHTML = renderSheetActionsHTML(r);
-        // re-wire les handlers
-        wireSheetActionButtons(dlg, r);
-      }
-
-      // Historique (si présent)
-      try {
-        const hist = dlg.querySelector('#history_body');
-        if (hist && typeof loadAndRenderHistory === 'function') loadAndRenderHistory(r, hist);
-      } catch (e) { /* ignore */ }
-    }
-  } catch (err) {
-    console.error('refreshOpenSheet error', err);
+    const preWin = ch === 'wa' ? window.open('', '_blank') : null;
+    const txt = msgFromTpl(
+      'confirmation',
+      r.agency,
+      r.dateText,
+      r.timeText,
+      r.model,
+      null,
+      null,
+      { CIV: r.civ || '', PRENOM: (r.name||'').trim() },
+      ch
+    );
+    openChannelAndLog(r.phone, txt, ch, preWin);
+    try{
+      await db.collection('messages').add({
+        type: 'confirmation_resent',
+        rdvId: r.id,
+        phone: r.phone,
+        agency: r.agency || '',
+        channel: ch,
+        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(_){}
+    notify('Confirmation prête ✔️', 'ok');
+  }catch(e){
+    console.error('resendConfirmation error', e);
+    notify('Erreur lors de l’envoi', 'warn');
   }
 }
 
-/* === Safely finish override of markReminder si présent (patch local + rafraîchissement) === */
-if (typeof markReminder === 'function') {
-  const _markReminder_original = markReminder;
-  markReminder = async function (r, channel) {
-    // appel original (mise en base)
-    await _markReminder_original(r, channel);
-    try {
-      // tentative de patch local pour rendre l'UI plus réactive
-      if (r && r.id) {
-        patchRDV(r.id, { reminderSent: true, reminderAt: new Date(), reminderChannel: channel });
-      }
-    } catch (e) { console.error('post-markReminder patch error', e); }
-    // rafraîchir compteurs / liste / boutons
-    try { typeof computeDueToday === 'function' && computeDueToday(); } catch (e) {}
-    try { typeof renderList === 'function' && renderList(); } catch (e) {}
-    try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch (e) {}
-  };
-}
-  // Tick toutes les 1000 ms (uniquement si l’onglet est visible)
-  window.__autoRefreshTimer = setInterval(()=>{
-    if (document.visibilityState !== 'visible') return;
-    softRefresh();
-  }, 1000);
-
-  // Premier refresh immédiat
-  softRefresh();
-})();
-// ===== LIVE REFRESH GLOBAL (toutes les 1s) =====
-(function(){
-  // évite les doublons
-  if (window.__globalRefreshTimer) clearInterval(window.__globalRefreshTimer);
-
-  let running = false;
-
-  async function fullRefresh(){
-    if (running) return;
-    running = true;
-    try {
-      // 1) Notifie l'app (vos écrans peuvent écouter cet event)
-      window.dispatchEvent(new CustomEvent('app:refresh'));
-
-      // 2) Si vous avez des fonctions de data/DOM, on les appelle si elles existent
-      try { typeof refreshAppointments === 'function' && await refreshAppointments(); } catch(e){}
-      try { typeof refreshKpis === 'function'         && await refreshKpis(); }         catch(e){}
-      try { typeof refreshFilters === 'function'      && await refreshFilters(); }      catch(e){}
-      try { typeof updateReminderButton === 'function'&&      updateReminderButton(); } catch(e){}
-
-      // 3) Si la modale Rappels est ouverte, on force son re-render immédiat
-      const dlg = document.getElementById('remindersDlg');
-      if (dlg && typeof dlg.__rerender === 'function') {
-        dlg.__rerender();
-      }
-    } finally {
-      running = false;
+// === Annuler un rappel déjà marqué ===
+async function undoReminder(r){
+  try{
+    if (typeof r === 'string'){
+      const snap = await db.collection('rdv').doc(r).get();
+      if (!snap.exists) return;
+      r = { id:snap.id, ...snap.data() };
     }
+    await db.collection('rdv').doc(r.id).set({
+      reminderSent: false,
+      reminderAt: firebase.firestore.FieldValue.delete(),
+      reminderChannel: firebase.firestore.FieldValue.delete()
+    }, { merge:true });
+    patchRDV?.(r.id, { reminderSent:false, reminderAt:null, reminderChannel:null });
+    refreshOpenSheet?.(r.id);
+    try{
+      await db.collection('messages').add({
+        type: 'reminder_cancelled',
+        rdvId: r.id,
+        phone: r.phone,
+        agency: r.agency || '',
+        channel: (r.reminderChannel || r.channel || 'wa'),
+        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(_){}
+    notify('Rappel annulé', 'ok');
+  }catch(e){
+    console.error('undoReminder error', e);
+    notify('Erreur lors de l’annulation du rappel', 'warn');
   }
-
-  // Tick toutes les 1000 ms uniquement si l’onglet est visible
-  window.__globalRefreshTimer = setInterval(()=>{
-    if (document.visibilityState !== 'visible') return;
-    fullRefresh();
-  }, 1000);
-
-  // Rafraîchis aussi au retour focus / visibilité
-  window.addEventListener('focus', fullRefresh);
-  document.addEventListener('visibilitychange', ()=> {
-    if (document.visibilityState === 'visible') fullRefresh();
-  });
-
-  // Premier run immédiat
-  fullRefresh();
-})();
-
+}
 </script>
 </head>
 <body>
