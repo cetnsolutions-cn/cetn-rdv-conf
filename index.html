@@ -16,8 +16,15 @@
 <style>
 /* ===================== THEME SYSTEM — lisible en clair & sombre ===================== */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;color-scheme: light dark}
-
+html,body{
+  height:100%;
+  margin:0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto,
+               "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+               Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light dark;
+}
 /* -- Base (clair) */
 :root{
   --bg:#f8fafc;           /* fond page */
@@ -549,6 +556,7 @@ function refreshOpenSheet(id) {
   }
 }
 
+
 /* === Safely finish override of markReminder si présent (patch local + rafraîchissement) === */
 (function(){
   // On garde un éventuel markReminder existant, sinon on fournit un défaut.
@@ -597,6 +605,79 @@ function refreshOpenSheet(id) {
     // Fallback si rien n’existe
     window.markReminder = defaultMarkReminder;
   }
+})();
+(function(){
+  "use strict";
+
+  // --- 1) Normalisation numéro pour wa.me
+  function normalizePhone(input){
+    let p = (input || "").trim().replace(/[^\d+]/g, "");
+    if (!p) return "";
+    if (p.startsWith("+")) p = p.slice(1);
+    if (p.startsWith("00")) p = p.slice(2);
+    if (p.startsWith("0"))  p = "33" + p.slice(1); // FR 06.. -> 336..
+    return p;
+  }
+
+  // --- 2) Ouverture WhatsApp (app puis fallback web)
+  function openWA(phone, text){
+    const tel = normalizePhone(phone);
+    const msg = encodeURIComponent(text || "");
+    if (!tel){ console.warn("[WA] Phone vide"); return; }
+    const appUrl = "whatsapp://send?phone=" + tel + "&text=" + msg;
+    const webUrl = "https://wa.me/" + tel + "?text=" + msg;
+
+    const t0 = Date.now();
+    location.href = appUrl;
+    setTimeout(function(){
+      if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
+        location.href = webUrl;
+      }
+    }, 900);
+  }
+  window.cnOpenWhatsApp = openWA;
+
+  // --- 3) Emojis en échappements Unicode (aucun risque d'encodage)
+  const E = {
+  check: String.fromCodePoint(0x2705),
+  cal:   String.fromCodePoint(0x1F4C5),
+  car:   String.fromCodePoint(0x1F697),
+  pin:   String.fromCodePoint(0x1F4CD),
+  wave:  String.fromCodePoint(0x1F44B),
+};
+
+  // --- 4) Génére le message automatique (WhatsApp comprend *gras*)
+  window.cnBuildAutoMsg = function({date, time, model, place, agency}){
+    return (
+`Confirmation de RDV (Message Automatique)
+
+Votre rendez-vous est *confirmé* ${E.check} !
+
+${E.cal} Date & Heure : *${date}* à *${time}*
+${E.car} Modèle : *${model}*
+${E.pin} Lieu : *${place}*
+
+Merci de vous présenter avec : *Carte grise, Pièce d'identité et Contrôle technique (si disponible)*.
+
+Au plaisir de vous accueillir,
+L'équipe *${agency} – votre conciergerie automobile*`
+    );
+  };
+
+  // --- 5) Boutons auto : un seul attribut pour tout faire
+  document.addEventListener('click', function(ev){
+    const el = ev.target.closest('[data-wa-auto]');
+    if (!el) return;
+    ev.preventDefault();
+    const msg = window.cnBuildAutoMsg({
+      date:   el.getAttribute('data-date')   || '',
+      time:   el.getAttribute('data-time')   || '',
+      model:  el.getAttribute('data-model')  || '',
+      place:  el.getAttribute('data-place')  || '',
+      agency: el.getAttribute('data-agency') || ''
+    });
+    openWA(el.getAttribute('data-phone') || '', msg);
+  });
 })();
 </script>
 </head>
@@ -993,8 +1074,7 @@ function getAgencyByKey(k){
   const dbv=AGENCIES_DB?.[k]||{};
   return {...mem, ...dbv};
 }
-function getAgencyTemplates(k){ return (AGENCIES_DB?.[k]?.templates) || null; }
-
+function getAgencyTemplates(k){ return (AGENCIES_DB?.[k]?.templates) || (AGENCIES?.[k]?.templates) || null; }
 /* ---------- Templates (bi-canal WA/SMS) ---------- */
 const TPL_DEFAULTS = {
   confirmation: {
@@ -1360,17 +1440,62 @@ $('#btnSMS').onclick = ()=>submitRDV('sms');
 
 function openChannelAndLog(phone, text, channel, preWin=null){
   try{
-    if(channel==='wa'){
-      const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-      if(preWin && !preWin.closed){ preWin.location.href=url; preWin.focus(); } else { const win=window.open(url,'_blank'); if(!win) throw new Error('popup'); }
-    }else{
-      const n=phoneSMS(phone); const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent); const sep=isIOS?'&':'?';
-      window.location.href=`sms:${n}${sep}body=${encodeURIComponent(text)}`;
+    const phoneDigits = (phone||'').replace(/\D/g,'');
+    if(!phoneDigits) throw new Error('phone vide');
+
+    if(channel === 'wa'){
+      // app-first method (works well on Android + iOS) with web fallback
+      const tel = phoneDigits; // ex: 33612345678 (sans +)
+      const appUrl = "whatsapp://send?phone=" + tel + "&text=" + encodeURIComponent(text);
+      const webUrl = "https://wa.me/" + tel + "?text=" + encodeURIComponent(text);
+
+      // Usage direct (user gesture): essayer d'abord l'URL app
+      const t0 = Date.now();
+      // on navigue sur l'URL app (ouvre l'application si présente)
+      location.href = appUrl;
+
+      // après ~900ms, si la page est toujours visible, on bascule sur web fallback
+      setTimeout(function(){
+        if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
+          // L'app ne s'est pas ouverte -> fallback web
+          try{
+            if(preWin && !preWin.closed){ preWin.location.href = webUrl; preWin.focus(); }
+            else { window.open(webUrl, '_blank'); }
+          }catch(e){
+            // si popup bloqué -> juste copier le texte
+            navigator.clipboard?.writeText(text).catch(()=>{});
+            notify('Message copié. Ouvre WhatsApp et colle-le.', 'ok');
+          }
+        } else {
+          // l'app s'est probablement ouverte — fermer la fenêtre pré-ouverte si elle existe
+          try{ if(preWin && !preWin.closed) preWin.close(); }catch(_){}
+        }
+      }, 900);
+
+      return;
+    }
+
+    // SMS fallback
+    if(channel === 'sms'){
+      const n = phoneDigits.replace(/^33/, '0'); // format affiché (0...)
+      // iOS/Android separator heuristique
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.platform || '');
+      const sep = isIOS ? '&' : '?';
+      const smsUrl = `sms:${n}${sep}body=${encodeURIComponent(text)}`;
+      // On utilise location.href pour rester dans le même contexte (moins de blocage)
+      location.href = smsUrl;
+      // On copie le message au cas où
       navigator.clipboard?.writeText(text).catch(()=>{});
       notify('Message prêt (copié). Ouvre l’app SMS si besoin.','ok');
+      return;
     }
-  }catch{
+
+    // Par défaut : copier le texte et notifier
     navigator.clipboard?.writeText(text).catch(()=>{});
+    notify('Message copié. Ouvre l’app correspondante et colle-le.','ok');
+  }catch(e){
+    console.error('openChannelAndLog error', e);
+    try{ navigator.clipboard?.writeText(text).catch(()=>{}); }catch(_){}
     notify('Message copié. Ouvre l’app WhatsApp/SMS.','ok');
   }
 }
@@ -3341,6 +3466,66 @@ async function resendConfirmation(rOrId){
     notify('Erreur renvoi confirmation','warn');
   }
 }
+(function(){
+  "use strict";
+
+  // Normalise le numéro en format wa.me (FR 06.. -> 336.., retire + ou 00)
+  function normalizePhone(input){
+    let p = (input || "").trim().replace(/[^\d+]/g, "");
+    if (!p) return "";
+    if (p.startsWith("+")) p = p.slice(1);
+    if (p.startsWith("00")) p = p.slice(2);
+    if (p.startsWith("0"))  p = "33" + p.slice(1);
+    return p;
+  }
+
+  function openWA(phone, text){
+    const tel = normalizePhone(phone);
+    const msg = encodeURIComponent(text || ""); // garde bien les emojis ✅
+    if (!tel){ console.warn("[WA] Phone vide"); return; }
+
+    const appUrl = "whatsapp://send?phone=" + tel + "&text=" + msg;
+    const webUrl = "https://wa.me/" + tel + "?text=" + msg;
+
+    const t0 = Date.now();
+    // 1) tenter d’ouvrir l’app (depuis un clic utilisateur)
+    location.href = appUrl;
+
+    // 2) secours web si l’app ne prend pas le focus
+    setTimeout(function(){
+      if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
+        location.href = webUrl;
+      }
+    }, 900);
+  }
+
+  // Expose une API si tu veux l’appeler ailleurs
+  window.cnOpenWhatsApp = openWA;
+
+  // A) Tout élément avec [data-wa] déclenche l’ouverture avec ses attributs
+  document.addEventListener("click", function(ev){
+    const el = ev.target.closest("[data-wa]");
+    if (!el) return;
+    ev.preventDefault();
+    openWA(
+      el.getAttribute("data-wa-phone") || "",
+      el.getAttribute("data-wa-text")  || ""
+    );
+  });
+
+  // B) Raccourci auto si tu as #send-wa (et éventuellement #tel, #msg)
+  const btn = document.getElementById("send-wa");
+  const tel = document.getElementById("tel");
+  const msg = document.getElementById("msg");
+  if (btn && (tel || msg)){
+    btn.addEventListener("click", function(e){
+      e.preventDefault();
+      openWA(tel ? tel.value : "", msg ? msg.value : "");
+    });
+  }
+})();
+
+
 </script>
 </section>
 </body>
