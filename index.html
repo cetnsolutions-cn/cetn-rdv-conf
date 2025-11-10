@@ -3576,210 +3576,249 @@ async function resendConfirmation(rOrId){
   }
 })();
 (function(){
-  const LOG_PREFIX = '[AutoFillConfirm]';
+  const LP = '[AutoFillAndroid]';
+  function log(...a){ console.log(LP, ...a); }
+  function warn(...a){ console.warn(LP, ...a); }
 
-  // ====== CONFIG (modifie si nécessaire) ======
-  // sélecteurs probables pour la zone de confirmation (textarea / input / contenteditable)
+  // ===== CONFIG =====
   const CONFIRM_SELECTORS = [
-    '#confirmationMessage',          // exemple id
-    'textarea[name="confirmation"]', // exemple
-    '.message-confirmation',         // exemple
-    '[data-role="confirm-message"]'  // exemple
+    '#confirmationMessage',
+    'textarea[name="confirmation"]',
+    '.message-confirmation',
+    '[data-role="confirm-message"]'
   ];
-
-  // prévisualisations possibles (si tu as une zone preview séparée)
   const CONFIRM_PREVIEW_SELECTORS = [
     '#confirmPreview',
-    '.confirm-preview',
-    '[data-preview="confirmation"]'
+    '.confirm-preview'
   ];
-
-  // Template par défaut (modifie le texte)
-  const CONFIRM_TEMPLATE = `Bonjour {{prenom}},\n\nMerci de confirmer votre rendez-vous le 12/11/2025 à 14:30. Répondez "OUI" ou "NON".\n\n— C&N Solutions`;
-
-  // Token data (par défaut utilisable, tu peux remplacer dynamiquement avant appel)
+  const CONFIRM_TEMPLATE = `Bonjour {{prenom}},\nMerci de confirmer votre rendez-vous le 12/11/2025 à 14:30. Répondez "OUI" ou "NON".\n— C&N Solutions`;
   const DEFAULT_DATA = { prenom: 'Client' };
+  const MAX_RETRY_MS = 20000;
+  const CHECK_INTERVAL_MS = 500;
 
-  // Timeout / retry config
-  const MAX_RETRY_MS = 20000; // durée max d'observation en ms
-  const CHECK_INTERVAL_MS = 600; // fallback interval
-
-  // ====== UTIL ======
-  function log(...args){ console.log(LOG_PREFIX, ...args); }
-  function now(){ return (new Date()).toISOString(); }
-  function populate(template, data = {}) {
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? '');
-  }
-
-  // write value in a native-friendly way (helps React controlled inputs)
-  function setNativeValue(element, value) {
-    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-      const proto = Object.getPrototypeOf(element);
-      const valueSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      if (valueSetter) {
-        valueSetter.call(element, value);
-      } else {
-        element.value = value;
-      }
-    } else {
-      // contenteditable or others
-      element.textContent = value;
-    }
-    // dispatch events so UI frameworks notice the change
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-  }
-
-  // handle contentEditable elements
-  function setContentEditable(el, value) {
-    el.textContent = value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-  }
-
-  // try to set value depending on element type
-  function tryFillElement(el, text) {
-    if (!el) return false;
+  // ===== helpers =====
+  function isAndroid(){ return /Android/i.test(navigator.userAgent || ''); }
+  function populate(t, data = {}) { return t.replace(/\{\{(\w+)\}\}/g, (_,k)=> data[k] ?? ''); }
+  function dispatchInputEvents(el, text){
     try {
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-        setNativeValue(el, text);
-        return true;
-      }
-      // contenteditable
-      if (el.isContentEditable) {
-        setContentEditable(el, text);
-        return true;
-      }
-      // fallback: set textContent
-      el.textContent = text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Unidentified' }));
+      // modern InputEvent
+      try {
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+      } catch(e){}
+      // composition end
+      el.dispatchEvent(new Event('compositionend', { bubbles: true }));
+    } catch(e){ console.warn(LP, 'dispatch events failed', e); }
+  }
+
+  // set via value setter (helps React)
+  function setNativeValue(element, value) {
+    if (!element) return false;
+    try {
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        const proto = Object.getPrototypeOf(element);
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(element, value);
+        else element.value = value;
+      } else if (element.isContentEditable) {
+        element.textContent = value;
+      } else {
+        element.textContent = value;
+      }
+      dispatchInputEvents(element, value);
       return true;
-    } catch (e) {
-      console.warn(LOG_PREFIX, 'Erreur remplissage', e);
+    } catch(e){
+      warn('setNativeValue error', e);
       return false;
     }
   }
 
-  // update preview boxes if present
-  function updatePreviews(text) {
-    CONFIRM_PREVIEW_SELECTORS.forEach(sel => {
+  // Try execCommand insertText (old but works in many Android WebView)
+  function execInsertText(el, text){
+    try {
+      el.focus();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        // attempt to replace selection
+        document.execCommand('insertText', false, text);
+      } else {
+        // fallback: set value then dispatch
+        if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+          const current = el.value || '';
+          const newVal = current + text;
+          setNativeValue(el, newVal);
+        } else if (el.isContentEditable) {
+          document.execCommand('insertText', false, text);
+        }
+      }
+      dispatchInputEvents(el, text);
+      return true;
+    } catch(e){
+      warn('execInsertText failed', e);
+      return false;
+    }
+  }
+
+  // selection + paste fallback
+  function selectionInsert(el, text){
+    try {
+      el.focus();
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? start;
+        const v = el.value || '';
+        const nv = v.slice(0, start) + text + v.slice(end);
+        setNativeValue(el, nv);
+        el.setSelectionRange(start + text.length, start + text.length);
+      } else if (el.isContentEditable) {
+        const r = document.createRange();
+        const sel = window.getSelection();
+        r.selectNodeContents(el);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        document.execCommand('insertText', false, text);
+      } else {
+        el.textContent = text;
+      }
+      dispatchInputEvents(el, text);
+      return true;
+    } catch(e){
+      warn('selectionInsert failed', e);
+      return false;
+    }
+  }
+
+  // find
+  function findElement(){
+    for (const s of CONFIRM_SELECTORS) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function updatePreviews(text){
+    CONFIRM_PREVIEW_SELECTORS.forEach(sel=>{
       const p = document.querySelector(sel);
       if (p) p.textContent = text;
     });
   }
 
-  // Find first matching element from selectors
-  function findConfirmElement() {
-    for (const s of CONFIRM_SELECTORS) {
-      const el = document.querySelector(s);
-      if (el) return el;
-    }
-    // sometimes the field is inside an iframe or shadow DOM — not handled here
-    return null;
-  }
+  // Main filling logic with Android-specific steps
+  function tryFill(text){
+    const el = findElement();
+    if (!el) { log('No confirmation element found yet.'); return false; }
 
-  // Core attempt to fill; returns true if succeeded
-  function attemptFill(data = DEFAULT_DATA) {
-    const text = populate(CONFIRM_TEMPLATE, data);
-    const el = findConfirmElement();
-    if (!el) {
-      log('Aucun élément de confirmation trouvé pour le moment.');
-      return false;
-    }
-    const ok = tryFillElement(el, text);
-    if (ok) {
-      updatePreviews(text);
-      log('Remplissage effectué à', now(), 'Sélecteur utilisé ->', el);
-      return true;
-    }
+    log('Found element:', el, 'isContentEditable?', !!el.isContentEditable, 'android?', isAndroid());
+
+    // scroll + focus
+    try {
+      el.scrollIntoView({behavior: 'smooth', block:'center', inline:'nearest'});
+      el.focus({preventScroll: false});
+    } catch(e){}
+
+    // small delay to ensure keyboard and focus settle
+    try {
+      // 1) preferred: native setter + events (React friendly)
+      if (setNativeValue(el, text)) {
+        log('Filled by setNativeValue');
+        updatePreviews(text);
+        return true;
+      }
+    } catch(e){ warn('setNativeValue threw', e); }
+
+    try {
+      // 2) execCommand fallback (works on many Android)
+      if (execInsertText(el, text)) {
+        log('Filled by execInsertText');
+        updatePreviews(text);
+        return true;
+      }
+    } catch(e){ warn('execInsertText threw', e); }
+
+    try {
+      // 3) selection insert
+      if (selectionInsert(el, text)) {
+        log('Filled by selectionInsert');
+        updatePreviews(text);
+        return true;
+      }
+    } catch(e){ warn('selectionInsert threw', e); }
+
+    // 4) last resort: set attribute + textContent
+    try {
+      if (el instanceof HTMLElement) {
+        el.setAttribute('value', text);
+        el.textContent = text;
+        dispatchInputEvents(el, text);
+        log('Filled by attribute/textContent fallback');
+        updatePreviews(text);
+        return true;
+      }
+    } catch(e){ warn('last fallback failed', e); }
+
     return false;
   }
 
-  // Observe mutations to detect added nodes (modals / SPA)
-  function observeAndFill(timeout = MAX_RETRY_MS, data = DEFAULT_DATA) {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      let resolved = false;
+  // Observe & retry
+  function observeAndRun(data = DEFAULT_DATA){
+    const text = populate(CONFIRM_TEMPLATE, data);
+    const start = Date.now();
+    let done = false;
 
-      const tryAndResolve = () => {
-        if (attemptFill(data)) {
-          resolved = true;
-          disconnect();
-          resolve(true);
-        } else if (Date.now() - start >= timeout) {
-          disconnect();
-          resolve(false);
-        }
-      };
+    function attempt(){
+      if (done) return;
+      const ok = tryFill(text);
+      if (ok) { done = true; log('Auto-fill success'); cleanup(); return; }
+      if (Date.now() - start >= MAX_RETRY_MS) { log('Auto-fill timeout after', MAX_RETRY_MS, 'ms'); cleanup(); return; }
+    }
 
-      // initial attempt
-      tryAndResolve();
+    // run immediately
+    setTimeout(attempt, 80);
 
-      // MutationObserver
-      const observer = new MutationObserver(muts => {
-        if (resolved) return;
-        // Try when nodes added or attributes changed
-        for (const m of muts) {
-          if (m.addedNodes && m.addedNodes.length) {
-            tryAndResolve();
-            break;
-          }
-        }
-      });
-
-      function disconnect() {
-        try { observer.disconnect(); } catch(e){}
-        clearInterval(intervalId);
-        window.removeEventListener('hashchange', tryAndResolve);
-        window.removeEventListener('popstate', tryAndResolve);
+    // observer
+    const obs = new MutationObserver((muts)=>{
+      if (done) return;
+      for (const m of muts) {
+        if (m.addedNodes && m.addedNodes.length) { attempt(); break; }
       }
-
-      observer.observe(document.documentElement || document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style']
-      });
-
-      // fallback interval in case MutationObserver misses it
-      const intervalId = setInterval(() => {
-        tryAndResolve();
-      }, CHECK_INTERVAL_MS);
-
-      // Also try on navigation events
-      window.addEventListener('hashchange', tryAndResolve);
-      window.addEventListener('popstate', tryAndResolve);
-
-      // final timeout ensured in tryAndResolve
     });
+    try {
+      obs.observe(document.documentElement || document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class','style'] });
+    } catch(e){ warn('observer failed', e); }
+
+    const interval = setInterval(attempt, CHECK_INTERVAL_MS);
+    function cleanup(){
+      try { obs.disconnect(); } catch(e){}
+      clearInterval(interval);
+    }
+
+    // also try on focus changes (user may open keyboard)
+    window.addEventListener('focus', attempt);
+    window.addEventListener('visibilitychange', attempt);
+
+    // final cleanup after max time
+    setTimeout(()=>{ if(!done) { log('Final attempt before stop'); attempt(); } }, MAX_RETRY_MS - 50);
   }
 
-  // Public runner: call on load
-  function runAutoFill(data = DEFAULT_DATA) {
-    log('Lancement auto-fill confirmation — début à', now());
-    // immediate attempt + observer
-    observeAndFill(MAX_RETRY_MS, data).then(success => {
-      if (success) log('Auto-fill réussi.');
-      else log('Auto-fill : élément non trouvé après timeout.');
-    });
-  }
-
-  // Try to run when DOM ready
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(() => runAutoFill(), 50);
-  } else {
-    document.addEventListener('DOMContentLoaded', () => runAutoFill());
-  }
-
-  // Expose for debug / manual trigger
-  window.__AutoFillConfirm = {
-    run: runAutoFill,
-    attemptFill: attemptFill,
-    findElement: findConfirmElement
+  // Public API
+  window.__AutoFillAndroid = {
+    run: observeAndRun,
+    tryFillOnce: () => tryFill(populate(CONFIRM_TEMPLATE, DEFAULT_DATA)),
+    findElement
   };
 
-  log('Script chargé — disponible via window.__AutoFillConfirm (run/attemptFill/findElement).');
+  // Auto start when DOM ready
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(()=> { log('Starting auto-fill (auto) - Android aware. UA=', navigator.userAgent); observeAndRun(); }, 100);
+  } else {
+    document.addEventListener('DOMContentLoaded', ()=> { log('DOM ready - starting auto-fill. UA=', navigator.userAgent); observeAndRun(); });
+  }
+
+  log('Script loaded - API available at window.__AutoFillAndroid (run / tryFillOnce / findElement).');
 
 })();
 
