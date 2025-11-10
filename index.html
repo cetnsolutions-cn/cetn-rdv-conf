@@ -1,6 +1,4 @@
-
-
- <!doctype html>
+Bon code rdv  <!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
@@ -16,15 +14,8 @@
 <style>
 /* ===================== THEME SYSTEM — lisible en clair & sombre ===================== */
 *{box-sizing:border-box}
-html,body{
-  height:100%;
-  margin:0;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto,
-               "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
-               Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color-scheme: light dark;
-}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;color-scheme: light dark}
+
 /* -- Base (clair) */
 :root{
   --bg:#f8fafc;           /* fond page */
@@ -459,226 +450,99 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 </style>
 
 <script>
-/* === Init thème (IIFE propre) === */
+/* Init thème : respecte l’OS par défaut. Pour forcer :
+   document.documentElement.dataset.theme='dark' ou 'light' */
 (() => {
+ (() => {
   try {
     const saved = localStorage.getItem('cn_theme');
     if (saved === 'dark' || saved === 'light') {
       document.documentElement.dataset.theme = saved;
     }
-    // Helper pour forcer le thème depuis la console / boutons
-    window.CN_setTheme = (mode) => {
-      try {
-        if (mode !== 'dark' && mode !== 'light') {
-          delete document.documentElement.dataset.theme;
-          localStorage.removeItem('cn_theme');
-          return;
-        }
-        document.documentElement.dataset.theme = mode;
-        localStorage.setItem('cn_theme', mode);
-      } catch (_) {}
+    // expose un helper optionnel :
+    window.CN_setTheme = (mode)=>{
+      if(mode!=='dark' && mode!=='light'){
+        delete document.documentElement.dataset.theme;
+        localStorage.removeItem('cn_theme');
+        return;
+      }
+      document.documentElement.dataset.theme=mode;
+      localStorage.setItem('cn_theme', mode);
     };
-  } catch (err) {
-    console.error('CN theme init error', err);
-  }
+  } catch(_) {}
 })();
 </script>
-
 <script>
-/* === Consolidation : une seule implémentation de patchRDV === */
-function patchRDV(id, patch = {}) {
-  try {
-    // si ALL_R est un tableau, apply localement
-    if (Array.isArray(ALL_R)) {
-      const i = ALL_R.findIndex(x => x.id === id);
-      if (i >= 0) {
-        ALL_R[i] = { ...ALL_R[i], ...patch };
-        // si la fiche ouverte est la même, on rafraîchit l'affichage
-        if (typeof CURRENT_SHEET !== 'undefined' && CURRENT_SHEET && CURRENT_SHEET.id === id) {
-          refreshOpenSheet?.(id);
-        }
-        return ALL_R[i];
-      }
-    }
-    // fallback : si getRDVById existe, patch l'objet trouvé
-    if (typeof getRDVById === 'function') {
-      const r = getRDVById(id);
-      if (r) { Object.assign(r, patch); refreshOpenSheet?.(id); return r; }
-    }
-  } catch (e) {
-    console.error('patchRDV error', e);
-  }
-  return null;
-}
-
-/* === Consolidation : refreshOpenSheet (unique) ===
-   Met à jour compteurs + fiche ouverte (si présente) de façon sûre. */
-function refreshOpenSheet(id) {
-  try {
-    // Raffraîchir KPI / compteurs
-    try { typeof computeDueToday === 'function' && computeDueToday(); } catch (e) {}
-    try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch (e) {}
-    try { typeof refreshKpis === 'function' && refreshKpis(); } catch (e) {}
-    try { typeof renderList === 'function' && renderList(); } catch (e) {}
-
-    // Si une fiche est ouverte pour cet id, mettre à jour uniquement son DOM (optimiste)
-    if (typeof CURRENT_SHEET !== 'undefined' && CURRENT_SHEET && CURRENT_SHEET.id === id) {
-      const dlg = CURRENT_SHEET.dlg;
-      const r = (typeof getRDVById === 'function') ? getRDVById(id) : null;
-      if (!dlg || !r) return;
-
-      // Stepper
-      const prog = dlg.querySelector('#cn_progress_full');
-      if (prog) prog.innerHTML = typeof renderStepperHTML === 'function' ? renderStepperHTML(progressFromRDV(r), false) : '';
-
-      // Bulles entête
-      const bubbles = dlg.querySelector('#sheet_bubbles');
-      if (bubbles && typeof renderSheetBubblesHTML === 'function') {
-        bubbles.innerHTML = renderSheetBubblesHTML(r);
-      }
-
-      // Boutons/action row
-      const actions = dlg.querySelector('.sheet-actions');
-      if (actions && typeof renderSheetActionsHTML === 'function' && typeof wireSheetActionButtons === 'function') {
-        actions.innerHTML = renderSheetActionsHTML(r);
-        // re-wire les handlers
-        wireSheetActionButtons(dlg, r);
-      }
-
-      // Historique (si présent)
-      try {
-        const hist = dlg.querySelector('#history_body');
-        if (hist && typeof loadAndRenderHistory === 'function') loadAndRenderHistory(r, hist);
-      } catch (e) { /* ignore */ }
-    }
-  } catch (err) {
-    console.error('refreshOpenSheet error', err);
-  }
-}
-
-
-/* === Safely finish override of markReminder si présent (patch local + rafraîchissement) === */
+// === Auto refresh doux global (1s) ===
+// Déclenche un évènement "app:refresh" et appelle tes hooks si présents.
 (function(){
-  // On garde un éventuel markReminder existant, sinon on fournit un défaut.
-  const hasOriginal = (typeof window.markReminder === 'function');
+  if (window.__autoRefreshTimer) clearInterval(window.__autoRefreshTimer);
 
-  async function defaultMarkReminder(r, channel){
-    // Écrit l’info de rappel en base + logge le message
-    await db.collection('rdv').doc(r.id).set({
-      reminderSent: true,
-      reminderAt: firebase.firestore.FieldValue.serverTimestamp(),
-      reminderChannel: channel
-    }, { merge:true });
+  async function softRefresh(){
+    // Notifie tous les écrans d’actualiser leur rendu
+    window.dispatchEvent(new CustomEvent('app:refresh'));
+    // Tes fonctions de refresh si elles existent (protégées)
+    try { typeof refreshAppointments === 'function' && await refreshAppointments(); } catch(e){}
+    try { typeof refreshKpis === 'function' && await refreshKpis(); } catch(e){}
+    try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
+    try { typeof refreshFilters === 'function' && refreshFilters(); } catch(e){}
+  }
 
-    await db.collection('messages').add({
-      type: 'reminder',
-      rdvId: r.id,
-      phone: r.phone,
-      agency: r.agency || '',
-      channel,
-      sentAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+  // Tick toutes les 1000 ms (uniquement si l’onglet est visible)
+  window.__autoRefreshTimer = setInterval(()=>{
+    if (document.visibilityState !== 'visible') return;
+    softRefresh();
+  }, 1000);
 
-    // Patch UI optimiste
-    try { patchRDV(r.id, { reminderSent:true, reminderAt:new Date(), reminderChannel:channel }); } catch(_){}
+  // Premier refresh immédiat
+  softRefresh();
+})();
+// ===== LIVE REFRESH GLOBAL (toutes les 1s) =====
+(function(){
+  // évite les doublons
+  if (window.__globalRefreshTimer) clearInterval(window.__globalRefreshTimer);
+
+  let running = false;
+
+  async function fullRefresh(){
+    if (running) return;
+    running = true;
     try {
-      typeof computeDueToday === 'function' && computeDueToday();
-      typeof renderList === 'function'      && renderList();
-      typeof updateReminderButton === 'function' && updateReminderButton();
-      typeof refreshOpenSheet === 'function' && r?.id && refreshOpenSheet(r.id);
-    } catch(_){}
-  }
+      // 1) Notifie l'app (vos écrans peuvent écouter cet event)
+      window.dispatchEvent(new CustomEvent('app:refresh'));
 
-  if (hasOriginal){
-    const _orig = window.markReminder;
-    window.markReminder = async function(r, channel){
-      await _orig(r, channel);
-      try { patchRDV(r.id, { reminderSent:true, reminderAt:new Date(), reminderChannel:channel }); } catch(_){}
-      try {
-        typeof computeDueToday === 'function' && computeDueToday();
-        typeof renderList === 'function'      && renderList();
-        typeof updateReminderButton === 'function' && updateReminderButton();
-        typeof refreshOpenSheet === 'function' && r?.id && refreshOpenSheet(r.id);
-      } catch(_){}
-    };
-  } else {
-    // Fallback si rien n’existe
-    window.markReminder = defaultMarkReminder;
-  }
-})();
-(function(){
-  "use strict";
+      // 2) Si vous avez des fonctions de data/DOM, on les appelle si elles existent
+      try { typeof refreshAppointments === 'function' && await refreshAppointments(); } catch(e){}
+      try { typeof refreshKpis === 'function'         && await refreshKpis(); }         catch(e){}
+      try { typeof refreshFilters === 'function'      && await refreshFilters(); }      catch(e){}
+      try { typeof updateReminderButton === 'function'&&      updateReminderButton(); } catch(e){}
 
-  // --- 1) Normalisation numéro pour wa.me
-  function normalizePhone(input){
-    let p = (input || "").trim().replace(/[^\d+]/g, "");
-    if (!p) return "";
-    if (p.startsWith("+")) p = p.slice(1);
-    if (p.startsWith("00")) p = p.slice(2);
-    if (p.startsWith("0"))  p = "33" + p.slice(1); // FR 06.. -> 336..
-    return p;
-  }
-
-  // --- 2) Ouverture WhatsApp (app puis fallback web)
-  function openWA(phone, text){
-    const tel = normalizePhone(phone);
-    const msg = encodeURIComponent(text || "");
-    if (!tel){ console.warn("[WA] Phone vide"); return; }
-    const appUrl = "whatsapp://send?phone=" + tel + "&text=" + msg;
-    const webUrl = "https://wa.me/" + tel + "?text=" + msg;
-
-    const t0 = Date.now();
-    location.href = appUrl;
-    setTimeout(function(){
-      if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
-        location.href = webUrl;
+      // 3) Si la modale Rappels est ouverte, on force son re-render immédiat
+      const dlg = document.getElementById('remindersDlg');
+      if (dlg && typeof dlg.__rerender === 'function') {
+        dlg.__rerender();
       }
-    }, 900);
+    } finally {
+      running = false;
+    }
   }
-  window.cnOpenWhatsApp = openWA;
 
-  // --- 3) Emojis en échappements Unicode (aucun risque d'encodage)
-  const E = {
-  check: String.fromCodePoint(0x2705),
-  cal:   String.fromCodePoint(0x1F4C5),
-  car:   String.fromCodePoint(0x1F697),
-  pin:   String.fromCodePoint(0x1F4CD),
-  wave:  String.fromCodePoint(0x1F44B),
-};
+  // Tick toutes les 1000 ms uniquement si l’onglet est visible
+  window.__globalRefreshTimer = setInterval(()=>{
+    if (document.visibilityState !== 'visible') return;
+    fullRefresh();
+  }, 1000);
 
-  // --- 4) Génére le message automatique (WhatsApp comprend *gras*)
-  window.cnBuildAutoMsg = function({date, time, model, place, agency}){
-    return (
-`Confirmation de RDV (Message Automatique)
-
-Votre rendez-vous est *confirmé* ${E.check} !
-
-${E.cal} Date & Heure : *${date}* à *${time}*
-${E.car} Modèle : *${model}*
-${E.pin} Lieu : *${place}*
-
-Merci de vous présenter avec : *Carte grise, Pièce d'identité et Contrôle technique (si disponible)*.
-
-Au plaisir de vous accueillir,
-L'équipe *${agency} – votre conciergerie automobile*`
-    );
-  };
-
-  // --- 5) Boutons auto : un seul attribut pour tout faire
-  document.addEventListener('click', function(ev){
-    const el = ev.target.closest('[data-wa-auto]');
-    if (!el) return;
-    ev.preventDefault();
-    const msg = window.cnBuildAutoMsg({
-      date:   el.getAttribute('data-date')   || '',
-      time:   el.getAttribute('data-time')   || '',
-      model:  el.getAttribute('data-model')  || '',
-      place:  el.getAttribute('data-place')  || '',
-      agency: el.getAttribute('data-agency') || ''
-    });
-    openWA(el.getAttribute('data-phone') || '', msg);
+  // Rafraîchis aussi au retour focus / visibilité
+  window.addEventListener('focus', fullRefresh);
+  document.addEventListener('visibilitychange', ()=> {
+    if (document.visibilityState === 'visible') fullRefresh();
   });
+
+  // Premier run immédiat
+  fullRefresh();
 })();
+
 </script>
 </head>
 <body>
@@ -1074,11 +938,11 @@ function getAgencyByKey(k){
   const dbv=AGENCIES_DB?.[k]||{};
   return {...mem, ...dbv};
 }
-function getAgencyTemplates(k){ return (AGENCIES_DB?.[k]?.templates) || (AGENCIES?.[k]?.templates) || null; }
-/* ---------- Templates (bi-canal WA/SMS) ---------- */
+function getAgencyTemplates(k){ return (AGENCIES_DB?.[k]?.templates) || null; }
+
+/* ---------- Templates ---------- */
 const TPL_DEFAULTS = {
-  confirmation: {
-    wa:
+  confirmation:
 `{{AGENCE}} – Confirmation de rendez-vous
 
 Nous vous confirmons votre rendez-vous prévu le {{DATE_LONG}} à {{HEURE}} concernant votre {{MODELE}}.
@@ -1091,13 +955,7 @@ Merci de vous présenter à l’heure convenue, muni(e) de la carte grise et d�
 Nous restons à votre disposition pour toute information complémentaire.
 
 L’équipe {{TAGLINE}}`,
-    sms:
-`{{AGENCE}}: RDV confirmé le {{DATE_LONG}} à {{HEURE}} ({{MODELE}}).
-Adresse: {{ADRESSE}} {{PLAN}}
-Carte grise + pièce d'identité. — {{TAGLINE}}`
-  },
-  rappel: {
-    wa:
+  rappel:
 `{{AGENCE}} – Rappel de rendez-vous
 
 Bonjour,
@@ -1112,13 +970,7 @@ En cas d’imprévu, merci de nous prévenir afin d’en informer nos clients.
 À bientôt,
 
 L’équipe {{TAGLINE}}`,
-    sms:
-`Rappel RDV {{AGENCE}}: {{DATE_LONG}} à {{HEURE}}.
-Adresse: {{ADRESSE}} {{PLAN}}
-Prévenez-nous si imprévu. — {{TAGLINE}}`
-  },
-  report: {
-    wa:
+  report:
 `{{AGENCE}} – Confirmation de report
 
 Bonjour,
@@ -1133,13 +985,7 @@ En cas d’imprévu, merci de nous prévenir afin d’en informer nos clients.
 Nous restons à votre disposition pour toute information complémentaire.
 
 L’équipe {{TAGLINE}}`,
-    sms:
-`Report RDV {{AGENCE}}:
-{{OLD_DATE_LONG}} {{OLD_HEURE}} ➜ {{DATE_LONG}} {{HEURE}} ({{MODELE}})
-Adresse: {{ADRESSE}} {{PLAN}} — {{TAGLINE}}`
-  },
-  annulation: {
-    wa:
+  annulation:
 `{{AGENCE}} – Annulation de rendez-vous
 
 Bonjour,
@@ -1151,12 +997,7 @@ Si vous souhaitez reprogrammer un créneau pour votre véhicule, n’hésitez pa
 Nous restons à votre disposition pour toute demande.
 
 L’équipe {{TAGLINE}}`,
-    sms:
-`Annulation RDV — {{AGENCE}}.
-Pour reprogrammer, répondez à ce message. — {{TAGLINE}}`
-  },
-  no_show: {
-    wa:
+  no_show:
 `{{AGENCE}} – Suite à votre rendez-vous
 
 Bonjour {{CIV}} {{PRENOM}},
@@ -1167,65 +1008,23 @@ Vous ne vous êtes pas présenté(e).
 Souhaitez-vous reporter ? Merci de nous le dire rapidement,
 car un autre client attend un retour concernant la visite du véhicule.
 
-L’équipe {{TAGLINE}}`,
-    sms:
-`{{AGENCE}} — Vous ne vous êtes pas présenté(e) ({{DATE_TXT}} {{HEURE}}) pour {{MODELE}}.
-Souhaitez-vous reporter ? — {{TAGLINE}}`
-  }
+L’équipe {{TAGLINE}}`
 };
-
-/* Compat ascendante: accepte l'ancien format (simple string) et le nouveau ({wa,sms}) */
-function normalizeTplShape(tpls){
-  const types = ['confirmation','rappel','report','annulation','no_show'];
-  const out = {};
-  for (const t of types){
-    const v = tpls?.[t];
-    if (!v) continue;
-    if (typeof v === 'string'){
-      out[t] = { wa: v, sms: v };
-    } else if (typeof v === 'object'){
-      out[t] = {
-        wa: v.wa || v.whatsapp || v.default || '',
-        sms: v.sms || v.default || v.wa || v.whatsapp || ''
-      };
-    }
-  }
-  return out;
-}
-
-function fillTokens(tpl, ctx){
-  return (tpl||'').replace(/\{\{([A-Z0-9_]+)\}\}/g,(_,k)=>(ctx[k] ?? ''));
-}
-
+function fillTokens(tpl, ctx){ return (tpl||'').replace(/\{\{([A-Z0-9_]+)\}\}/g,(_,k)=> (ctx[k] ?? '')); }
 function buildCtx(agencyKey, dateTxt, timeTxt, model, oldD=null, oldT=null, extra=null){
-  const ag = getAgencyByKey(agencyKey) || {};
+  const ag=getAgencyByKey(agencyKey);
   return {
-    AGENCE: ag.name || agencyKey,
-    ADRESSE: ag.addr || '',
-    PLAN: ag.map ? `Plan d’accès : ${ag.map}` : '',
-    TAGLINE: ag.tagline || (ag.name || agencyKey),
-    DATE_LONG: dateLongueFR(dateTxt||''),
-    DATE_TXT: dateTxt || '',
-    HEURE: timeFR(timeTxt||''),
-    MODELE: model || '',
-    OLD_DATE_LONG: dateLongueFR(oldD||''),
-    OLD_HEURE: timeFR(oldT||''),
-    CIV: extra?.CIV || '',
-    PRENOM: extra?.PRENOM || ''
+    AGENCE: ag.name || agencyKey, ADRESSE: ag.addr||'', PLAN: ag.map ? `Plan d’accès : ${ag.map}` : '',
+    TAGLINE: ag.tagline || (ag.name||agencyKey),
+    DATE_LONG: dateLongueFR(dateTxt||''), DATE_TXT: dateTxt||'', HEURE: timeFR(timeTxt||''),
+    MODELE: model||'', OLD_DATE_LONG: dateLongueFR(oldD||''), OLD_HEURE: timeFR(oldT||''),
+    CIV: extra?.CIV || '', PRENOM: extra?.PRENOM || ''
   };
 }
-
-/* Ajout du paramètre channel ('wa' par défaut) + fallback intelligent */
-function msgFromTpl(type, agency, dateTxt, timeTxt, model, oldD=null, oldT=null, extra=null, channel='wa'){
-  const agencyTplsRaw = getAgencyTemplates(agency);
-  const agencyTpls = normalizeTplShape(agencyTplsRaw || {});
-  const def = TPL_DEFAULTS || {};
-  const tpl =
-    agencyTpls?.[type]?.[channel] ||
-    def?.[type]?.[channel] ||
-    ''; // dernier recours
-
-  return fillTokens(tpl, buildCtx(agency, dateTxt, timeTxt, model, oldD, oldT, extra));
+function msgFromTpl(type, agency, dateTxt, timeTxt, model, oldD=null, oldT=null, extra=null){
+  const agencyTpls = getAgencyTemplates(agency);
+  const tpl = agencyTpls?.[type] || TPL_DEFAULTS[type];
+  return fillTokens(tpl, buildCtx(agency,dateTxt,timeTxt,model,oldD,oldT,extra));
 }
 // === Prix agence & KPI CA du jour ===
 function getAgencyPrice(key){
@@ -1438,96 +1237,19 @@ function buildRecap(){
 $('#btnWA').onclick = ()=>submitRDV('wa');
 $('#btnSMS').onclick = ()=>submitRDV('sms');
 
-function formatE164ForLink(raw) {
-  // Normalise en +33... / +<country> if possible
-  if(!raw) return '';
-  let s = String(raw).trim().replace(/[^\d+]/g,'');
-  // cas : "33612345678" -> "+33612345678"
-  if(s && !s.startsWith('+')) {
-    // si commence par 33 et 11 chiffres => ajouter +
-    if(/^33\d{9,}$/.test(s)) s = '+' + s;
-    // si commence par 0 (ex: 0612345678) -> +33...
-    else if(/^0\d{9}$/.test(s)) s = '+33' + s.slice(1);
-    else s = '+' + s; // fallback
-  }
-  return s;
-}
-
 function openChannelAndLog(phone, text, channel, preWin=null){
   try{
-    const rawDigits = (phone||'').toString().replace(/\s+/g,'').replace(/[^\d+]/g,'');
-    if(!rawDigits) throw new Error('phone vide');
-
-    if(channel === 'wa'){
-      // WhatsApp: app-first, web fallback
-      // WA expects numbers without '+' in whatsapp:// and wa.me links
-      const telForWa = rawDigits.replace(/^\+/, '').replace(/^00/, '');
-      const appUrl = "whatsapp://send?phone=" + telForWa + "&text=" + encodeURIComponent(text);
-      const webUrl = "https://wa.me/" + telForWa + "?text=" + encodeURIComponent(text);
-
-      const t0 = Date.now();
-      // user gesture -> essayer d'ouvrir l'app
-      location.href = appUrl;
-
-      setTimeout(function(){
-        // si la page est encore visible, l'app ne s'est probablement pas ouverte : fallback web
-        if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
-          try{
-            // essayer à ouvrir dans une popup/tab
-            if(preWin && !preWin.closed){ preWin.location.href = webUrl; preWin.focus(); }
-            else { window.open(webUrl, '_blank'); }
-          }catch(e){
-            // si popup bloquée -> copie dans le presse-papiers
-            navigator.clipboard?.writeText(text).catch(()=>{});
-            notify('Message copié. Ouvre WhatsApp et colle-le.', 'ok');
-          }
-        } else {
-          // l'app s'est probablement ouverte ; close préwindow si présent
-          try{ if(preWin && !preWin.closed) preWin.close(); }catch(_){}
-        }
-      }, 900);
-
-      return;
+    if(channel==='wa'){
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+      if(preWin && !preWin.closed){ preWin.location.href=url; preWin.focus(); } else { const win=window.open(url,'_blank'); if(!win) throw new Error('popup'); }
+    }else{
+      const n=phoneSMS(phone); const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent); const sep=isIOS?'&':'?';
+      window.location.href=`sms:${n}${sep}body=${encodeURIComponent(text)}`;
+      navigator.clipboard?.writeText(text).catch(()=>{});
+      notify('Message prêt (copié). Ouvre l’app SMS si besoin.','ok');
     }
-
-    // === SMS branch (robuste pour Android + iOS)
-    if(channel === 'sms'){
-      // format standard pour sms links : sms:+33612345678?body=...
-      const telForSms = formatE164ForLink(phone); // ex "+33612345678"
-      if(!telForSms) throw new Error('phone invalide pour SMS');
-
-      const smsUrl = `sms:${telForSms}?body=${encodeURIComponent(text)}`;
-
-      // On essaye location.href (compat Chrome Android, etc.)
-      try {
-        location.href = smsUrl;
-        // on copie aussi le message pour éviter perte (certaines apps n'acceptent pas body)
-        navigator.clipboard?.writeText(text).catch(()=>{});
-        // petite notif UX
-        notify('Message prêt — ouvre ton application SMS. (Le texte a été copié au cas où.)', 'ok');
-        return;
-      } catch (e) {
-        // fallback : ouvrir dans une nouvelle fenêtre (moins bloqué)
-        try {
-          window.open(smsUrl, '_blank');
-          navigator.clipboard?.writeText(text).catch(()=>{});
-          notify('Message prêt — ouvre ton application SMS. (Le texte a été copié au cas où.)', 'ok');
-          return;
-        } catch (_){
-          // ultime fallback : copie only
-          navigator.clipboard?.writeText(text).catch(()=>{});
-          notify('Impossible d’ouvrir l’app SMS — message copié dans le presse-papier.', 'warn');
-          return;
-        }
-      }
-    }
-
-    // Par défaut : copie le message et notifie
+  }catch{
     navigator.clipboard?.writeText(text).catch(()=>{});
-    notify('Message copié. Ouvre l’app correspondante et colle-le.', 'ok');
-  }catch(e){
-    console.error('openChannelAndLog error', e);
-    try{ navigator.clipboard?.writeText(text).catch(()=>{}); }catch(_){}
     notify('Message copié. Ouvre l’app WhatsApp/SMS.','ok');
   }
 }
@@ -1546,23 +1268,20 @@ async function submitRDV(channel){
   }
   $('#sendErr').style.display='none';
 
-  const payloadPhoneE164 = '+' + ('33' + phone10.slice(1)); // ex: "+33612345678"
-const payload = {
-  agency: a, civ, name,
-  phone: payloadPhoneE164,
-  dateText: dateTxt, timeText: timeTxt, dateISO: jjmma_to_iso(dateTxt),
-  model, source, channel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-  createdByName: ROLE.name, createdByRole: ROLE.role, deleted:false, status:null, statusAt:null,
-  reminderSent:false, reminderAt:null, noteText:null, noteDueISO:null, noteUpdatedAt:null,
-  gesteCommercial:false, gesteAmount:null, honorBilling:null, firstMsgChannel: channel, firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
-};
+  const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt),
+    model,source,channel,createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    createdByName:ROLE.name,createdByRole:ROLE.role,deleted:false,status:null,statusAt:null,
+    reminderSent:false,reminderAt:null, noteText:null, noteDueISO:null, noteUpdatedAt:null,
+    gesteCommercial:false, gesteAmount:null, honorBilling:null, firstMsgChannel: channel, firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
 
   try{
     const ref=await db.collection('rdv').add(payload);
     await db.collection('messages').add({rdvId:ref.id,phone:payload.phone,agency:payload.agency,channel, type:'confirmation', sentAt:firebase.firestore.FieldValue.serverTimestamp()});
     const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
     await db.collection('stats').doc(idStat).set({created:firebase.firestore.FieldValue.increment(1)},{merge:true});
-const text = msgFromTpl('confirmation', payload.agency, dateTxt, timeTxt, model, null, null, null, channel);    openChannelAndLog(payload.phone, text, channel, preWin);
+    const text = msgFromTpl('confirmation', payload.agency, dateTxt, timeTxt, model);
+    openChannelAndLog(payload.phone, text, channel, preWin);
     showStep(1); ['w_civ','w_name','w_phone','w_date','w_time','w_model','w_source'].forEach(id=>$('#'+id).value=''); loadAll();
   }catch(e){ 
     console.error(e); 
@@ -1985,8 +1704,8 @@ function calcMaxPage(arr){ if(arr==='messages'||arr==='agencies') return 1; cons
 /* --- Annuler RDV --- */
 async function cancelRDV(r){
   if(!confirm('Confirmer l’annulation de ce rendez-vous ?')) return;
-const ch = ((r.channel || r.firstMsgChannel || 'wa')+'').toLowerCase();
-const text = msgFromTpl('annulation', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, null, ch);  try{
+  const text=msgFromTpl('annulation', r.agency, r.dateText||'', r.timeText||'', r.model||'');
+  try{
     openChannelAndLog(r.phone, text, r.channel||'wa');
     await db.collection('rdv').doc(r.id).set({status:'cancelled',statusAt:firebase.firestore.FieldValue.serverTimestamp(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
     await db.collection('messages').add({type:'cancel',rdvId:r.id,phone:r.phone,agency:(r.agency||''),channel:(r.channel||'wa'), sentAt:firebase.firestore.FieldValue.serverTimestamp()});
@@ -2661,99 +2380,103 @@ function openTrashActionDialog(r){
   $('#t_reject',dlg)?.addEventListener('click', ()=>rejectDelete(r));
 }
 
-async function sendReminder(r){
-  // Accepte un id de doc ou un objet RDV
-  if (typeof r === 'string') {
-    const s = await db.collection('rdv').doc(r).get();
-    if (s.exists) r = { id: s.id, ...s.data() }; else return;
-  }
-
-  const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
-  const text = msgFromTpl('rappel', r.agency, r.dateText || '', r.timeText || '', r.model || '', null, null, null, ch);
-
-  try {
-    // Ouvre canal (WA/SMS) côté client
-    openChannelAndLog(r.phone, text, ch);
-
-    // Si markReminder existe, on l'appelle, sinon on fait le fallback manuel
-    if (typeof markReminder === 'function') {
-      await markReminder(r, ch);
-    } else {
-      // Fallback : on marque en base et on enregistre un message
-      try {
-        await db.collection('rdv').doc(r.id).set({
-          reminderSent: true,
-          reminderAt: firebase.firestore.FieldValue.serverTimestamp(),
-          reminderChannel: ch
-        }, { merge: true });
-
-        await db.collection('messages').add({
-          rdvId: r.id,
-          phone: r.phone,
-          agency: (r.agency || ''),
-          channel: ch,
-          type: 'reminder',
-          sentAt: firebase.firestore.FieldValue.serverTimestamp(),
-          text: text
-        });
-      } catch (e) {
-        console.error('Fallback markReminder error', e);
-        throw e;
-      }
-    }
-
-    notify('Rappel envoyé ✔️', 'ok');
-  } catch (e) {
-    console.error('sendReminder error', e);
-    notify('Erreur envoi rappel', 'warn');
-  }
-}
-// --- Annuler un rappel (nouveau) ---
-async function undoReminder(rOrId){
+/* --- Confirmations / Rappels / No-Show / Statut / Édition / Report --- */
+async function resendConfirmation(r){
+  if(typeof r==='string'){ const s=await db.collection('rdv').doc(r).get(); if(s.exists) r={id:s.id,...s.data()}; else return; }
+  const text = msgFromTpl('confirmation', r.agency, r.dateText||'', r.timeText||'', r.model||'');
   try{
-    // Accepte soit l'objet RDV, soit l'ID
-    let r = rOrId;
-    if (typeof r === 'string') {
-      const s = await db.collection('rdv').doc(r).get();
-      if (!s.exists) return;
-      r = { id: s.id, ...s.data() };
-    }
+    openChannelAndLog(r.phone, text, r.channel||'wa');
+    db.collection('messages').add({type:'confirmation_resent',rdvId:r.id,phone:r.phone,agency:r.agency,channel:r.channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
+    notify('Confirmation renvoyée ✔️','ok');
+  }catch{ notify('Erreur renvoi confirmation','warn'); }
+}
+async function sendReminder(r){
+  const ag = getAgencyByKey(r.agency); const whenTxt = relativeWhen(r.dateISO, r.timeText);
+  const text =
+`${ag.name} – Rappel de rendez-vous
 
-    // 1) Nettoyage Firestore
-    await db.collection('rdv').doc(r.id).set({
-      reminderSent: false,
-      reminderAt: firebase.firestore.FieldValue.delete(),
-      reminderChannel: firebase.firestore.FieldValue.delete()
-    }, { merge:true });
+Bonjour,
 
-    // 2) Journal (optionnel)
-    try {
-      await db.collection('messages').add({
-        type: 'reminder_cancelled',
-        rdvId: r.id,
-        phone: r.phone,
-        agency: r.agency || '',
-        channel: (r.channel || r.firstMsgChannel || null),
-        sentAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } catch(_) {}
+Petit rappel : votre rendez-vous est prévu ${whenTxt} à notre agence.
 
-    // 3) UI optimiste locale
-    try { patchRDV(r.id, { reminderSent:false, reminderAt:null, reminderChannel:null }); } catch(_) {}
+Adresse : ${ag.addr || ''}
+${ag.map ? `Plan d’accès : ${ag.map}` : ''}
 
-    // 4) Recalc + rerender (listes, KPI, fiche ouverte, pastille rappels)
-    try { computeDueToday?.(); computeUpcoming?.(); computeTodo?.(); } catch(_) {}
-    try { updateReminderButton?.(); renderList?.(); } catch(_) {}
-    try { refreshOpenSheet?.(r.id); } catch(_) {}
+En cas d’imprévu, merci de nous prévenir afin d’en informer nos clients.
 
-    // 5) Si le panneau “Rappels” est ouvert, on le rerend
-    try { const dlg = document.getElementById('remindersDlg'); dlg?.__rerender?.(); } catch(_) {}
+À bientôt,
 
-    notify?.('Rappel annulé ✔️','ok');
-  } catch(e){
-    console.error('undoReminder error', e);
-    notify?.("Erreur lors de l'annulation du rappel",'warn');
-  }
+L’équipe ${ag.tagline || ag.name}`;
+  const ch = ((r.firstMsgChannel || r.channel) === 'wa') ? 'wa' : 'sms';
+  try{ openChannelAndLog(r.phone, text, ch); await markReminder(r,ch); notify('Rappel envoyé ✔️','ok'); }catch{ notify('Erreur envoi rappel','warn'); }
+}
+async function sendNoShowMessage(r){
+  const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, {CIV: r.civ||'', PRENOM: r.name||''});
+  const ch = (r.channel || 'wa');
+  try{
+    openChannelAndLog(r.phone, text, ch);
+    await db.collection('messages').add({ type:'no_show_msg', rdvId:r.id, phone:r.phone, agency:r.agency, channel:ch, sentAt:firebase.firestore.FieldValue.serverTimestamp() });
+    await db.collection('rdv').doc(r.id).set({ status:'no_show', statusAt:firebase.firestore.FieldValue.serverTimestamp(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
+    notify('Message “pas venu” envoyé • Statut passé en “Non honoré” ✔️','ok');
+  }catch(e){ console.error(e); notify('Message “pas venu” non envoyé. Statut inchangé.','warn'); }
+  finally{ computeUpcoming(); computeTodo(); renderList(); loadAll(); }
+}
+async function markReminder(r,channel){
+  const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
+  await db.collection('rdv').doc(r.id).set({reminderSent:true,reminderAt:firebase.firestore.FieldValue.serverTimestamp(),reminderChannel:channel},{merge:true});
+  await db.collection('messages').add({type:'reminder',rdvId:r.id,phone:r.phone,agency:r.agency,channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
+  await db.collection('stats').doc(idStat).set({reminders:firebase.firestore.FieldValue.increment(1)},{merge:true});
+  computeDueToday(); renderList();
+}
+async function undoReminder(r){
+  try{
+    const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
+    await db.collection('rdv').doc(r.id).set({reminderSent:false,reminderAt:firebase.firestore.FieldValue.delete(),reminderChannel:firebase.firestore.FieldValue.delete()},{merge:true});
+    await db.collection('stats').doc(idStat).set({reminders:firebase.firestore.FieldValue.increment(-1)},{merge:true});
+    await db.collection('messages').add({type:'reminder_cancelled',rdvId:r.id,phone:r.phone,agency:r.agency,channel:r.channel, sentAt:firebase.firestore.FieldValue.serverTimestamp()});
+    notify('Rappel annulé','ok');
+  }catch{ notify('Annulation du rappel impossible','warn'); }
+  finally{ loadAll(); }
+}
+
+/* ====== STATUT ====== */
+async function openStatusDialog(id){
+  const snap=await db.collection('rdv').doc(id).get(); if(!snap.exists) return alert('RDV introuvable');
+  const r={id:snap.id,...snap.data()};
+  const dlg=document.createElement('dialog');
+  dlg.innerHTML=`<div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+    <div style="font-weight:800">Statut du rendez-vous</div>
+    <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button></div>
+    <div class="dlg-body" style="padding:16px">
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-xs" id="s_honored_fact">Honoré — Facturé</button>
+        <button class="btn btn-neutral btn-xs" id="s_honored_nfb">Honoré — Non facturable</button>
+        <button class="btn btn-neutral btn-xs" id="s_noshow">Non honoré</button>
+        <button class="btn btn-ghost btn-xs" id="s_clear">Retirer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+  $('#s_honored_fact',dlg).onclick=async()=>{ await setHonor(r,'honored','facturé'); dlg.close?.(); dlg.remove(); };
+  $('#s_honored_nfb',dlg).onclick=async()=>{ await setHonor(r,'honored','non_facturable'); dlg.close?.(); dlg.remove(); };
+  $('#s_noshow',dlg).onclick=async()=>{ await setHonor(r,'no_show',null); dlg.close?.(); dlg.remove(); };
+  $('#s_clear',dlg).onclick=async()=>{ await clearHonor(r); dlg.close?.(); dlg.remove(); };
+}
+async function setHonor(r,status,billing=null){
+  const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
+  const snap=await db.collection('rdv').doc(r.id).get(); const prev=snap.exists?snap.data().status:null;
+  if(prev==='honored' && status!=='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(-1)},{merge:true});
+  if(prev!=='honored' && status==='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(1)},{merge:true});
+  const patch={status,statusAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(status==='honored'){ patch.honorBilling = billing || null; } else { patch.honorBilling = firebase.firestore.FieldValue.delete(); }
+  await db.collection('rdv').doc(r.id).set(patch,{merge:true});
+  computeUpcoming(); computeTodo(); renderList(); notify(status==='honored'?'Marqué honoré':'Marqué non honoré','ok'); loadAll();
+}
+async function clearHonor(r){
+  const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
+  const snap=await db.collection('rdv').doc(r.id).get(); const prev=snap.exists?snap.data().status:null;
+  if(prev==='honored') await db.collection('stats').doc(idStat).set({honored:firebase.firestore.FieldValue.increment(-1)},{merge:true});
+  await db.collection('rdv').doc(r.id).set({status:null,statusAt:firebase.firestore.FieldValue.delete(), honorBilling: firebase.firestore.FieldValue.delete()},{merge:true});
+  computeUpcoming(); computeTodo();computeRevenueToday(); computeRevenueToday();notify('Statut retiré','ok'); loadAll();
 }
 
 /* Modifier RDV — avec choix du canal par défaut */
@@ -2862,7 +2585,8 @@ async function openReschedDialog(id){
     if(r.status==='cancelled' || r.status==='no_show'){ patch.status=firebase.firestore.FieldValue.delete(); patch.statusAt=firebase.firestore.FieldValue.delete(); patch.honorBilling=firebase.firestore.FieldValue.delete(); }
     if(r.deleted===true){ patch.deleted=false; patch.deletedAt=firebase.firestore.FieldValue.delete(); patch.deleteRequest=firebase.firestore.FieldValue.delete(); }
     await db.collection('rdv').doc(id).set(patch,{merge:true});
-const text = msgFromTpl('report', r.agency, newD, newT, r.model||'', r.dateText||'', r.timeText||'', null, channel);    try{
+    const text=msgFromTpl('report', r.agency, newD, newT, r.model||'', r.dateText||'', r.timeText||'');
+    try{
       openChannelAndLog(r.phone, text, channel);
       await db.collection('messages').add({ type:'reschedule', rdvId:r.id, phone:r.phone, agency:r.agency, channel, sentAt:firebase.firestore.FieldValue.serverTimestamp() });
       notify('Report confirmé ✔️','ok'); dlg.close?.(); dlg.remove(); loadAll();
@@ -2949,36 +2673,15 @@ function renderAgencies(container){
   container.querySelectorAll('button[data-edit]')?.forEach(b=>{ b.addEventListener('click', ()=>openAgencyModal(b.getAttribute('data-edit'))); });
 }
 function openAgencyModal(key=null){
-  const cur = key ? getAgencyByKey(key) : {name:'',addr:'',map:'',tagline:'', priceHonorTTC: undefined, templates:null};
-  const tplsRaw = (getAgencyTemplates(key)||{}) || {};
-
-  // ▶︎ Normalisation: toujours { type: { wa: string, sms: string } }
-  const TYPES = ['confirmation','rappel','report','annulation','no_show'];
-  function normalizeTemplates(t){
-    const out = {};
-    for(const ty of TYPES){
-      const v = t?.[ty];
-      if(typeof v === 'string'){
-        out[ty] = { wa: v, sms: v };
-      }else if(v && typeof v === 'object'){
-        const wa  = v.wa  ?? v.WA  ?? v.whatsapp ?? v.default ?? TPL_DEFAULTS[ty];
-        const sms = v.sms ?? v.SMS ?? v.default  ?? TPL_DEFAULTS[ty];
-        out[ty] = { wa: wa || sms || TPL_DEFAULTS[ty], sms: sms || wa || TPL_DEFAULTS[ty] };
-      }else{
-        out[ty] = { wa: TPL_DEFAULTS[ty], sms: TPL_DEFAULTS[ty] };
-      }
-    }
-    return out;
-  }
-  const norm = normalizeTemplates(tplsRaw);
-
+  const cur = key ? getAgencyByKey(key) : {name:'',addr:'',map:'',tagline:'', templates:null};
+  const tpls = (getAgencyTemplates(key)||{}) || {};
   const dlg=document.createElement('dialog');
   dlg.innerHTML=`
   <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
     <div style="font-weight:800">${key?'Modifier':'Nouvelle'} agence</div>
     <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
   </div>
-  <div class="dlg-body" style="padding:16px;max-width:860px">
+  <div class="dlg-body" style="padding:16px;max-width:820px">
     <div class="row">
       <div style="flex:1;min-width:220px">
         <div class="label">Nom de l’agence</div>
@@ -2989,42 +2692,29 @@ function openAgencyModal(key=null){
         <input id="ag_tagline" class="input" placeholder="Ex : L’automobile et vous" value="${cur.tagline||''}">
       </div>
     </div>
-
     <div class="label">Adresse</div>
     <input id="ag_addr" class="input" placeholder="Rue, CP Ville" value="${cur.addr||''}">
-
     <div class="label">Lien plan (Google Maps)</div>
-    <input id="ag_map" class="input" placeholder="https://..." value="${cur.map||''}">
-
     <div class="label">Prix TTC par RDV honoré (€)</div>
     <input id="ag_price" class="input" inputmode="decimal" placeholder="Ex : 50"
            value="${(typeof cur.priceHonorTTC==='number' && !isNaN(cur.priceHonorTTC)) ? cur.priceHonorTTC : ''}">
-
+    <input id="ag_map" class="input" placeholder="https://..." value="${cur.map||''}">
     <div class="label mt12">Jetons disponibles (cliquer pour insérer)</div>
     <div class="tokenbar" id="ag_tokens">
       ${['{{AGENCE}}','{{ADRESSE}}','{{PLAN}}','{{TAGLINE}}','{{DATE_LONG}}','{{DATE_TXT}}','{{HEURE}}','{{MODELE}}','{{OLD_DATE_LONG}}','{{OLD_HEURE}}','{{CIV}}','{{PRENOM}}'].map(t=>`<span class="token" data-token="${t}">${t}</span>`).join('')}
     </div>
-
-    <div class="label mt12">Canal</div>
-    <div class="ch-tabs" id="ch_tabs" style="display:flex;gap:6px;flex-wrap:wrap">
-      <button type="button" class="btn btn-neutral btn-xs ch-btn is-active" data-ch="wa">WhatsApp</button>
-      <button type="button" class="btn btn-neutral btn-xs ch-btn" data-ch="sms">SMS</button>
-    </div>
-
-    <div class="template-tabs" style="margin-top:8px">
+    <div class="template-tabs">
       <div class="t active" data-tab="confirmation">Confirmation</div>
       <div class="t" data-tab="rappel">Rappel</div>
       <div class="t" data-tab="report">Report</div>
       <div class="t" data-tab="annulation">Annulation</div>
       <div class="t" data-tab="no_show">Pas venu</div>
     </div>
-
     <div id="tpl_wrap">
       <textarea id="tpl_text" class="input" rows="10" placeholder="Modèle de message..."></textarea>
       <div class="label mt8">Aperçu</div>
       <div id="tpl_preview" class="preview"></div>
     </div>
-
     <div class="row mt12" style="justify-content:space-between;gap:8px">
       <div>${key?'<button class="btn btn-warn btn-xs" id="ag_delete">Supprimer agence</button>':''}</div>
       <div><button class="btn btn-neutral btn-xs" id="ag_save">Enregistrer</button></div>
@@ -3034,109 +2724,59 @@ function openAgencyModal(key=null){
 
   const state = {
     currentTab: 'confirmation',
-    currentChannel: 'wa',
-    templates: norm // { type: { wa, sms } }
+    templates: {
+      confirmation: tpls.confirmation || TPL_DEFAULTS.confirmation,
+      rappel: tpls.rappel || TPL_DEFAULTS.rappel,
+      report: tpls.report || TPL_DEFAULTS.report,
+      annulation: tpls.annulation || TPL_DEFAULTS.annulation,
+      no_show: tpls.no_show || TPL_DEFAULTS.no_show
+    }
   };
-
   const $m=(s)=>$(s,dlg);
-  const $$m=(s)=>$$(s,dlg);
-
-  function refreshEditor(){
-    const val = state.templates[state.currentTab]?.[state.currentChannel] || '';
-    $m('#tpl_text').value = val;
-    refreshPreview();
-  }
-
+  function refreshEditor(){ $m('#tpl_text').value = state.templates[state.currentTab] || ''; refreshPreview(); }
   function refreshPreview(){
-    const demoCtx = buildCtx(
-      $m('#ag_name').value || (cur.name||'Agence'),
-      iso_to_jjmma(todayISO()), '14:30', 'Peugeot 308',
-      iso_to_jjmma(todayISO()), '10:00',
-      {CIV:'M.', PRENOM:'Amine'}
-    );
+    const demoCtx = buildCtx($m('#ag_name').value || (cur.name||'Agence'), iso_to_jjmma(todayISO()), '14:30', 'Peugeot 308', iso_to_jjmma(todayISO()), '10:00', {CIV:'M.', PRENOM:'Amine'});
     $m('#tpl_preview').textContent = fillTokens($m('#tpl_text').value, demoCtx);
   }
-
-  function setActiveTab(tab){
-    state.currentTab=tab;
-    $$m('.template-tabs .t').forEach(x=>x.classList.toggle('active', x.dataset.tab===tab));
-    refreshEditor();
-  }
-
-  function setActiveChannel(ch){
-    state.currentChannel = ch;
-    $$m('.ch-btn').forEach(b=> b.classList.toggle('is-active', b.dataset.ch===ch));
-    refreshEditor();
-  }
-
-  // Init UI interactions
-  setActiveTab('confirmation');
-  $$m('.template-tabs .t').forEach(x=> x.onclick=()=>setActiveTab(x.dataset.tab));
-  $$m('.ch-btn').forEach(x=> x.onclick=()=>setActiveChannel(x.dataset.ch));
-
-  $m('#tpl_text').addEventListener('input',()=>{
-    const taVal = $m('#tpl_text').value;
-    if(!state.templates[state.currentTab]) state.templates[state.currentTab] = {wa:'',sms:''};
-    state.templates[state.currentTab][state.currentChannel] = taVal;
-    refreshPreview();
+  function setActiveTab(tab){ state.currentTab=tab; $$('.template-tabs .t',dlg).forEach(x=>x.classList.toggle('active', x.dataset.tab===tab)); refreshEditor(); }
+  refreshEditor(); $$('.template-tabs .t',dlg).forEach(x=> x.onclick=()=>setActiveTab(x.dataset.tab));
+  $m('#tpl_text').addEventListener('input',()=>{ state.templates[state.currentTab]=$m('#tpl_text').value; refreshPreview(); });
+  $$('#ag_tokens .token',dlg).forEach(t=> t.onclick=()=>{
+    const ta=$m('#tpl_text'); const tok=t.dataset.token; const s=ta.selectionStart||0, e=ta.selectionEnd||0; const val=ta.value;
+    ta.value=val.slice(0,s)+tok+val.slice(e); ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length; state.templates[state.currentTab]=ta.value; refreshPreview();
   });
 
-  $$m('#ag_tokens .token').forEach(t=> t.onclick=()=>{
-    const ta=$m('#tpl_text'); const tok=t.dataset.token;
-    const s=ta.selectionStart||0, e=ta.selectionEnd||0; const val=ta.value;
-    ta.value=val.slice(0,s)+tok+val.slice(e);
-    ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length;
-    state.templates[state.currentTab][state.currentChannel]=ta.value;
-    refreshPreview();
-  });
+  if(key){ $m('#ag_name').value = key; $m('#ag_tagline').value = cur.tagline||''; $m('#ag_addr').value = cur.addr||''; $m('#ag_map').value = cur.map||''; }
 
-  // Prefill fields if editing
-  if(key){
-    $m('#ag_name').value   = key;
-    $m('#ag_tagline').value= cur.tagline||'';
-    $m('#ag_addr').value   = cur.addr||'';
-    $m('#ag_map').value    = cur.map||'';
-  }
-
-  // First render
-  refreshEditor();
-
-  // Save
   $m('#ag_save').onclick=async()=>{
     const name=($m('#ag_name').value||'').trim(); if(!name) return alert('Nom d’agence obligatoire.');
     const docRef=db.collection('agencies').doc(name);
-    const data={
-      name,
-      addr: ($m('#ag_addr').value||'').trim(),
-      map: ($m('#ag_map').value||'').trim(),
-      tagline: ($m('#ag_tagline').value||'').trim(),
-      templates: state.templates, // <-- sauvegarde wa/sms
-      disabled: false
-    };
+    const data={ name, addr: ($m('#ag_addr').value||'').trim(), map: ($m('#ag_map').value||'').trim(),
+      tagline: ($m('#ag_tagline').value||'').trim(), templates: state.templates, disabled: false };
 
-    // Prix TTC (euros / centimes)
+    // === 5.b — récupérer & normaliser le prix TTC AVANT docRef.set(...) ===
     const rawPrix = ($m('#ag_price')?.value ?? '').trim();
     if (rawPrix !== '') {
       const cleaned = rawPrix.replace(/[^\d,.\-]/g, '').replace(',', '.');
       const prix = Number(cleaned);
       if (!Number.isFinite(prix) || prix < 0) {
         alert('Prix TTC invalide. Exemple : 50 ou 50,00');
-        return;
+        return; // stoppe la sauvegarde
       }
-      data.priceHonorTTC   = Math.round(prix * 100) / 100;
-      data.priceHonorCents = Math.round(prix * 100);
+      const prixEuros = Math.round(prix * 100) / 100; // ex: 50.00
+      const prixCents = Math.round(prix * 100);       // ex: 5000
+      data.priceHonorTTC   = prixEuros;  // number (euros)
+      data.priceHonorCents = prixCents;  // integer (centimes)
     }
+    // === fin 5.b ===
 
     try{
       await docRef.set(data,{merge:true});
       notify('Agence enregistrée ✔️','ok'); dlg.close?.(); dlg.remove();
       await loadAgenciesDB(); populateWizardAgencies(); populateAgencyFilter(); if(VIEW==='agencies') renderList();
-    }catch(e){
-      alert('Erreur enregistrement agence.');
-    }
+    }catch(e){ alert('Erreur enregistrement agence.'); }
   };
 
-  // Delete
   $m('#ag_delete')?.addEventListener('click', async()=>{
     if(!confirm('Supprimer cette agence ?')) return;
     try{
@@ -3248,16 +2888,21 @@ function sheetStatusLabel(r){
 }
 
 function renderSheetBubblesHTML(r){
+  const ag = getAgencyByKey(r.agency||'');
+  const name = ((r.civ||'')+' '+(r.name||'')).trim();
   const dueNote = r.noteDueISO ? (r.noteDueISO===todayISO() ? 'aujourd’hui' : (r.noteDueISO===isoOf(addDays(new Date(),1)) ? 'demain' : dateLongueISO(r.noteDueISO))) : null;
+
   const statusB =
     r.status==='honored' ? `<span class="bubble green">Honoré${r.honorBilling? (r.honorBilling==='facturé'?' • Facturé':' • Non facturable') : ''}</span>` :
     r.status==='no_show' ? `<span class="bubble orange">Non honoré</span>` :
     r.status==='cancelled' ? `<span class="bubble gray">Annulé</span>` : '';
+
   const remindB = r.reminderSent ? `<span class="bubble green">Rappel envoyé • ${fmtDT(r.reminderAt)} • ${(r.reminderChannel||'').toUpperCase()}</span>` : '';
-  const gesteB  = r.gesteCommercial ? `<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>` : '';
-  const noteB   = (r.noteText||'').trim()
-      ? `<span class="bubble blue">📝 ${escapeHtml(((r.noteText||'').trim().length>80)?(r.noteText||'').trim().slice(0,80)+'…':(r.noteText||'').trim())}${dueNote?(' • '+dueNote):''}</span>`
-      : '';
+  const gesteB = r.gesteCommercial ? `<span class="bubble blue">🎁 Geste ${typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? (r.gesteAmount.toFixed(0)+'€') : ''}</span>` : '';
+  const noteB = (r.noteText||'').trim()
+    ? `<span class="bubble blue">📝 ${escapeHtml(((r.noteText||'').trim().length>80)?(r.noteText||'').trim().slice(0,80)+'…':(r.noteText||'').trim())}${dueNote?(' • '+dueNote):''}</span>`
+    : '';
+
   return `
     ${r.agency?`<span class="badge">${escapeHtml(r.agency)}</span>`:''}
     ${iconForChannel(r)}
@@ -3271,6 +2916,7 @@ function renderSheetBubblesHTML(r){
 function renderSheetActionsHTML(r){
   const allowResched = r.status!=='honored';
   const allowCancel  = r.status!=='honored' && r.status!=='cancelled';
+  const ch = (r.firstMsgChannel||r.channel||'').toUpperCase();
   const gesteLabel = r.gesteCommercial ? ('Geste '+(typeof r.gesteAmount==='number'&&!isNaN(r.gesteAmount)? r.gesteAmount.toFixed(0)+'€' : '✓')) : 'Geste comm.';
   return `
     <a class="btn btn-neutral btn-xs" href="${telHref(r.phone)}">Appeler</a>
@@ -3303,523 +2949,271 @@ function refreshOpenSheet(id){
   if(!CURRENT_SHEET || CURRENT_SHEET.id!==id) return;
   const dlg = CURRENT_SHEET.dlg;
   const r = getRDVById(id); if(!r) return;
+
+  // Stepper
   const prog = dlg.querySelector('#cn_progress_full');
   if(prog) prog.innerHTML = renderStepperHTML(progressFromRDV(r), false);
+
+  // Bubbles (entête)
   const bubbles = dlg.querySelector('#sheet_bubbles');
   if(bubbles) bubbles.innerHTML = renderSheetBubblesHTML(r);
+
+  // Actions (ligne boutons)
   const actions = dlg.querySelector('.sheet-actions');
   if(actions){ actions.innerHTML = renderSheetActionsHTML(r); wireSheetActionButtons(dlg, r); }
-  try {
-    const hist = dlg.querySelector('#history_body');
-    if (hist) loadAndRenderHistory(r, hist);
-  } catch (_) {}
 }
 
-// ======= 🛠️ Remplacement complet de openRDVSheet (version complète) =======
-window.openRDVSheet = function(r){
-  try{
-    const ag = getAgencyByKey(r.agency || '');
-    const civName = (((r.civ||'') + ' ' + (r.name||'')).trim());
-    const dlg = document.createElement('dialog');
+// ======= 🛠️ on remplace openRDVSheet pour poser 2 IDs (#sheet_bubbles + .sheet-actions) =======
+const _openRDVSheet_original = openRDVSheet;
+openRDVSheet = function(r){
+  // on reconstruit la même fiche mais avec un id sur les bulles
+  const ag = getAgencyByKey(r.agency||'');
+  const dueNote = r.noteDueISO ? (r.noteDueISO===todayISO() ? 'aujourd’hui' : (r.noteDueISO===isoOf(addDays(new Date(),1)) ? 'demain' : dateLongueISO(r.noteDueISO))) : null;
+  const dlg=document.createElement('dialog');
+  dlg.innerHTML=`
+    <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Fiche rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div class="dlg-body" style="padding:16px;max-width:860px">
+      <div class="title" style="margin-bottom:6px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+      <div class="small">${toFR(r.phone)} • ${escapeHtml(r.model||'')} • Source : ${escapeHtml(r.source||'')}</div>
 
-    dlg.innerHTML = `
-      <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Fiche rendez-vous</div>
-        <button class="btn btn-neutral btn-xs" id="sheet_close">Fermer</button>
+      <div id="sheet_bubbles" class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${renderSheetBubblesHTML(r)}
       </div>
-      <div class="dlg-body" style="padding:16px;max-width:860px">
-        <div class="title" style="margin-bottom:6px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(civName)}</div>
-        <div class="small">${toFR(r.phone)} • ${escapeHtml(r.model||'')} • Source : ${escapeHtml(r.source||'')}</div>
 
-        <div id="sheet_bubbles" class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          ${renderSheetBubblesHTML(r)}
-        </div>
-
-        <div class="card" style="margin-top:12px">
-          <div class="label">Aperçu rapide</div>
-          <div id="cn_progress_full">${renderStepperHTML(progressFromRDV(r), false)}</div>
-        </div>
-
-        <div class="row mt12 sheet-actions" style="gap:8px">
-          ${renderSheetActionsHTML(r)}
-        </div>
-
-        <div class="card mt12 rdv-agency">
-          <div class="label">Agence</div>
-          <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
-          ${ag.addr ? `<div class="ag-line">📍 <span>${escapeHtml(ag.addr)}</span></div>` : ''}
-          ${ag.map  ? `<div class="ag-line">🗺️ <a href="${ag.map}" target="_blank" rel="noopener">Plan d’accès</a></div>` : ''}
-          ${ag.phone ? `<div class="ag-line">📞 <a href="tel:${ag.phone.replace(/\D/g,'')}">${escapeHtml(ag.phone)}</a></div>` : ''}
-          ${ag.tagline ? `<div class="ag-line">🏷️ <span>${escapeHtml(ag.tagline)}</span></div>` : ''}
-        </div>
-
-        <div id="history_wrap" class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div class="label">Historique du client</div>
-            <button class="btn btn-warn btn-xs icon-only" id="btnWipeHistory" title="Effacer tout l’historique">🗑️</button>
-          </div>
-          <div id="history_body"><div class="small">Chargement…</div></div>
-        </div>
+      <div class="card" style="margin-top:12px">
+        <div class="label">Aperçu rapide</div>
+        <div id="cn_progress_full">${renderStepperHTML(progressFromRDV(r), false)}</div>
       </div>
-    `;
 
-    document.body.appendChild(dlg);
-    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-    CURRENT_SHEET = { id: r.id, dlg };
+      <div class="row mt12 sheet-actions" style="gap:8px">
+        ${renderSheetActionsHTML(r)}
+      </div>
 
-    // Boutons
-    $('#sheet_close',dlg).onclick = ()=>{ dlg.close?.(); dlg.remove(); CURRENT_SHEET = null; };
-    $('#btnWipeHistory',dlg).onclick = ()=> openWipeHistoryDialog(r);
-    wireSheetActionButtons(dlg, r);
+      <div class="card mt12 rdv-agency">
+        <div class="label">Agence</div>
+        <div class="small"><b>${escapeHtml(ag.name||r.agency||'')}</b></div>
+        ${ag.addr ? `<div class="ag-line">📍 <span>${escapeHtml(ag.addr)}</span></div>` : ''}
+        ${ag.map  ? `<div class="ag-line">🗺️ <a href="${ag.map}" target="_blank" rel="noopener">Plan d’accès</a></div>` : ''}
+        ${ag.phone ? `<div class="ag-line">📞 <a href="tel:${ag.phone.replace(/\D/g,'')}">${escapeHtml(ag.phone)}</a></div>` : ''}
+        ${ag.tagline ? `<div class="ag-line">🏷️ <span>${escapeHtml(ag.tagline)}</span></div>` : ''}
+      </div>
 
-    // Historique
-    loadAndRenderHistory(r, $('#history_body',dlg));
-  }catch(e){
-    console.error('openRDVSheet error', e);
-    alert('Impossible d’ouvrir la fiche.');
-  }
+      <div id="history_wrap" class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="label">Historique du client</div>
+          <button class="btn btn-warn btn-xs icon-only" id="btnWipeHistory" title="Effacer tout l’historique">🗑️</button>
+        </div>
+        <div id="history_body"><div class="small">Chargement…</div></div>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  CURRENT_SHEET = { id: r.id, dlg };
+  dlg.addEventListener('close', ()=>{ if(CURRENT_SHEET?.dlg===dlg) CURRENT_SHEET=null; });
+  dlg.addEventListener('cancel',()=>{ if(CURRENT_SHEET?.dlg===dlg) CURRENT_SHEET=null; });
+
+  wireSheetActionButtons(dlg, r);
+
+  $('#btnWipeHistory',dlg).onclick = ()=> openWipeHistoryDialog(r);
+  loadAndRenderHistory(r, $('#history_body',dlg));
 };
-// === Patchs manquants : STATUT / PAS VENU / RÉ-ENVOI CONFIRMATION ===
 
-// Dialog Statut (honoré / pas venu / annulé) + facturation si honoré
-async function openStatusDialog(id){
-  try{
-    const snap = await db.collection('rdv').doc(id).get();
-    if(!snap.exists) return alert('RDV introuvable');
-    const r = { id:snap.id, ...snap.data() };
+// ======= ⚡ Surcharges: mise à jour immédiate après action =======
+const _markReminder_original = markReminder;
+markReminder = async function(r, channel){
+  await _markReminder_original(r, channel);
+  // optimiste + refresh
+  const patched = patchRDV(r.id, {reminderSent:true, reminderChannel:channel, reminderAt: new Date()});
+  refreshOpenSheet(r.id);
+};
 
-    const dlg = document.createElement('dialog');
-    dlg.innerHTML = `
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Statut du rendez-vous</div>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+const _undoReminder_original = undoReminder;
+undoReminder = async function(r){
+  await _undoReminder_original(r);
+  patchRDV(r.id, {reminderSent:false, reminderChannel:undefined, reminderAt:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _setHonor_original = setHonor;
+setHonor = async function(r, status, billing=null){
+  await _setHonor_original(r, status, billing);
+  const patch = { status, statusAt:new Date() };
+  if(status==='honored'){ patch.honorBilling = billing || null; } else { patch.honorBilling = undefined; }
+  patchRDV(r.id, patch);
+  refreshOpenSheet(r.id);
+};
+
+const _clearHonor_original = clearHonor;
+clearHonor = async function(r){
+  await _clearHonor_original(r);
+  patchRDV(r.id, {status:null, statusAt:undefined, honorBilling:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _cancelRDV_original = cancelRDV;
+cancelRDV = async function(r){
+  await _cancelRDV_original(r);
+  patchRDV(r.id, {status:'cancelled', statusAt:new Date(), honorBilling:undefined});
+  refreshOpenSheet(r.id);
+};
+
+const _openReschedDialog_original = openReschedDialog;
+openReschedDialog = async function(id){
+  // on utilise l'original, mais on accroche une petite mise à jour après succès
+  const before = JSON.stringify(getRDVById(id)||{});
+  await _openReschedDialog_original(id);
+  // Si la date/heure a bougé, on rafraîchit
+  const after = getRDVById(id);
+  if(after){ refreshOpenSheet(id); }
+};
+// ======== Statut: UI qui se met à jour immédiatement ========
+
+// Si utilitaire absent, on le définit (ne casse rien si déjà défini)
+if (typeof getRDVById !== 'function') {
+  window.getRDVById = (id)=> (window.ALL_R||[]).find(x=>x.id===id) || null;
+}
+
+function statusKeyOf(r){
+  if(!r || !r.status) return 'none';
+  if(r.status==='honored') return (r.honorBilling==='non_facturable' ? 'honor_nf' : 'honor_fact');
+  if(r.status==='no_show') return 'no_show';
+  if(r.status==='cancelled') return 'cancelled';
+  return 'none';
+}
+
+function renderStatusSegmentHTML(r){
+  const cur = statusKeyOf(r);
+  const opt = (value, label, sub='')=>{
+    const active = (cur===value) ? ' is-active aria-pressed="true"' : ' aria-pressed="false"';
+    return `<button type="button" class="opt${active}" data-value="${value}">
+      <span class="k">${label}</span>${sub?`<span class="sub">${sub}</span>`:''}
+    </button>`;
+  };
+  return `<div class="seg" id="status_seg">
+    ${opt('honor_fact','Honoré • facturé')}
+    ${opt('honor_nf','Honoré • non facturable')}
+    ${opt('no_show','Non honoré')}
+    ${opt('cancelled','Annulé')}
+    ${opt('none','Retirer le statut')}
+  </div>`;
+}
+
+// — override soft: on remplace l’existant proprement
+const _openStatusDialog_original = window.openStatusDialog;
+
+window.openStatusDialog = function(id){
+  const r = getRDVById(id);
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Statut du rendez-vous</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div style="padding:16px;min-width:320px;max-width:520px">
+      <div class="label">Choix</div>
+      ${renderStatusSegmentHTML(r)}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-neutral" id="stat_validate">Valider</button>
+        <button class="btn btn-ghost" onclick="this.closest('dialog').close()">Annuler</button>
       </div>
-      <div style="padding:16px;max-width:520px">
-        <div class="small" style="margin-bottom:8px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+    </div>`;
+  document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
 
-        <div class="label">Statut</div>
-        <div class="seg" id="st_opts" style="margin-top:6px">
-          <button type="button" class="opt" data-v="honored">Honoré</button>
-          <button type="button" class="opt" data-v="no_show">Pas venu</button>
-          <button type="button" class="opt" data-v="cancelled">Annulé</button>
-        </div>
-
-        <div id="billing_wrap" style="margin-top:12px; display:none">
-          <div class="label">Facturation (si honoré)</div>
-          <select id="billing" class="input">
-            <option value="">—</option>
-            <option value="facturé">Facturé</option>
-            <option value="non_facturable">Non facturable</option>
-          </select>
-        </div>
-
-        <div class="row mt12" style="justify-content:flex-end;gap:8px">
-          <button class="btn btn-primary btn-xs" id="st_save">Enregistrer</button>
-        </div>
-      </div>`;
-    document.body.appendChild(dlg);
-    dlg.showModal?.() ?? dlg.setAttribute('open','');
-
-    // UI logique
-    let chosen = r.status || '';
-    const optEls = dlg.querySelectorAll('#st_opts .opt');
-    const pick = (v)=>{
-      chosen = v;
-      optEls.forEach(b=>b.classList.toggle('is-active', b.dataset.v===v));
-      dlg.querySelector('#billing_wrap').style.display = (v==='honored') ? 'block' : 'none';
-    };
-    optEls.forEach(b=> b.onclick = ()=> pick(b.dataset.v));
-    if (['honored','no_show','cancelled'].includes(chosen)) pick(chosen);
-
-    dlg.querySelector('#st_save').onclick = async ()=>{
-      if(!chosen){ alert('Choisis un statut.'); return; }
-      const billingSel = dlg.querySelector('#billing')?.value || '';
-      const patch = {
-        status: chosen,
-        statusAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      if(chosen==='honored'){
-        if(billingSel) patch.honorBilling = billingSel;
-        else patch.honorBilling = firebase.firestore.FieldValue.delete();
-      }else{
-        patch.honorBilling = firebase.firestore.FieldValue.delete();
-      }
-      await db.collection('rdv').doc(id).set(patch,{merge:true});
-
-      try{ patchRDV(id, patch); }catch(_){}
-      try{ refreshOpenSheet?.(id); }catch(_){}
-      try{ renderList?.(); }catch(_){}
-      notify('Statut mis à jour ✔️','ok');
-      dlg.close?.(); dlg.remove();
-    };
-  }catch(e){
-    console.error(e);
-    alert('Impossible d’ouvrir la fenêtre Statut.');
-  }
-}
-
-// “Pas venu (message)” — envoie le modèle no_show sur le canal par défaut
-async function sendNoShowMessage(rOrId){
-  try{
-    let r = rOrId;
-    if(typeof r === 'string'){
-      const s = await db.collection('rdv').doc(r).get();
-      if(!s.exists) return;
-      r = { id:s.id, ...s.data() };
-    }
-    const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
-    const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, { CIV: r.civ||'', PRENOM: r.name||'' }, ch);
-
-    openChannelAndLog(r.phone, text, ch);
-    try{
-      await db.collection('messages').add({
-        type: 'no_show_msg',
-        rdvId: r.id,
-        phone: r.phone,
-        agency: r.agency || '',
-        channel: ch,
-        sentAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }catch(_){}
-    notify('Message “pas venu” prêt ✔️','ok');
-  }catch(e){
-    console.error(e);
-    notify('Erreur envoi message “pas venu”','warn');
-  }
-}
-
-// Renvoyer la confirmation initiale
-async function resendConfirmation(rOrId){
-  try{
-    let r = rOrId;
-    if(typeof r === 'string'){
-      const s = await db.collection('rdv').doc(r).get();
-      if(!s.exists) return;
-      r = { id:s.id, ...s.data() };
-    }
-    const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
-    const text = msgFromTpl('confirmation', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, null, ch);
-
-    openChannelAndLog(r.phone, text, ch);
-    try{
-      await db.collection('messages').add({
-        type: 'confirmation_resent',
-        rdvId: r.id,
-        phone: r.phone,
-        agency: r.agency || '',
-        channel: ch,
-        sentAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }catch(_){}
-    notify('Confirmation renvoyée ✔️','ok');
-  }catch(e){
-    console.error(e);
-    notify('Erreur renvoi confirmation','warn');
-  }
-}
-(function(){
-  "use strict";
-
-  // Normalise le numéro en format wa.me (FR 06.. -> 336.., retire + ou 00)
-  function normalizePhone(input){
-    let p = (input || "").trim().replace(/[^\d+]/g, "");
-    if (!p) return "";
-    if (p.startsWith("+")) p = p.slice(1);
-    if (p.startsWith("00")) p = p.slice(2);
-    if (p.startsWith("0"))  p = "33" + p.slice(1);
-    return p;
-  }
-
-  function openWA(phone, text){
-    const tel = normalizePhone(phone);
-    const msg = encodeURIComponent(text || ""); // garde bien les emojis ✅
-    if (!tel){ console.warn("[WA] Phone vide"); return; }
-
-    const appUrl = "whatsapp://send?phone=" + tel + "&text=" + msg;
-    const webUrl = "https://wa.me/" + tel + "?text=" + msg;
-
-    const t0 = Date.now();
-    // 1) tenter d’ouvrir l’app (depuis un clic utilisateur)
-    location.href = appUrl;
-
-    // 2) secours web si l’app ne prend pas le focus
-    setTimeout(function(){
-      if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
-        location.href = webUrl;
-      }
-    }, 900);
-  }
-
-  // Expose une API si tu veux l’appeler ailleurs
-  window.cnOpenWhatsApp = openWA;
-
-  // A) Tout élément avec [data-wa] déclenche l’ouverture avec ses attributs
-  document.addEventListener("click", function(ev){
-    const el = ev.target.closest("[data-wa]");
-    if (!el) return;
-    ev.preventDefault();
-    openWA(
-      el.getAttribute("data-wa-phone") || "",
-      el.getAttribute("data-wa-text")  || ""
-    );
+  // Sélection visuelle qui suit le clic
+  let choice = statusKeyOf(r);
+  const seg = dlg.querySelector('#status_seg');
+  seg.addEventListener('click', (e)=>{
+    const b = e.target.closest('.opt'); if(!b) return;
+    choice = b.getAttribute('data-value');
+    seg.querySelectorAll('.opt').forEach(x=>{
+      x.classList.toggle('is-active', x===b);
+      x.setAttribute('aria-pressed', x===b ? 'true' : 'false');
+    });
   });
 
-  // B) Raccourci auto si tu as #send-wa (et éventuellement #tel, #msg)
-  const btn = document.getElementById("send-wa");
-  const tel = document.getElementById("tel");
-  const msg = document.getElementById("msg");
-  if (btn && (tel || msg)){
-    btn.addEventListener("click", function(e){
-      e.preventDefault();
-      openWA(tel ? tel.value : "", msg ? msg.value : "");
-    });
-  }
-})();
+  // Action fonctionnelle (réutilise tes fonctions existantes patchées)
+  dlg.querySelector('#stat_validate').addEventListener('click', async ()=>{
+    try{
+      if(choice==='honor_fact'){
+        await setHonor(r, 'honored', 'facturé');
+      }else if(choice==='honor_nf'){
+        await setHonor(r, 'honored', 'non_facturable');
+      }else if(choice==='no_show'){
+        await setHonor(r, 'no_show');
+      }else if(choice==='cancelled'){
+        await setHonor(r, 'cancelled');
+      }else{
+        await clearHonor(r);
+      }
+      // la fiche se rafraîchit déjà grâce à tes surcharges setHonor/clearHonor
+    }finally{
+      dlg.close();
+      setTimeout(()=> dlg.remove(), 0);
+    }
+  });
+};
+
+// === AUTO-REFRESH GLOBAL — à coller juste avant </body> ===
 (function(){
-  const LP = '[AutoFillAndroid]';
-  function log(...a){ console.log(LP, ...a); }
-  function warn(...a){ console.warn(LP, ...a); }
+  const PERIOD = 1000; // 1 seconde
 
-  // ===== CONFIG =====
-  const CONFIRM_SELECTORS = [
-    '#confirmationMessage',
-    'textarea[name="confirmation"]',
-    '.message-confirmation',
-    '[data-role="confirm-message"]'
-  ];
-  const CONFIRM_PREVIEW_SELECTORS = [
-    '#confirmPreview',
-    '.confirm-preview'
-  ];
-  const CONFIRM_TEMPLATE = `Bonjour {{prenom}},\nMerci de confirmer votre rendez-vous le 12/11/2025 à 14:30. Répondez "OUI" ou "NON".\n— C&N Solutions`;
-  const DEFAULT_DATA = { prenom: 'Client' };
-  const MAX_RETRY_MS = 20000;
-  const CHECK_INTERVAL_MS = 500;
+  // Évite les doublons si injecté deux fois
+  if (window.__autoRefTimer) clearInterval(window.__autoRefTimer);
 
-  // ===== helpers =====
-  function isAndroid(){ return /Android/i.test(navigator.userAgent || ''); }
-  function populate(t, data = {}) { return t.replace(/\{\{(\w+)\}\}/g, (_,k)=> data[k] ?? ''); }
-  function dispatchInputEvents(el, text){
-    try {
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Unidentified' }));
-      // modern InputEvent
-      try {
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
-      } catch(e){}
-      // composition end
-      el.dispatchEvent(new Event('compositionend', { bubbles: true }));
-    } catch(e){ console.warn(LP, 'dispatch events failed', e); }
+  function findRefreshButton(){
+    const all = Array.from(document.querySelectorAll('button, [role="button"], [data-refresh], .btn'));
+    return all.find(el=>{
+      const t = (el.textContent||'').toLowerCase();
+      const id = (el.id||'').toLowerCase();
+      const title = (el.title||'').toLowerCase();
+      return el.hasAttribute('data-refresh')
+        || /refresh|rafraich|rafraîch|actualis/.test(id)
+        || /refresh|rafraich|rafraîch|actualis/.test(title)
+        || /rafraîchir|rafraichir|actualiser|refresh/.test(t);
+    }) || null;
   }
 
-  // set via value setter (helps React)
-  function setNativeValue(element, value) {
-    if (!element) return false;
-    try {
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-        const proto = Object.getPrototypeOf(element);
-        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (setter) setter.call(element, value);
-        else element.value = value;
-      } else if (element.isContentEditable) {
-        element.textContent = value;
-      } else {
-        element.textContent = value;
-      }
-      dispatchInputEvents(element, value);
-      return true;
-    } catch(e){
-      warn('setNativeValue error', e);
-      return false;
+  function doRefresh(){
+    try{
+      // 1) Ta/tes fonctions internes si elles existent
+      if (typeof refreshAll === 'function') return void refreshAll();
+      if (typeof reloadAll  === 'function') return void reloadAll();
+      if (typeof loadData   === 'function') return void loadData();
+      if (typeof renderAll  === 'function') return void renderAll();
+
+      // 2) Clique le bouton "Rafraîchir" si présent
+      const btn = findRefreshButton();
+      if (btn) { btn.click(); return; }
+
+      // 3) Si le panneau Rappels est ouvert, forcer juste son re-render
+      const dlg = document.querySelector('#remindersDlg');
+      if (dlg && typeof dlg.__rerender === 'function') dlg.__rerender();
+
+      // 4) (Optionnel) Dernier recours : recharger la page en dur
+      // location.reload(); // ← décommente si tu veux un vrai reload
+    }catch(e){
+      console.error('auto refresh error', e);
     }
   }
 
-  // Try execCommand insertText (old but works in many Android WebView)
-  function execInsertText(el, text){
-    try {
-      el.focus();
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount) {
-        // attempt to replace selection
-        document.execCommand('insertText', false, text);
-      } else {
-        // fallback: set value then dispatch
-        if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-          const current = el.value || '';
-          const newVal = current + text;
-          setNativeValue(el, newVal);
-        } else if (el.isContentEditable) {
-          document.execCommand('insertText', false, text);
-        }
+  // Lance maintenant puis toutes les 1 s
+  doRefresh();
+  window.__autoRefTimer = setInterval(doRefresh, PERIOD);
+
+  // Optionnel : pause si onglet caché pour éviter de spammer
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden) {
+      if (window.__autoRefTimer){ clearInterval(window.__autoRefTimer); window.__autoRefTimer=null; }
+    } else {
+      if (!window.__autoRefTimer){
+        window.__autoRefTimer = setInterval(doRefresh, PERIOD);
+        doRefresh();
       }
-      dispatchInputEvents(el, text);
-      return true;
-    } catch(e){
-      warn('execInsertText failed', e);
-      return false;
     }
-  }
-
-  // selection + paste fallback
-  function selectionInsert(el, text){
-    try {
-      el.focus();
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-        const start = el.selectionStart ?? el.value.length;
-        const end = el.selectionEnd ?? start;
-        const v = el.value || '';
-        const nv = v.slice(0, start) + text + v.slice(end);
-        setNativeValue(el, nv);
-        el.setSelectionRange(start + text.length, start + text.length);
-      } else if (el.isContentEditable) {
-        const r = document.createRange();
-        const sel = window.getSelection();
-        r.selectNodeContents(el);
-        r.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(r);
-        document.execCommand('insertText', false, text);
-      } else {
-        el.textContent = text;
-      }
-      dispatchInputEvents(el, text);
-      return true;
-    } catch(e){
-      warn('selectionInsert failed', e);
-      return false;
-    }
-  }
-
-  // find
-  function findElement(){
-    for (const s of CONFIRM_SELECTORS) {
-      const el = document.querySelector(s);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  function updatePreviews(text){
-    CONFIRM_PREVIEW_SELECTORS.forEach(sel=>{
-      const p = document.querySelector(sel);
-      if (p) p.textContent = text;
-    });
-  }
-
-  // Main filling logic with Android-specific steps
-  function tryFill(text){
-    const el = findElement();
-    if (!el) { log('No confirmation element found yet.'); return false; }
-
-    log('Found element:', el, 'isContentEditable?', !!el.isContentEditable, 'android?', isAndroid());
-
-    // scroll + focus
-    try {
-      el.scrollIntoView({behavior: 'smooth', block:'center', inline:'nearest'});
-      el.focus({preventScroll: false});
-    } catch(e){}
-
-    // small delay to ensure keyboard and focus settle
-    try {
-      // 1) preferred: native setter + events (React friendly)
-      if (setNativeValue(el, text)) {
-        log('Filled by setNativeValue');
-        updatePreviews(text);
-        return true;
-      }
-    } catch(e){ warn('setNativeValue threw', e); }
-
-    try {
-      // 2) execCommand fallback (works on many Android)
-      if (execInsertText(el, text)) {
-        log('Filled by execInsertText');
-        updatePreviews(text);
-        return true;
-      }
-    } catch(e){ warn('execInsertText threw', e); }
-
-    try {
-      // 3) selection insert
-      if (selectionInsert(el, text)) {
-        log('Filled by selectionInsert');
-        updatePreviews(text);
-        return true;
-      }
-    } catch(e){ warn('selectionInsert threw', e); }
-
-    // 4) last resort: set attribute + textContent
-    try {
-      if (el instanceof HTMLElement) {
-        el.setAttribute('value', text);
-        el.textContent = text;
-        dispatchInputEvents(el, text);
-        log('Filled by attribute/textContent fallback');
-        updatePreviews(text);
-        return true;
-      }
-    } catch(e){ warn('last fallback failed', e); }
-
-    return false;
-  }
-
-  // Observe & retry
-  function observeAndRun(data = DEFAULT_DATA){
-    const text = populate(CONFIRM_TEMPLATE, data);
-    const start = Date.now();
-    let done = false;
-
-    function attempt(){
-      if (done) return;
-      const ok = tryFill(text);
-      if (ok) { done = true; log('Auto-fill success'); cleanup(); return; }
-      if (Date.now() - start >= MAX_RETRY_MS) { log('Auto-fill timeout after', MAX_RETRY_MS, 'ms'); cleanup(); return; }
-    }
-
-    // run immediately
-    setTimeout(attempt, 80);
-
-    // observer
-    const obs = new MutationObserver((muts)=>{
-      if (done) return;
-      for (const m of muts) {
-        if (m.addedNodes && m.addedNodes.length) { attempt(); break; }
-      }
-    });
-    try {
-      obs.observe(document.documentElement || document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class','style'] });
-    } catch(e){ warn('observer failed', e); }
-
-    const interval = setInterval(attempt, CHECK_INTERVAL_MS);
-    function cleanup(){
-      try { obs.disconnect(); } catch(e){}
-      clearInterval(interval);
-    }
-
-    // also try on focus changes (user may open keyboard)
-    window.addEventListener('focus', attempt);
-    window.addEventListener('visibilitychange', attempt);
-
-    // final cleanup after max time
-    setTimeout(()=>{ if(!done) { log('Final attempt before stop'); attempt(); } }, MAX_RETRY_MS - 50);
-  }
-
-  // Public API
-  window.__AutoFillAndroid = {
-    run: observeAndRun,
-    tryFillOnce: () => tryFill(populate(CONFIRM_TEMPLATE, DEFAULT_DATA)),
-    findElement
-  };
-
-  // Auto start when DOM ready
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(()=> { log('Starting auto-fill (auto) - Android aware. UA=', navigator.userAgent); observeAndRun(); }, 100);
-  } else {
-    document.addEventListener('DOMContentLoaded', ()=> { log('DOM ready - starting auto-fill. UA=', navigator.userAgent); observeAndRun(); });
-  }
-
-  log('Script loaded - API available at window.__AutoFillAndroid (run / tryFillOnce / findElement).');
-
+  });
 })();
 
 </script>
