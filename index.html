@@ -2668,28 +2668,43 @@ async function sendReminder(r){
     if (s.exists) r = { id: s.id, ...s.data() }; else return;
   }
 
-  // Choix du canal: wa par défaut, sinon sms
   const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
-
-  // Texte depuis le template "rappel" (avec fallback agence -> défauts)
-  const text = msgFromTpl(
-    'rappel',
-    r.agency,
-    r.dateText || '',
-    r.timeText || '',
-    r.model || '',
-    null,
-    null,
-    null,
-    ch
-  );
+  const text = msgFromTpl('rappel', r.agency, r.dateText || '', r.timeText || '', r.model || '', null, null, null, ch);
 
   try {
+    // Ouvre canal (WA/SMS) côté client
     openChannelAndLog(r.phone, text, ch);
-    await markReminder(r, ch);
+
+    // Si markReminder existe, on l'appelle, sinon on fait le fallback manuel
+    if (typeof markReminder === 'function') {
+      await markReminder(r, ch);
+    } else {
+      // Fallback : on marque en base et on enregistre un message
+      try {
+        await db.collection('rdv').doc(r.id).set({
+          reminderSent: true,
+          reminderAt: firebase.firestore.FieldValue.serverTimestamp(),
+          reminderChannel: ch
+        }, { merge: true });
+
+        await db.collection('messages').add({
+          rdvId: r.id,
+          phone: r.phone,
+          agency: (r.agency || ''),
+          channel: ch,
+          type: 'reminder',
+          sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+          text: text
+        });
+      } catch (e) {
+        console.error('Fallback markReminder error', e);
+        throw e;
+      }
+    }
+
     notify('Rappel envoyé ✔️', 'ok');
   } catch (e) {
-    console.error(e);
+    console.error('sendReminder error', e);
     notify('Erreur envoi rappel', 'warn');
   }
 }
