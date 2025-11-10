@@ -3575,7 +3575,213 @@ async function resendConfirmation(rOrId){
     });
   }
 })();
+(function(){
+  const LOG_PREFIX = '[AutoFillConfirm]';
 
+  // ====== CONFIG (modifie si nécessaire) ======
+  // sélecteurs probables pour la zone de confirmation (textarea / input / contenteditable)
+  const CONFIRM_SELECTORS = [
+    '#confirmationMessage',          // exemple id
+    'textarea[name="confirmation"]', // exemple
+    '.message-confirmation',         // exemple
+    '[data-role="confirm-message"]'  // exemple
+  ];
+
+  // prévisualisations possibles (si tu as une zone preview séparée)
+  const CONFIRM_PREVIEW_SELECTORS = [
+    '#confirmPreview',
+    '.confirm-preview',
+    '[data-preview="confirmation"]'
+  ];
+
+  // Template par défaut (modifie le texte)
+  const CONFIRM_TEMPLATE = `Bonjour {{prenom}},\n\nMerci de confirmer votre rendez-vous le 12/11/2025 à 14:30. Répondez "OUI" ou "NON".\n\n— C&N Solutions`;
+
+  // Token data (par défaut utilisable, tu peux remplacer dynamiquement avant appel)
+  const DEFAULT_DATA = { prenom: 'Client' };
+
+  // Timeout / retry config
+  const MAX_RETRY_MS = 20000; // durée max d'observation en ms
+  const CHECK_INTERVAL_MS = 600; // fallback interval
+
+  // ====== UTIL ======
+  function log(...args){ console.log(LOG_PREFIX, ...args); }
+  function now(){ return (new Date()).toISOString(); }
+  function populate(template, data = {}) {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? '');
+  }
+
+  // write value in a native-friendly way (helps React controlled inputs)
+  function setNativeValue(element, value) {
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      const proto = Object.getPrototypeOf(element);
+      const valueSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (valueSetter) {
+        valueSetter.call(element, value);
+      } else {
+        element.value = value;
+      }
+    } else {
+      // contenteditable or others
+      element.textContent = value;
+    }
+    // dispatch events so UI frameworks notice the change
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+  }
+
+  // handle contentEditable elements
+  function setContentEditable(el, value) {
+    el.textContent = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+  }
+
+  // try to set value depending on element type
+  function tryFillElement(el, text) {
+    if (!el) return false;
+    try {
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        setNativeValue(el, text);
+        return true;
+      }
+      // contenteditable
+      if (el.isContentEditable) {
+        setContentEditable(el, text);
+        return true;
+      }
+      // fallback: set textContent
+      el.textContent = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    } catch (e) {
+      console.warn(LOG_PREFIX, 'Erreur remplissage', e);
+      return false;
+    }
+  }
+
+  // update preview boxes if present
+  function updatePreviews(text) {
+    CONFIRM_PREVIEW_SELECTORS.forEach(sel => {
+      const p = document.querySelector(sel);
+      if (p) p.textContent = text;
+    });
+  }
+
+  // Find first matching element from selectors
+  function findConfirmElement() {
+    for (const s of CONFIRM_SELECTORS) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    // sometimes the field is inside an iframe or shadow DOM — not handled here
+    return null;
+  }
+
+  // Core attempt to fill; returns true if succeeded
+  function attemptFill(data = DEFAULT_DATA) {
+    const text = populate(CONFIRM_TEMPLATE, data);
+    const el = findConfirmElement();
+    if (!el) {
+      log('Aucun élément de confirmation trouvé pour le moment.');
+      return false;
+    }
+    const ok = tryFillElement(el, text);
+    if (ok) {
+      updatePreviews(text);
+      log('Remplissage effectué à', now(), 'Sélecteur utilisé ->', el);
+      return true;
+    }
+    return false;
+  }
+
+  // Observe mutations to detect added nodes (modals / SPA)
+  function observeAndFill(timeout = MAX_RETRY_MS, data = DEFAULT_DATA) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      let resolved = false;
+
+      const tryAndResolve = () => {
+        if (attemptFill(data)) {
+          resolved = true;
+          disconnect();
+          resolve(true);
+        } else if (Date.now() - start >= timeout) {
+          disconnect();
+          resolve(false);
+        }
+      };
+
+      // initial attempt
+      tryAndResolve();
+
+      // MutationObserver
+      const observer = new MutationObserver(muts => {
+        if (resolved) return;
+        // Try when nodes added or attributes changed
+        for (const m of muts) {
+          if (m.addedNodes && m.addedNodes.length) {
+            tryAndResolve();
+            break;
+          }
+        }
+      });
+
+      function disconnect() {
+        try { observer.disconnect(); } catch(e){}
+        clearInterval(intervalId);
+        window.removeEventListener('hashchange', tryAndResolve);
+        window.removeEventListener('popstate', tryAndResolve);
+      }
+
+      observer.observe(document.documentElement || document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+
+      // fallback interval in case MutationObserver misses it
+      const intervalId = setInterval(() => {
+        tryAndResolve();
+      }, CHECK_INTERVAL_MS);
+
+      // Also try on navigation events
+      window.addEventListener('hashchange', tryAndResolve);
+      window.addEventListener('popstate', tryAndResolve);
+
+      // final timeout ensured in tryAndResolve
+    });
+  }
+
+  // Public runner: call on load
+  function runAutoFill(data = DEFAULT_DATA) {
+    log('Lancement auto-fill confirmation — début à', now());
+    // immediate attempt + observer
+    observeAndFill(MAX_RETRY_MS, data).then(success => {
+      if (success) log('Auto-fill réussi.');
+      else log('Auto-fill : élément non trouvé après timeout.');
+    });
+  }
+
+  // Try to run when DOM ready
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(() => runAutoFill(), 50);
+  } else {
+    document.addEventListener('DOMContentLoaded', () => runAutoFill());
+  }
+
+  // Expose for debug / manual trigger
+  window.__AutoFillConfirm = {
+    run: runAutoFill,
+    attemptFill: attemptFill,
+    findElement: findConfirmElement
+  };
+
+  log('Script chargé — disponible via window.__AutoFillConfirm (run/attemptFill/findElement).');
+
+})();
 
 </script>
 </section>
