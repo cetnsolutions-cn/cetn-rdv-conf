@@ -3203,6 +3203,144 @@ window.openRDVSheet = function(r){
     alert('Impossible d’ouvrir la fiche.');
   }
 };
+// === Patchs manquants : STATUT / PAS VENU / RÉ-ENVOI CONFIRMATION ===
+
+// Dialog Statut (honoré / pas venu / annulé) + facturation si honoré
+async function openStatusDialog(id){
+  try{
+    const snap = await db.collection('rdv').doc(id).get();
+    if(!snap.exists) return alert('RDV introuvable');
+    const r = { id:snap.id, ...snap.data() };
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Statut du rendez-vous</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:520px">
+        <div class="small" style="margin-bottom:8px">${fmtNice(r.dateISO,r.timeText)} — ${escapeHtml(((r.civ||'')+' '+(r.name||'')).trim())}</div>
+
+        <div class="label">Statut</div>
+        <div class="seg" id="st_opts" style="margin-top:6px">
+          <button type="button" class="opt" data-v="honored">Honoré</button>
+          <button type="button" class="opt" data-v="no_show">Pas venu</button>
+          <button type="button" class="opt" data-v="cancelled">Annulé</button>
+        </div>
+
+        <div id="billing_wrap" style="margin-top:12px; display:none">
+          <div class="label">Facturation (si honoré)</div>
+          <select id="billing" class="input">
+            <option value="">—</option>
+            <option value="facturé">Facturé</option>
+            <option value="non_facturable">Non facturable</option>
+          </select>
+        </div>
+
+        <div class="row mt12" style="justify-content:flex-end;gap:8px">
+          <button class="btn btn-primary btn-xs" id="st_save">Enregistrer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+    // UI logique
+    let chosen = r.status || '';
+    const optEls = dlg.querySelectorAll('#st_opts .opt');
+    const pick = (v)=>{
+      chosen = v;
+      optEls.forEach(b=>b.classList.toggle('is-active', b.dataset.v===v));
+      dlg.querySelector('#billing_wrap').style.display = (v==='honored') ? 'block' : 'none';
+    };
+    optEls.forEach(b=> b.onclick = ()=> pick(b.dataset.v));
+    if (['honored','no_show','cancelled'].includes(chosen)) pick(chosen);
+
+    dlg.querySelector('#st_save').onclick = async ()=>{
+      if(!chosen){ alert('Choisis un statut.'); return; }
+      const billingSel = dlg.querySelector('#billing')?.value || '';
+      const patch = {
+        status: chosen,
+        statusAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if(chosen==='honored'){
+        if(billingSel) patch.honorBilling = billingSel;
+        else patch.honorBilling = firebase.firestore.FieldValue.delete();
+      }else{
+        patch.honorBilling = firebase.firestore.FieldValue.delete();
+      }
+      await db.collection('rdv').doc(id).set(patch,{merge:true});
+
+      try{ patchRDV(id, patch); }catch(_){}
+      try{ refreshOpenSheet?.(id); }catch(_){}
+      try{ renderList?.(); }catch(_){}
+      notify('Statut mis à jour ✔️','ok');
+      dlg.close?.(); dlg.remove();
+    };
+  }catch(e){
+    console.error(e);
+    alert('Impossible d’ouvrir la fenêtre Statut.');
+  }
+}
+
+// “Pas venu (message)” — envoie le modèle no_show sur le canal par défaut
+async function sendNoShowMessage(rOrId){
+  try{
+    let r = rOrId;
+    if(typeof r === 'string'){
+      const s = await db.collection('rdv').doc(r).get();
+      if(!s.exists) return;
+      r = { id:s.id, ...s.data() };
+    }
+    const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
+    const text = msgFromTpl('no_show', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, { CIV: r.civ||'', PRENOM: r.name||'' }, ch);
+
+    openChannelAndLog(r.phone, text, ch);
+    try{
+      await db.collection('messages').add({
+        type: 'no_show_msg',
+        rdvId: r.id,
+        phone: r.phone,
+        agency: r.agency || '',
+        channel: ch,
+        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(_){}
+    notify('Message “pas venu” prêt ✔️','ok');
+  }catch(e){
+    console.error(e);
+    notify('Erreur envoi message “pas venu”','warn');
+  }
+}
+
+// Renvoyer la confirmation initiale
+async function resendConfirmation(rOrId){
+  try{
+    let r = rOrId;
+    if(typeof r === 'string'){
+      const s = await db.collection('rdv').doc(r).get();
+      if(!s.exists) return;
+      r = { id:s.id, ...s.data() };
+    }
+    const ch = ((r.channel || r.firstMsgChannel || 'wa') + '').toLowerCase();
+    const text = msgFromTpl('confirmation', r.agency, r.dateText||'', r.timeText||'', r.model||'', null, null, null, ch);
+
+    openChannelAndLog(r.phone, text, ch);
+    try{
+      await db.collection('messages').add({
+        type: 'confirmation_resent',
+        rdvId: r.id,
+        phone: r.phone,
+        agency: r.agency || '',
+        channel: ch,
+        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(_){}
+    notify('Confirmation renvoyée ✔️','ok');
+  }catch(e){
+    console.error(e);
+    notify('Erreur renvoi confirmation','warn');
+  }
+}
 </script>
 </section>
 </body>
