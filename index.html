@@ -371,6 +371,82 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
   background: var(--ink); color: var(--bg); border-color: var(--ink);
 }
 .seg .opt .k { font-weight:700; font-variant-numeric: tabular-nums; }
+/* === Clignotements RDV === */
+@keyframes blinkBlue { 50% { outline-color: transparent; } }
+@keyframes blinkRed  { 50% { outline-color: transparent; } }
+
+.blink-blue {
+  outline: 2px solid #3b82f6;        /* bleu */
+  animation: blinkBlue 1s steps(2,end) infinite;
+  border-radius: 10px;
+}
+
+.blink-red {
+  outline: 2px solid #ef4444;        /* rouge */
+  animation: blinkRed .8s steps(2,end) infinite;
+  border-radius: 10px;
+}
+/* clignotement ultra-doux (subtil glow/pulse) */
+:root{
+  --blink-r: 220;
+  --blink-g: 38;
+  --blink-b: 38;
+  --blink-a: 0.045;       /* alpha très faible = plus doux */
+  --blink-duration: 2.6s; /* plus lent = plus doux */
+  --blink-translate: 0.5px;
+  --blink-radius: 6px;    /* arrondi du glow */
+}
+
+@keyframes blinkSoftSubtle {
+  0% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 rgba(var(--blink-r),var(--blink-g),var(--blink-b),0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(calc(-1 * var(--blink-translate)));
+    box-shadow: 0 6px 14px 4px rgba(var(--blink-r),var(--blink-g),var(--blink-b),var(--blink-a));
+    opacity: 0.995;
+  }
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 rgba(var(--blink-r),var(--blink-g),var(--blink-b),0);
+    opacity: 1;
+  }
+}
+
+.blink-red {
+  position: relative; /* nécessaire pour ::after */
+  animation: blinkSoftSubtle var(--blink-duration) ease-in-out infinite;
+  /* bord léger (optionnel, très discret) */
+  border: 1px solid rgba(var(--blink-r),var(--blink-g),var(--blink-b),0.03);
+  border-radius: var(--blink-radius);
+}
+
+/* pseudo-élément pour un glow encore plus diffus (très subtil) */
+.blink-red::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* glow diffus très léger — visible même si l'élément n'accepte pas box-shadow directement */
+  box-shadow: 0 6px 18px 6px rgba(var(--blink-r),var(--blink-g),var(--blink-b), calc(var(--blink-a) * 0.9));
+  opacity: 0.9;
+  transition: box-shadow 400ms ease, opacity 400ms ease;
+}
+
+/* accessible : si user réduit le mouvement, on coupe l'animation */
+@media (prefers-reduced-motion: reduce) {
+  .blink-red {
+    animation: none !important;
+  }
+  .blink-red::after {
+    transition: none !important;
+    box-shadow: none !important;
+  }
+}
+
 </style>
 
 <script>
@@ -2131,6 +2207,34 @@ function renderList(){
     const m=(r.timeText||'').match(/(\d{2}):(\d{2})/);
     const mins=m?(+m[1]*60 + +m[2]):-1;
     const isPast = (r.dateISO||'') < tISO || ((r.dateISO||'')===tISO && mins>=0 && nowM>=mins);
+    try {
+  if (r.dateISO && r.timeText) {
+    const [Y, Mo, Da] = (r.dateISO||'').split('-').map(v => Number(v));
+    const [HH, MM] = (r.timeText||'00:00').split(':').map(v => Number(v));
+    const appt = new Date(Y, Mo - 1, Da, HH, MM); // horaire local du RDV
+    const nowDt = new Date();
+
+    // Option A — clignoter si on est passé +60 minutes (1 heure après l'heure) :
+    const minutesSince = Math.round((nowDt - appt) / 60000); // >0 si on est après l'heure
+
+    // Respecter les préférences d'accessibilité : pas d'animation si reduced-motion
+    const prefersReduced = typeof window !== 'undefined'
+      && window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (minutesSince > 60 && !prefersReduced) { // <-- seuil 60 minutes
+      row.classList.add('blink-red');
+    } else {
+      row.classList.remove('blink-red');
+    }
+
+  } else {
+    row.classList.remove('blink-red');
+  }
+} catch (err) {
+  // safe fallback : rien ne casse si parsing KO
+  row.classList.remove('blink-red');
+}
     let statutTxt='';
     if(r.status==='honored'){
       const bill = r.honorBilling=== 'facturé' ? ' • Facturé' : (r.honorBilling==='non_facturable' ? ' • Non facturable' : '');
@@ -2172,8 +2276,9 @@ function renderList(){
       </div>
       <div class="mt12">${progressMiniHTML(r)}</div>
       ${deleteReqBox}`;
-    left.style.cursor='pointer'; left.onclick = ()=>{ if(VIEW!=='trash') openRDVSheet(r); };
-
+// Désactive l'ouverture par clic sur la ligne : ⚙️ uniquement
+left.style.cursor='default';
+left.onclick = (e)=>{ e?.stopPropagation?.(); /* no-op */ };
 const actions=document.createElement('div'); actions.className='rdv-actions';
 if (VIEW==='trash') {
   if (ROLE.role==='admin') {
