@@ -1438,36 +1438,51 @@ function buildRecap(){
 $('#btnWA').onclick = ()=>submitRDV('wa');
 $('#btnSMS').onclick = ()=>submitRDV('sms');
 
+function formatE164ForLink(raw) {
+  // Normalise en +33... / +<country> if possible
+  if(!raw) return '';
+  let s = String(raw).trim().replace(/[^\d+]/g,'');
+  // cas : "33612345678" -> "+33612345678"
+  if(s && !s.startsWith('+')) {
+    // si commence par 33 et 11 chiffres => ajouter +
+    if(/^33\d{9,}$/.test(s)) s = '+' + s;
+    // si commence par 0 (ex: 0612345678) -> +33...
+    else if(/^0\d{9}$/.test(s)) s = '+33' + s.slice(1);
+    else s = '+' + s; // fallback
+  }
+  return s;
+}
+
 function openChannelAndLog(phone, text, channel, preWin=null){
   try{
-    const phoneDigits = (phone||'').replace(/\D/g,'');
-    if(!phoneDigits) throw new Error('phone vide');
+    const rawDigits = (phone||'').toString().replace(/\s+/g,'').replace(/[^\d+]/g,'');
+    if(!rawDigits) throw new Error('phone vide');
 
     if(channel === 'wa'){
-      // app-first method (works well on Android + iOS) with web fallback
-      const tel = phoneDigits; // ex: 33612345678 (sans +)
-      const appUrl = "whatsapp://send?phone=" + tel + "&text=" + encodeURIComponent(text);
-      const webUrl = "https://wa.me/" + tel + "?text=" + encodeURIComponent(text);
+      // WhatsApp: app-first, web fallback
+      // WA expects numbers without '+' in whatsapp:// and wa.me links
+      const telForWa = rawDigits.replace(/^\+/, '').replace(/^00/, '');
+      const appUrl = "whatsapp://send?phone=" + telForWa + "&text=" + encodeURIComponent(text);
+      const webUrl = "https://wa.me/" + telForWa + "?text=" + encodeURIComponent(text);
 
-      // Usage direct (user gesture): essayer d'abord l'URL app
       const t0 = Date.now();
-      // on navigue sur l'URL app (ouvre l'application si présente)
+      // user gesture -> essayer d'ouvrir l'app
       location.href = appUrl;
 
-      // après ~900ms, si la page est toujours visible, on bascule sur web fallback
       setTimeout(function(){
+        // si la page est encore visible, l'app ne s'est probablement pas ouverte : fallback web
         if (document.visibilityState === "visible" && (Date.now() - t0) < 1600){
-          // L'app ne s'est pas ouverte -> fallback web
           try{
+            // essayer à ouvrir dans une popup/tab
             if(preWin && !preWin.closed){ preWin.location.href = webUrl; preWin.focus(); }
             else { window.open(webUrl, '_blank'); }
           }catch(e){
-            // si popup bloqué -> juste copier le texte
+            // si popup bloquée -> copie dans le presse-papiers
             navigator.clipboard?.writeText(text).catch(()=>{});
             notify('Message copié. Ouvre WhatsApp et colle-le.', 'ok');
           }
         } else {
-          // l'app s'est probablement ouverte — fermer la fenêtre pré-ouverte si elle existe
+          // l'app s'est probablement ouverte ; close préwindow si présent
           try{ if(preWin && !preWin.closed) preWin.close(); }catch(_){}
         }
       }, 900);
@@ -1475,24 +1490,41 @@ function openChannelAndLog(phone, text, channel, preWin=null){
       return;
     }
 
-    // SMS fallback
+    // === SMS branch (robuste pour Android + iOS)
     if(channel === 'sms'){
-      const n = phoneDigits.replace(/^33/, '0'); // format affiché (0...)
-      // iOS/Android separator heuristique
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.platform || '');
-      const sep = isIOS ? '&' : '?';
-      const smsUrl = `sms:${n}${sep}body=${encodeURIComponent(text)}`;
-      // On utilise location.href pour rester dans le même contexte (moins de blocage)
-      location.href = smsUrl;
-      // On copie le message au cas où
-      navigator.clipboard?.writeText(text).catch(()=>{});
-      notify('Message prêt (copié). Ouvre l’app SMS si besoin.','ok');
-      return;
+      // format standard pour sms links : sms:+33612345678?body=...
+      const telForSms = formatE164ForLink(phone); // ex "+33612345678"
+      if(!telForSms) throw new Error('phone invalide pour SMS');
+
+      const smsUrl = `sms:${telForSms}?body=${encodeURIComponent(text)}`;
+
+      // On essaye location.href (compat Chrome Android, etc.)
+      try {
+        location.href = smsUrl;
+        // on copie aussi le message pour éviter perte (certaines apps n'acceptent pas body)
+        navigator.clipboard?.writeText(text).catch(()=>{});
+        // petite notif UX
+        notify('Message prêt — ouvre ton application SMS. (Le texte a été copié au cas où.)', 'ok');
+        return;
+      } catch (e) {
+        // fallback : ouvrir dans une nouvelle fenêtre (moins bloqué)
+        try {
+          window.open(smsUrl, '_blank');
+          navigator.clipboard?.writeText(text).catch(()=>{});
+          notify('Message prêt — ouvre ton application SMS. (Le texte a été copié au cas où.)', 'ok');
+          return;
+        } catch (_){
+          // ultime fallback : copie only
+          navigator.clipboard?.writeText(text).catch(()=>{});
+          notify('Impossible d’ouvrir l’app SMS — message copié dans le presse-papier.', 'warn');
+          return;
+        }
+      }
     }
 
-    // Par défaut : copier le texte et notifier
+    // Par défaut : copie le message et notifie
     navigator.clipboard?.writeText(text).catch(()=>{});
-    notify('Message copié. Ouvre l’app correspondante et colle-le.','ok');
+    notify('Message copié. Ouvre l’app correspondante et colle-le.', 'ok');
   }catch(e){
     console.error('openChannelAndLog error', e);
     try{ navigator.clipboard?.writeText(text).catch(()=>{}); }catch(_){}
@@ -1514,12 +1546,16 @@ async function submitRDV(channel){
   }
   $('#sendErr').style.display='none';
 
-  const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt),
-    model,source,channel,createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-    createdByName:ROLE.name,createdByRole:ROLE.role,deleted:false,status:null,statusAt:null,
-    reminderSent:false,reminderAt:null, noteText:null, noteDueISO:null, noteUpdatedAt:null,
-    gesteCommercial:false, gesteAmount:null, honorBilling:null, firstMsgChannel: channel, firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
+  const payloadPhoneE164 = '+' + ('33' + phone10.slice(1)); // ex: "+33612345678"
+const payload = {
+  agency: a, civ, name,
+  phone: payloadPhoneE164,
+  dateText: dateTxt, timeText: timeTxt, dateISO: jjmma_to_iso(dateTxt),
+  model, source, channel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  createdByName: ROLE.name, createdByRole: ROLE.role, deleted:false, status:null, statusAt:null,
+  reminderSent:false, reminderAt:null, noteText:null, noteDueISO:null, noteUpdatedAt:null,
+  gesteCommercial:false, gesteAmount:null, honorBilling:null, firstMsgChannel: channel, firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
+};
 
   try{
     const ref=await db.collection('rdv').add(payload);
