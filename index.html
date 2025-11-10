@@ -3215,7 +3215,46 @@ window.openStatusDialog = function(id){
     }
   });
 })();
+/* === Fermeture instantanée du panneau Rappels ========================== */
+(function () {
+  function hideOverlay() {
+    const ov = document.getElementById('cn-white-overlay');
+    if (ov) ov.classList.remove('is-visible');
+    document.documentElement.classList.remove('modal-open');
+    document.body.classList.remove('modal-open');
+  }
+  function closeRemindersNow() {
+    const dlg = document.getElementById('remindersDlg') || document.querySelector('dialog[open]');
+    if (!dlg) return;
+    try { dlg.close?.(); } catch (_) {}
+    dlg.remove?.();
+    hideOverlay();
+  }
 
+  // 1) Clic sur "Fermer" du panneau Rappels
+  document.addEventListener('click', function (ev) {
+    const btn = ev.target && (ev.target.closest('#rem_close') || ev.target.closest('[data-close="reminders"]'));
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    closeRemindersNow();
+  }, true);
+
+  // 2) Touche Échap = fermer tout de suite
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeRemindersNow();
+  });
+
+  // 3) Si un refresh tente de re-rendre après fermeture, on s'assure que l'overlay est bien masqué
+  window.addEventListener('app:refresh', function () {
+    if (!document.getElementById('remindersDlg')) hideOverlay();
+  });
+
+  // 4) Nettoyage overlay à la fermeture de n'importe quel <dialog>
+  document.addEventListener('close', function (ev) {
+    if (ev.target && ev.target.nodeName === 'DIALOG') hideOverlay();
+  }, true);
+})();
 </script>
 </section>
 </body>
