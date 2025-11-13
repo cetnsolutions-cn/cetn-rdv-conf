@@ -3647,6 +3647,115 @@ window.openStatusDialog = function(id){
   }
 
 })();
+// === MODULE IDENTITÉ ADMIN — C&N SOLUTIONS ===
+// À coller à la toute fin de la page, APRÈS ton gros script existant.
+(function(){
+
+  // Petites protections si les globals n'existent pas (au cas où)
+  if (typeof enter !== 'function' || typeof ROLE === 'undefined') {
+    console.warn('Module identité admin : fonctions globales manquantes (enter / ROLE).');
+    return;
+  }
+
+  // Petit helper : demande "Nathanael ou Charlène ?" puis callback avec le bon prénom
+  function openAdminIdentityDialog(onPick){
+    const dlg = document.createElement('dialog');
+    dlg.style.padding = '0';
+    dlg.style.border = '1px solid var(--line)';
+    dlg.style.borderRadius = '12px';
+    dlg.style.maxWidth = '360px';
+    dlg.style.width = 'min(92vw,360px)';
+    dlg.innerHTML = `
+      <div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Qui se connecte ?</div>
+        <button class="btn btn-neutral btn-xs" id="adm_who_close">Fermer</button>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+        <div class="small">Choisissez quel administrateur est connecté, afin que chaque rendez-vous soit bien attribué :</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+          <button class="btn btn-primary btn-xs" id="adm_nath">Nathanael</button>
+          <button class="btn btn-neutral btn-xs" id="adm_char">Charlène</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dlg);
+    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg, 'open', ''))();
+
+    function choose(name){
+      try{
+        if (typeof onPick === 'function') onPick(name);
+      } finally {
+        dlg.close?.();
+        dlg.remove();
+      }
+    }
+
+    dlg.querySelector('#adm_who_close').onclick = () => {
+      dlg.close?.();
+      dlg.remove();
+    };
+    dlg.querySelector('#adm_nath').onclick = () => choose('Nathanael');
+    dlg.querySelector('#adm_char').onclick = () => choose('Charlène');
+  }
+
+  // On récupère les boutons existants
+  const btnPasskey = document.getElementById('btnLoginAdminPasskey');
+  const btnPin     = document.getElementById('btnLoginAdminPin');
+
+  // ⚙️ Nouveau comportement Face/Touch ID
+  if (btnPasskey) {
+    btnPasskey.onclick = async () => {
+      try{
+        if (typeof tryPasskey !== 'function') {
+          alert('Passkey non disponible sur ce navigateur.');
+          return;
+        }
+        // On vérifie juste la passkey comme avant
+        await tryPasskey(true);
+
+        // Puis on demande qui est l’admin
+        openAdminIdentityDialog((who)=>{
+          ROLE = { role:'admin', name: who };
+          enter();
+        });
+
+      } catch(e){
+        console.error(e);
+        alert('Échec Face/Touch ID. Utilise le PIN.');
+      }
+    };
+  }
+
+  // ⚙️ Nouveau comportement Code PIN
+  if (btnPin) {
+    btnPin.onclick = () => {
+      try{
+        const pin = prompt("Code administrateur :");
+        if (!pin) return;
+
+        if (typeof ADMIN_PIN === 'undefined') {
+          alert("Configuration PIN manquante.");
+          return;
+        }
+        if (pin !== ADMIN_PIN) {
+          alert("Code incorrect.");
+          return;
+        }
+
+        // PIN OK → on demande qui est connecté
+        openAdminIdentityDialog((who)=>{
+          ROLE = { role:'admin', name: who };
+          enter();
+        });
+
+      } catch(e){
+        console.error(e);
+        alert("Erreur lors de la connexion admin.");
+      }
+    };
+  }
+
+})();
 </script>
 </section>
 </body>
