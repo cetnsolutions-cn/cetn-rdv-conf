@@ -3256,9 +3256,6 @@ window.openStatusDialog = function(id){
   }, true);
 })();
 
-// === MODULE EQUIPE & STATS — C&N SOLUTIONS ===
-// A coller tel quel à la fin de ta page, après tes autres scripts.
-
 (function(){
 
   // ---------- 1) Firestore : prénoms autorisés pour l'équipe ----------
@@ -3282,13 +3279,15 @@ window.openStatusDialog = function(id){
 
   function isTeamNameAllowed(name){
     if (!name) return false;
-    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return false;
-    return ALLOWED_TEAM_NAMES.includes(name.trim());
+    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return false; // liste vide => personne
+    const norm = name.trim();
+    return ALLOWED_TEAM_NAMES.includes(norm);
   }
 
+  // Précharge en silence
   loadAllowedTeamNames().catch(()=>{});
 
-  // ---------- 2) LOGIN ÉQUIPE ----------
+  // ---------- 2) LOGIN ÉQUIPE avec whitelist ----------
   const teamBtn = document.getElementById('btnLoginTeam');
   if (teamBtn){
     teamBtn.onclick = async () => {
@@ -3306,58 +3305,68 @@ window.openStatusDialog = function(id){
 
       await loadAllowedTeamNames();
       if (!isTeamNameAllowed(n)){
-        alert("Accès refusé : ce prénom n’est pas autorisé pour l’équipe.");
+        alert("Accès refusé : ce prénom n’est pas autorisé pour l’équipe.\nDemande à l’admin de t’ajouter.");
         return;
       }
 
-      ROLE = { role: 'team', name: n };
+      ROLE = { role: 'team', name: n }; // on garde la casse
       enter();
     };
   }
 
-  // ---------- 3) Filtrage des RDV ----------
+  // ---------- 3) Filtrer TOUTES les données pour l'équipe ----------
   const __origLoadAll = window.loadAll;
   if (typeof __origLoadAll === 'function'){
     window.loadAll = async function(){
       await __origLoadAll();
 
       if (ROLE && ROLE.role === 'team'){
-        const me = (ROLE.name || '').trim().toLowerCase();
+        const meNameLower = (ROLE.name || '').trim().toLowerCase();
 
         function filterTeamList(arr){
           return (arr || []).filter(r => {
-            const nm = (r.createdByName || '').trim().toLowerCase();
-            return r.createdByRole === 'team' && nm === me;
+            if (!r || typeof r !== 'object') return false;
+            const creatorName = (r.createdByName || '').trim().toLowerCase();
+            const creatorRole = (r.createdByRole || '');
+            return creatorRole === 'team' && creatorName === meNameLower;
           });
         }
 
+        // 3.1) Filtrer le tableau principal
         try{
-          if (typeof ALL_R !== 'undefined') ALL_R = filterTeamList(ALL_R);
+          if (typeof ALL_R !== 'undefined'){
+            ALL_R = filterTeamList(ALL_R);
+          }
         }catch(e){}
 
+        // 3.2) Filtrer les autres listes de RDV globales
         try{
           Object.keys(window).forEach(key => {
             const v = window[key];
-            if (Array.isArray(v) && v.length && typeof v[0] === 'object'){
-              if ('createdByName' in v[0] || 'createdByRole' in v[0]){
-                window[key] = filterTeamList(v);
-              }
+            if (Array.isArray(v) && v.length && typeof v[0] === 'object' &&
+                ('createdByName' in v[0] || 'createdByRole' in v[0])){
+              window[key] = filterTeamList(v);
             }
           });
         }catch(e){}
 
-        try{ computeUpcoming(); }catch(e){}
-        try{ computeDueToday(); }catch(e){}
-        try{ computeTodo(); }catch(e){}
-        try{ computeRevenueToday(); }catch(e){}
-        try{ updateTabCounts(); }catch(e){}
-        try{ updateStatusChips(); }catch(e){}
-        try{ renderList(); }catch(e){}
+        // 3.3) Recalcul KPI & liste avec ce sous-ensemble
+        try{ typeof computeUpcoming     === 'function' && computeUpcoming(); }catch(e){}
+        try{ typeof computeDueToday     === 'function' && computeDueToday(); }catch(e){}
+        try{ typeof computeTodo         === 'function' && computeTodo(); }catch(e){}
+        try{ typeof computeRevenueToday === 'function' && computeRevenueToday(); }catch(e){}
+        try{ typeof updateTabCounts     === 'function' && updateTabCounts(); }catch(e){}
+        try{ typeof updateStatusChips   === 'function' && updateStatusChips(); }catch(e){}
+        try{ typeof renderList          === 'function' && renderList(); }catch(e){}
       }
+
+      // Bouton Mes stats / visibilité KPI après chaque loadAll
+      ensureTeamStatsButton();
+      updateKpiVisibility();
     };
   }
 
-  // ---------- 4) ADMIN : gestion prénoms équipe ----------
+  // ---------- 4) Admin : gestion des prénoms autorisés ----------
   async function openTeamUsersDialog(){
     if (!ROLE || ROLE.role !== 'admin'){
       alert('Réservé à l’administrateur.');
@@ -3366,26 +3375,25 @@ window.openStatusDialog = function(id){
 
     await loadAllowedTeamNames();
     const current = (ALLOWED_TEAM_NAMES || []).join('\n');
-
     const dlg = document.createElement('dialog');
+
     dlg.innerHTML = `
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
         <div style="font-weight:800">Accès équipe</div>
         <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
       </div>
-
       <div style="padding:16px;max-width:520px">
         <div class="label">Prénoms autorisés (un par ligne)</div>
-        <textarea id="team_names_txt" class="input" rows="6">${escapeHtml(current)}</textarea>
+        <textarea id="team_names_txt" class="input" rows="6" placeholder="Ex :&#10;Nathanaël&#10;Charlène">${escapeHtml(current)}</textarea>
         <div class="small mt8">
-          • La casse est respectée.<br>
-          • Liste vide = aucun accès.
+          • Seuls ces prénoms pourront se connecter en &laquo;&nbsp;Équipe&nbsp;&raquo; avec le mot de passe.<br>
+          • La casse est respectée (Nathanaël ≠ nathanaël).<br>
+          • Si la liste est vide, aucun accès équipe n’est possible.
         </div>
         <div class="row mt12" style="justify-content:flex-end;gap:8px">
           <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
         </div>
-      </div>
-    `;
+      </div>`;
 
     document.body.appendChild(dlg);
     dlg.showModal?.() ?? dlg.setAttribute('open','');
@@ -3393,21 +3401,23 @@ window.openStatusDialog = function(id){
     dlg.querySelector('#team_save_btn').onclick = async () => {
       const raw = dlg.querySelector('#team_names_txt').value || '';
       const arr = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
-
-      await teamUsersRef.set(
-        { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
-        { merge: true }
-      );
-      ALLOWED_TEAM_NAMES = arr;
-      notify('Liste mise à jour ✔️','ok');
-
-      dlg.close();
-      dlg.remove();
+      try{
+        await teamUsersRef.set(
+          { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        ALLOWED_TEAM_NAMES = arr;
+        notify('Liste équipe mise à jour ✔️','ok');
+        dlg.close?.(); dlg.remove();
+      }catch(e){
+        alert('Erreur lors de la sauvegarde.');
+      }
     };
   }
 
+  // Bouton "Équipe – accès" (admin)
   const btnPass = document.getElementById('btnTeamPass');
-  if (btnPass){
+  if (btnPass && btnPass.parentNode){
     const btn = document.createElement('button');
     btn.id = 'btnTeamUsers';
     btn.className = btnPass.className;
@@ -3417,59 +3427,49 @@ window.openStatusDialog = function(id){
     btnPass.parentNode.insertBefore(btn, btnPass.nextSibling);
   }
 
-  // ---------- 5) ADMIN : STATS corrigées (taux sans annulés) ----------
+  // ---------- 5) Admin : stats globales par personne ----------
+  const oldOpenAdminDialog = window.openAdminDialog;
+
   window.openAdminDialog = function(){
+    if (!ROLE || ROLE.role !== 'admin'){
+      alert('Réservé à l’administrateur.');
+      return;
+    }
+
     const now = new Date();
     const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
 
     const per = {};
-
     (ALL_R || []).forEach(r => {
       if (r.deleted) return;
       if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
       if (r.createdByRole !== 'team') return;
-
       const name = (r.createdByName || '').trim();
       if (!name) return;
 
-      if (!per[name]) per[name] = {
-        placed: 0,
-        honored: 0,
-        noShow: 0,
-        cancelled: 0
-      };
-
-      if (r.status === 'cancelled'){
-        per[name].cancelled++;
-        return;
-      }
-
-      per[name].placed++;
-
+      if (!per[name]) per[name] = { total: 0, honored: 0, noShow: 0, cancelled: 0 };
+      per[name].total++;
       if (r.status === 'honored') per[name].honored++;
       else if (r.status === 'no_show') per[name].noShow++;
+      else if (r.status === 'cancelled') per[name].cancelled++;
     });
 
-    const rows = Object.entries(per).sort((a,b)=>a[0].localeCompare(b[0]));
-
-    const bodyRows = rows.map(([name, st])=>{
-      const placed = st.placed;
-      const hon = st.honored;
-
-      const rate = placed > 0
-        ? Math.round(hon * 100 / placed)
-        : 0;
-
-      return `
-      <tr>
-        <td>${escapeHtml(name)}</td>
-        <td style="text-align:right">${placed}</td>
-        <td style="text-align:right">${hon}</td>
-        <td style="text-align:right">${st.noShow}</td>
-        <td style="text-align:right">${st.cancelled}</td>
-        <td style="text-align:right">${rate}%</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="6" class="small">Aucun RDV</td></tr>';
+    const rows = Object.entries(per).sort((a,b) => a[0].localeCompare(b[0]));
+    const bodyRows = rows.length
+      ? rows.map(([name, st]) => {
+          const total = st.total || 0;
+          const hon   = st.honored || 0;
+          const rate  = total ? Math.round(hon * 100 / total) : 0;
+          return `<tr>
+            <td>${escapeHtml(name)}</td>
+            <td style="text-align:right">${total}</td>
+            <td style="text-align:right">${hon}</td>
+            <td style="text-align:right">${st.noShow || 0}</td>
+            <td style="text-align:right">${st.cancelled || 0}</td>
+            <td style="text-align:right">${rate}%</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="6" class="small">Aucun RDV équipe sur le mois en cours.</td></tr>';
 
     const dlg = document.createElement('dialog');
     dlg.innerHTML = `
@@ -3478,25 +3478,159 @@ window.openStatusDialog = function(id){
         <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
       </div>
       <div style="padding:16px;max-width:720px">
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <thead>
-            <tr>
-              <th>Prénom</th>
-              <th style="text-align:right">Placés</th>
-              <th style="text-align:right">Honorés</th>
-              <th style="text-align:right">Non honorés</th>
-              <th style="text-align:right">Annulés</th>
-              <th style="text-align:right">Taux honorés</th>
-            </tr>
-          </thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
+        <div class="small" style="margin-bottom:8px">
+          Basé sur la date du rendez-vous (${moisFR(now.getMonth())} ${now.getFullYear()}).
+        </div>
+        <div style="overflow:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">Prénom</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">RDV placés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Honorés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Non honorés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Annulés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Taux honorés</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bodyRows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+  };
+
+  // ---------- 6) ÉQUIPE : bouton "Mes stats" ----------
+  function openMyStatsDialog(){
+    if (!ROLE || ROLE.role !== 'team'){
+      alert('Réservé aux membres de l’équipe.');
+      return;
+    }
+
+    const now = new Date();
+    const ym  = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    const todayStr = new Date().toISOString().slice(0,10);
+
+    let total = 0;
+    let upcoming = 0;
+    let honored = 0;
+    let noShow = 0;
+    let cancelled = 0;
+
+    (ALL_R || []).forEach(r => {
+      if (!r || r.deleted) return;
+      if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
+
+      total++;
+      const s = r.status;
+
+      if (s === 'honored') honored++;
+      else if (s === 'no_show') noShow++;
+      else if (s === 'cancelled') cancelled++;
+
+      const d = r.dateISO;
+      if (d && d >= todayStr && s !== 'honored' && s !== 'no_show' && s !== 'cancelled'){
+        upcoming++;
+      }
+    });
+
+    const effectiveBase = total - cancelled;
+    const rate = effectiveBase > 0 ? Math.round(honored * 100 / effectiveBase) : 0;
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Mes stats — mois en cours</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:520px">
+        <div class="small" style="margin-bottom:10px">
+          Basé sur la date des RDV (${moisFR(now.getMonth())} ${now.getFullYear()}) pour <strong>${escapeHtml(ROLE.name)}</strong>.
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:10px">
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">RDV du mois</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${total}</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">À venir</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${upcoming}</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">Honorés</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${honored}</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">Non honorés</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${noShow}</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">Annulés</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${cancelled}</div>
+          </div>
+          <div class="card" style="flex:1;min-width:140px">
+            <div class="label">Taux honorés (hors annulés)</div>
+            <div style="font-size:26px;font-weight:700;margin-top:4px">${rate}%</div>
+          </div>
+        </div>
       </div>
     `;
 
     document.body.appendChild(dlg);
     dlg.showModal?.() ?? dlg.setAttribute('open','');
-  };
+  }
+
+  function ensureTeamStatsButton(){
+    const logoutBtn = document.getElementById('btnLogout')
+                      || document.querySelector('[data-role="logout"]')
+                      || document.querySelector('.btn-logout');
+
+    const existing = document.getElementById('btnMyStatsTeam');
+
+    if (!ROLE || ROLE.role !== 'team'){
+      // pas équipe => on enlève "Mes stats" s'il existe
+      if (existing) existing.remove();
+      return;
+    }
+
+    if (!logoutBtn) return;
+    if (existing) return; // déjà présent
+
+    const btn = document.createElement('button');
+    btn.id = 'btnMyStatsTeam';
+    btn.textContent = 'Mes stats';
+    btn.className = logoutBtn.className;
+    btn.style.marginRight = '6px';
+    btn.onclick = openMyStatsDialog;
+
+    logoutBtn.parentNode.insertBefore(btn, logoutBtn);
+  }
+
+  // ---------- 7) Visibilité des KPIs pour équipe / admin ----------
+  function updateKpiVisibility(){
+    // ta barre de KPIs :
+    // <div class="kpis mt12"> ... </div>
+    const kpisBar = document.querySelector('.kpis');
+    if (!kpisBar) return;
+
+    if (ROLE && ROLE.role === 'team'){
+      // équipe => on cache complètement la barre KPI (ils ont seulement "Mes stats")
+      kpisBar.style.display = 'none';
+    } else {
+      // admin (ou autre) => visible normalement
+      kpisBar.style.display = '';
+    }
+  }
+
+  // Fallback initial (au cas où loadAll n'a pas encore tourné)
+  setTimeout(()=>{
+    ensureTeamStatsButton();
+    updateKpiVisibility();
+  }, 1000);
 
 })();
 </script>
