@@ -557,17 +557,18 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
       <div class="label">Administrateur</div>
       <button class="btn btn-primary btn-xs" id="btnLoginAdminPasskey">Face/Touch ID</button>
       <button class="btn btn-neutral btn-xs mt8" id="btnLoginAdminPin">Code PIN (secours)</button>
-      <div class="small mt6">Active Face ID / empreinte sur ton téléphone.</div>
+      <div class="small mt6">
+      (réservé à l'administrateur)</div>
     </div>
     <div style="flex:1;min-width:260px" class="row-child">
-      <div class="label">Équipe</div>
-      <input id="eqName" class="input" placeholder="Votre prénom">
-      <input id="eqPass" class="input mt8" type="password" placeholder="Mot de passe équipe">
+      <div class="label">Équipe C&N Solutions ( Prospecteur )</div>
+      <input id="eqName" class="input" placeholder="Identifiant">
+      <input id="eqPass" class="input mt8" type="password" placeholder="Mot de passe ">
       <button class="btn btn-neutral btn-xs mt8" id="btnLoginTeam">Entrer</button>
-      <div class="small mt6">Ton prénom s’affichera sur les RDV.</div>
+      <div class="small mt6">Votre identifiant s’affichera sur les RDV.</div>
     </div>
   </div>
-  <div class="small mt12">💡 (Optionnel) <button class="btn btn-ghost btn-xs" id="btnEnroll">Enregistrer ce téléphone (Passkey)</button></div>
+  <div class="small mt12">💡 (Admin) <button class="btn btn-ghost btn-xs" id="btnEnroll">Enregistrer ce téléphone (Passkey)</button></div>
 </div>
 
 <!-- ======================= APPLICATION ======================= -->
@@ -3751,6 +3752,213 @@ window.openStatusDialog = function(id){
       } catch(e){
         console.error(e);
         alert("Erreur lors de la connexion admin.");
+      }
+    };
+  }
+
+})();
+/* === MODULE "PLACÉ PAR" — voir & modifier la personne qui a placé le RDV === */
+/* À coller tout en bas de ton script, après toutes tes fonctions existantes. */
+
+(function(){
+
+  // On attend que la fonction openRDVSheet soit définie
+  if (typeof openRDVSheet !== 'function') return;
+
+  // Petite fonction de secours au cas où escapeHtml n'existe pas déjà
+  function safeEscapeHtml(str){
+    if (typeof escapeHtml === 'function') return escapeHtml(str);
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // On garde la version originale
+  const originalOpenRDVSheet = openRDVSheet;
+
+  // On remplace openRDVSheet par un wrapper
+  window.openRDVSheet = function(r){
+    // on ouvre la fiche normalement
+    originalOpenRDVSheet(r);
+    // puis on injecte la ligne "Placé par" dans la modale
+    try { enhanceCreatorInLastSheet(r); } catch(e){ console.error(e); }
+  };
+
+  /**
+   * Ajoute/Met à jour la ligne "Placé par : ..." dans la fiche RDV ouverte.
+   * - visible pour tout le monde
+   * - bouton cliquable qui ouvre la modale de changement
+   */
+  function enhanceCreatorInLastSheet(r){
+    const dialogs = document.querySelectorAll('dialog[open]');
+    if (!dialogs.length) return;
+    const dlg = dialogs[dialogs.length - 1];
+    const body = dlg.querySelector('.dlg-body');
+    if (!body) return;
+
+    // Ne pas dupliquer si déjà présent
+    if (body.querySelector('[data-role="creator-info"]')) return;
+
+    const small = document.createElement('div');
+    small.className = 'small mt6';
+    small.dataset.role = 'creator-info';
+
+    const label = (r.createdByName || '—');
+    const dateTxt = r.createdAt ? (' • ' + fmtDT(r.createdAt)) : '';
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost btn-xs';
+    btn.textContent = `${label}${dateTxt}`;
+    btn.title = 'Voir / modifier la personne qui a placé le RDV';
+
+    btn.addEventListener('click', () => {
+      openChangeCreatorDialog(r.id, r.createdByName || '', small);
+    });
+
+    small.textContent = 'Placé par : ';
+    small.appendChild(btn);
+
+    // On insère cette ligne juste sous la première .small de la fiche
+    const firstMeta = body.querySelector('.small');
+    if (firstMeta && firstMeta.parentNode) {
+      firstMeta.parentNode.insertBefore(small, firstMeta.nextSibling);
+    } else {
+      body.insertBefore(small, body.firstChild);
+    }
+  }
+
+  /**
+   * Modale pour changer "Placé par"
+   * ⚠️ Ici : PAS DE VÉRIFICATION ADMIN → tout utilisateur de cette page peut modifier.
+   * => Ne mets ce module QUE dans ta page admin, pas dans la page équipe.
+   */
+  async function openChangeCreatorDialog(rId, currentName, infoNode){
+
+    // On récupère la fiche complète pour avoir createdAt à jour
+    let r = (Array.isArray(ALL_R) ? ALL_R.find(x => x.id === rId) : null);
+    try{
+      if (!r) {
+        const snap = await db.collection('rdv').doc(rId).get();
+        if (snap.exists) r = { id: snap.id, ...snap.data() };
+      }
+    }catch(e){
+      console.error(e);
+    }
+
+    // Liste des prénoms déjà utilisés (créateurs) pour auto-complétion
+    const knownNames = Array.from(
+      new Set(
+        (ALL_R || [])
+          .map(x => (x.createdByName || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a,b)=>a.localeCompare(b,'fr-FR'));
+
+    const optionsHtml = knownNames
+      .map(n => `<option value="${safeEscapeHtml(n)}"></option>`)
+      .join('');
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Modifier "Placé par"</div>
+        <button class="btn btn-neutral btn-xs" id="creator_close">Fermer</button>
+      </div>
+      <div class="dlg-body" style="padding:16px;max-width:480px">
+        <div class="small" style="margin-bottom:8px">
+          RDV du ${r && r.dateISO && r.timeText ? fmtNice(r.dateISO, r.timeText) : '—'}
+        </div>
+        <div class="label">Prénom / nom de la personne qui a placé le RDV</div>
+        <input id="creator_name" class="input" list="creator_list" placeholder="Ex : Lucas" value="${safeEscapeHtml(currentName || '')}">
+        <datalist id="creator_list">
+          ${optionsHtml}
+        </datalist>
+        <div class="small mt8">💡 Tu peux choisir dans la liste ou saisir un nouveau prénom.</div>
+        <div class="row mt12" style="justify-content:flex-end;gap:8px">
+          <button class="btn btn-neutral btn-xs" id="creator_clear">Effacer</button>
+          <button class="btn btn-primary btn-xs" id="creator_save">Enregistrer</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dlg);
+
+    // Ouverture "safe" de la modale
+    try {
+      if (typeof dlg.showModal === 'function') {
+        dlg.showModal();
+      } else {
+        dlg.setAttribute('open','');
+      }
+    } catch(e) {
+      console.error(e);
+      dlg.setAttribute('open','');
+    }
+
+    const $loc = (s)=>dlg.querySelector(s);
+
+    $loc('#creator_close').onclick = () => {
+      dlg.close?.();
+      dlg.remove();
+    };
+
+    // Bouton "Effacer" = remet vide (mais on demande quand même une conf)
+    $loc('#creator_clear').onclick = () => {
+      if (confirm('Effacer le nom de la personne qui a placé ce RDV ?')) {
+        $loc('#creator_name').value = '';
+      }
+    };
+
+    $loc('#creator_save').onclick = async () => {
+      const nv = ($loc('#creator_name').value || '').trim();
+      if (!nv) {
+        alert('Merci de saisir au minimum un prénom.');
+        return;
+      }
+
+      try{
+        // Écriture Firestore
+        await db.collection('rdv').doc(rId).set({
+          createdByName: nv,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // Mise à jour en mémoire locale
+        try{
+          if (Array.isArray(ALL_R)) {
+            const idx = ALL_R.findIndex(x => x.id === rId);
+            if (idx >= 0) {
+              ALL_R[idx] = { ...ALL_R[idx], createdByName: nv };
+            }
+          }
+        }catch(_){}
+
+        // Rafraîchir la liste principale
+        try{ typeof renderList === 'function' && renderList(); }catch(_){}
+        try{ typeof updateTabCounts === 'function' && updateTabCounts(); }catch(_){}
+
+        // Mettre à jour la ligne dans la fiche ouverte si on a un noeud cible
+        if (infoNode) {
+          const baseDate = r && r.createdAt ? (' • ' + fmtDT(r.createdAt)) : '';
+          infoNode.innerHTML = 'Placé par : ';
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-ghost btn-xs';
+          btn.textContent = nv + baseDate;
+          btn.title = 'Voir / modifier la personne qui a placé le RDV';
+          btn.addEventListener('click', () => {
+            openChangeCreatorDialog(rId, nv, infoNode);
+          });
+          infoNode.appendChild(btn);
+        }
+
+        notify('Créateur du RDV mis à jour ✔️','ok');
+        dlg.close?.();
+        dlg.remove();
+      }catch(e){
+        console.error(e);
+        alert('Erreur lors de la mise à jour de "Placé par".');
       }
     };
   }
