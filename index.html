@@ -3279,12 +3279,14 @@ window.openStatusDialog = function(id){
     }
   }
 
-  // Si aucune liste encore en base, on laissera tout passer (pas de blocage)
+  // 👉 Version stricte demandée :
+  // - casse respectée (Charlène ≠ charlène)
+  // - si la liste est vide => personne ne peut se connecter
   function isTeamNameAllowed(name){
     if (!name) return false;
-    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return true; // liste vide => pas de restriction
-    const norm = name.trim().toLowerCase();
-    return ALLOWED_TEAM_NAMES.some(n => n.toLowerCase() === norm);
+    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return false; // liste vide => aucun accès
+    const norm = name.trim();
+    return ALLOWED_TEAM_NAMES.includes(norm);
   }
 
   // Précharge la liste (silencieux)
@@ -3307,45 +3309,67 @@ window.openStatusDialog = function(id){
         return;
       }
 
-      // vérif prénom autorisé
+      // vérif prénom autorisé (casse exacte)
       await loadAllowedTeamNames();
       if (!isTeamNameAllowed(n)){
         alert("Accès refusé : ce prénom n’est pas autorisé pour l’équipe.\nDemande à l’admin de t’ajouter.");
         return;
       }
 
+      // On enregistre EXACTEMENT ce qu'il a tapé (majuscules/minuscules)
       ROLE = { role: 'team', name: n };
       enter();
     };
   }
 
   // ---------- 3) Filtrer TOUTES les données pour l'équipe ----------
-  // On wrappe loadAll() pour réduire ALL_R à ses propres RDV quand role = 'team'
+  // On wrappe loadAll() et on filtre tous les tableaux de RDV pour ne garder
+  // que ceux créés par cette personne en rôle "team" (même logique partout :
+  // à venir, honorés, non honorés, etc.)
   const __origLoadAll = window.loadAll;
   if (typeof __origLoadAll === 'function'){
     window.loadAll = async function(){
       await __origLoadAll();
 
       if (ROLE && ROLE.role === 'team'){
-        const me = (ROLE.name || '').trim().toLowerCase();
+        const meNameLower = (ROLE.name || '').trim().toLowerCase();
 
-        // On garde uniquement les RDV créés par cette personne en rôle "team"
-        ALL_R = (ALL_R || []).filter(r => {
-          const creatorName = (r.createdByName || '').trim().toLowerCase();
-          const creatorRole = (r.createdByRole || '');
-          return creatorRole === 'team' && creatorName === me;
-        });
+        function filterTeamList(arr){
+          return (arr || []).filter(r => {
+            if (!r || typeof r !== 'object') return false;
+            const creatorName = (r.createdByName || '').trim().toLowerCase();
+            const creatorRole = (r.createdByRole || '');
+            return creatorRole === 'team' && creatorName === meNameLower;
+          });
+        }
 
-        // On recalcule les KPI / onglets / liste avec ce sous-ensemble
+        // 3.1) Filtrer le tableau principal s'il existe dans ce scope
         try{
-          computeUpcoming();
-          computeDueToday();
-          computeTodo();
-          computeRevenueToday();
-          updateTabCounts();
-          updateStatusChips();
-          renderList();
+          if (typeof ALL_R !== 'undefined'){
+            ALL_R = filterTeamList(ALL_R);
+          }
         }catch(e){}
+
+        // 3.2) Filtrer tous les tableaux globaux qui ressemblent à des listes de RDV
+        // (contiennent des objets avec createdByName / createdByRole)
+        try{
+          Object.keys(window).forEach(key => {
+            const v = window[key];
+            if (Array.isArray(v) && v.length && typeof v[0] === 'object' &&
+                ('createdByName' in v[0] || 'createdByRole' in v[0])){
+              window[key] = filterTeamList(v);
+            }
+          });
+        }catch(e){}
+
+        // 3.3) On recalcule les KPI / onglets / liste avec ce sous-ensemble
+        try{ typeof computeUpcoming     === 'function' && computeUpcoming(); }catch(e){}
+        try{ typeof computeDueToday     === 'function' && computeDueToday(); }catch(e){}
+        try{ typeof computeTodo         === 'function' && computeTodo(); }catch(e){}
+        try{ typeof computeRevenueToday === 'function' && computeRevenueToday(); }catch(e){}
+        try{ typeof updateTabCounts     === 'function' && updateTabCounts(); }catch(e){}
+        try{ typeof updateStatusChips   === 'function' && updateStatusChips(); }catch(e){}
+        try{ typeof renderList          === 'function' && renderList(); }catch(e){}
       }
     };
   }
@@ -3371,8 +3395,8 @@ window.openStatusDialog = function(id){
         <textarea id="team_names_txt" class="input" rows="6" placeholder="Ex :&#10;Nathanaël&#10;Charlène">${escapeHtml(current)}</textarea>
         <div class="small mt8">
           • Seuls ces prénoms pourront se connecter en &laquo;&nbsp;Équipe&nbsp;&raquo; avec le mot de passe.<br>
-          • La casse est ignorée (Amine = amine).<br>
-          • Si la liste est vide, tous les prénoms sont acceptés.
+          • La casse est respectée (Nathanaël ≠ nathanaël).<br>
+          • Si la liste est vide, aucun accès équipe n’est possible.
         </div>
         <div class="row mt12" style="justify-content:flex-end;gap:8px">
           <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
@@ -3522,8 +3546,250 @@ window.openStatusDialog = function(id){
     };
   };
 
-})(); 
+})();
+// === MODULE EQUIPE & STATS — C&N SOLUTIONS ===
+// A coller tel quel à la fin de ta page, après tes autres scripts.
 
+(function(){
+
+  // ---------- 1) Firestore : prénoms autorisés pour l'équipe ----------
+  const teamUsersRef = db.collection('config').doc('teamUsers');
+  let ALLOWED_TEAM_NAMES = [];
+
+  async function loadAllowedTeamNames(){
+    try{
+      const snap = await teamUsersRef.get();
+      if (snap.exists){
+        const data = snap.data() || {};
+        const arr = Array.isArray(data.names) ? data.names : [];
+        ALLOWED_TEAM_NAMES = arr.map(n => (n || '').trim()).filter(Boolean);
+      } else {
+        ALLOWED_TEAM_NAMES = [];
+      }
+    }catch(e){
+      ALLOWED_TEAM_NAMES = [];
+    }
+  }
+
+  function isTeamNameAllowed(name){
+    if (!name) return false;
+    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return false;
+    return ALLOWED_TEAM_NAMES.includes(name.trim());
+  }
+
+  loadAllowedTeamNames().catch(()=>{});
+
+  // ---------- 2) LOGIN ÉQUIPE ----------
+  const teamBtn = document.getElementById('btnLoginTeam');
+  if (teamBtn){
+    teamBtn.onclick = async () => {
+      const n = (document.getElementById('eqName')?.value || '').trim();
+      const p = (document.getElementById('eqPass')?.value || '').trim();
+
+      if (!n){ alert("Merci d’indiquer votre prénom."); return; }
+      if (!p){ alert("Merci d’indiquer le mot de passe équipe."); return; }
+
+      await loadTeamPass();
+      if (p !== TEAM_PASS){
+        alert("Mot de passe incorrect.");
+        return;
+      }
+
+      await loadAllowedTeamNames();
+      if (!isTeamNameAllowed(n)){
+        alert("Accès refusé : ce prénom n’est pas autorisé pour l’équipe.");
+        return;
+      }
+
+      ROLE = { role: 'team', name: n };
+      enter();
+    };
+  }
+
+  // ---------- 3) Filtrage des RDV ----------
+  const __origLoadAll = window.loadAll;
+  if (typeof __origLoadAll === 'function'){
+    window.loadAll = async function(){
+      await __origLoadAll();
+
+      if (ROLE && ROLE.role === 'team'){
+        const me = (ROLE.name || '').trim().toLowerCase();
+
+        function filterTeamList(arr){
+          return (arr || []).filter(r => {
+            const nm = (r.createdByName || '').trim().toLowerCase();
+            return r.createdByRole === 'team' && nm === me;
+          });
+        }
+
+        try{
+          if (typeof ALL_R !== 'undefined') ALL_R = filterTeamList(ALL_R);
+        }catch(e){}
+
+        try{
+          Object.keys(window).forEach(key => {
+            const v = window[key];
+            if (Array.isArray(v) && v.length && typeof v[0] === 'object'){
+              if ('createdByName' in v[0] || 'createdByRole' in v[0]){
+                window[key] = filterTeamList(v);
+              }
+            }
+          });
+        }catch(e){}
+
+        try{ computeUpcoming(); }catch(e){}
+        try{ computeDueToday(); }catch(e){}
+        try{ computeTodo(); }catch(e){}
+        try{ computeRevenueToday(); }catch(e){}
+        try{ updateTabCounts(); }catch(e){}
+        try{ updateStatusChips(); }catch(e){}
+        try{ renderList(); }catch(e){}
+      }
+    };
+  }
+
+  // ---------- 4) ADMIN : gestion prénoms équipe ----------
+  async function openTeamUsersDialog(){
+    if (!ROLE || ROLE.role !== 'admin'){
+      alert('Réservé à l’administrateur.');
+      return;
+    }
+
+    await loadAllowedTeamNames();
+    const current = (ALLOWED_TEAM_NAMES || []).join('\n');
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Accès équipe</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+
+      <div style="padding:16px;max-width:520px">
+        <div class="label">Prénoms autorisés (un par ligne)</div>
+        <textarea id="team_names_txt" class="input" rows="6">${escapeHtml(current)}</textarea>
+        <div class="small mt8">
+          • La casse est respectée.<br>
+          • Liste vide = aucun accès.
+        </div>
+        <div class="row mt12" style="justify-content:flex-end;gap:8px">
+          <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+    dlg.querySelector('#team_save_btn').onclick = async () => {
+      const raw = dlg.querySelector('#team_names_txt').value || '';
+      const arr = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+
+      await teamUsersRef.set(
+        { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      ALLOWED_TEAM_NAMES = arr;
+      notify('Liste mise à jour ✔️','ok');
+
+      dlg.close();
+      dlg.remove();
+    };
+  }
+
+  const btnPass = document.getElementById('btnTeamPass');
+  if (btnPass){
+    const btn = document.createElement('button');
+    btn.id = 'btnTeamUsers';
+    btn.className = btnPass.className;
+    btn.textContent = 'Équipe – accès';
+    btn.style.marginLeft = '6px';
+    btn.onclick = openTeamUsersDialog;
+    btnPass.parentNode.insertBefore(btn, btnPass.nextSibling);
+  }
+
+  // ---------- 5) ADMIN : STATS corrigées (taux sans annulés) ----------
+  window.openAdminDialog = function(){
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+
+    const per = {};
+
+    (ALL_R || []).forEach(r => {
+      if (r.deleted) return;
+      if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
+      if (r.createdByRole !== 'team') return;
+
+      const name = (r.createdByName || '').trim();
+      if (!name) return;
+
+      if (!per[name]) per[name] = {
+        placed: 0,
+        honored: 0,
+        noShow: 0,
+        cancelled: 0
+      };
+
+      if (r.status === 'cancelled'){
+        per[name].cancelled++;
+        return;
+      }
+
+      per[name].placed++;
+
+      if (r.status === 'honored') per[name].honored++;
+      else if (r.status === 'no_show') per[name].noShow++;
+    });
+
+    const rows = Object.entries(per).sort((a,b)=>a[0].localeCompare(b[0]));
+
+    const bodyRows = rows.map(([name, st])=>{
+      const placed = st.placed;
+      const hon = st.honored;
+
+      const rate = placed > 0
+        ? Math.round(hon * 100 / placed)
+        : 0;
+
+      return `
+      <tr>
+        <td>${escapeHtml(name)}</td>
+        <td style="text-align:right">${placed}</td>
+        <td style="text-align:right">${hon}</td>
+        <td style="text-align:right">${st.noShow}</td>
+        <td style="text-align:right">${st.cancelled}</td>
+        <td style="text-align:right">${rate}%</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="small">Aucun RDV</td></tr>';
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Stats équipe — mois en cours</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:720px">
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <thead>
+            <tr>
+              <th>Prénom</th>
+              <th style="text-align:right">Placés</th>
+              <th style="text-align:right">Honorés</th>
+              <th style="text-align:right">Non honorés</th>
+              <th style="text-align:right">Annulés</th>
+              <th style="text-align:right">Taux honorés</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+  };
+
+})();
 </script>
 </section>
 </body>
