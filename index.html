@@ -3255,6 +3255,275 @@ window.openStatusDialog = function(id){
     if (ev.target && ev.target.nodeName === 'DIALOG') hideOverlay();
   }, true);
 })();
+// === MODULE EQUIPE & STATS — C&N SOLUTIONS ===
+// A coller tel quel à la fin de ta page, après tes autres scripts.
+
+(function(){
+
+  // ---------- 1) Firestore : prénoms autorisés pour l'équipe ----------
+  const teamUsersRef = db.collection('config').doc('teamUsers');
+  let ALLOWED_TEAM_NAMES = [];
+
+  async function loadAllowedTeamNames(){
+    try{
+      const snap = await teamUsersRef.get();
+      if (snap.exists){
+        const data = snap.data() || {};
+        const arr = Array.isArray(data.names) ? data.names : [];
+        ALLOWED_TEAM_NAMES = arr.map(n => (n || '').trim()).filter(Boolean);
+      } else {
+        ALLOWED_TEAM_NAMES = [];
+      }
+    }catch(e){
+      ALLOWED_TEAM_NAMES = [];
+    }
+  }
+
+  // Si aucune liste encore en base, on laissera tout passer (pas de blocage)
+  function isTeamNameAllowed(name){
+    if (!name) return false;
+    if (!ALLOWED_TEAM_NAMES || !ALLOWED_TEAM_NAMES.length) return true; // liste vide => pas de restriction
+    const norm = name.trim().toLowerCase();
+    return ALLOWED_TEAM_NAMES.some(n => n.toLowerCase() === norm);
+  }
+
+  // Précharge la liste (silencieux)
+  loadAllowedTeamNames().catch(()=>{});
+
+  // ---------- 2) LOGIN ÉQUIPE avec whitelist de prénoms ----------
+  const teamBtn = document.getElementById('btnLoginTeam');
+  if (teamBtn){
+    teamBtn.onclick = async () => {
+      const n = (document.getElementById('eqName')?.value || '').trim();
+      const p = (document.getElementById('eqPass')?.value || '').trim();
+
+      if (!n){ alert("Merci d’indiquer votre prénom."); return; }
+      if (!p){ alert("Merci d’indiquer le mot de passe équipe."); return; }
+
+      // mot de passe équipe (déjà géré dans ton code)
+      await loadTeamPass();
+      if (p !== TEAM_PASS){
+        alert("Mot de passe incorrect.");
+        return;
+      }
+
+      // vérif prénom autorisé
+      await loadAllowedTeamNames();
+      if (!isTeamNameAllowed(n)){
+        alert("Accès refusé : ce prénom n’est pas autorisé pour l’équipe.\nDemande à l’admin de t’ajouter.");
+        return;
+      }
+
+      ROLE = { role: 'team', name: n };
+      enter();
+    };
+  }
+
+  // ---------- 3) Filtrer TOUTES les données pour l'équipe ----------
+  // On wrappe loadAll() pour réduire ALL_R à ses propres RDV quand role = 'team'
+  const __origLoadAll = window.loadAll;
+  if (typeof __origLoadAll === 'function'){
+    window.loadAll = async function(){
+      await __origLoadAll();
+
+      if (ROLE && ROLE.role === 'team'){
+        const me = (ROLE.name || '').trim().toLowerCase();
+
+        // On garde uniquement les RDV créés par cette personne en rôle "team"
+        ALL_R = (ALL_R || []).filter(r => {
+          const creatorName = (r.createdByName || '').trim().toLowerCase();
+          const creatorRole = (r.createdByRole || '');
+          return creatorRole === 'team' && creatorName === me;
+        });
+
+        // On recalcule les KPI / onglets / liste avec ce sous-ensemble
+        try{
+          computeUpcoming();
+          computeDueToday();
+          computeTodo();
+          computeRevenueToday();
+          updateTabCounts();
+          updateStatusChips();
+          renderList();
+        }catch(e){}
+      }
+    };
+  }
+
+  // ---------- 4) Admin : gestion des prénoms autorisés ----------
+  async function openTeamUsersDialog(){
+    if (!ROLE || ROLE.role !== 'admin'){
+      alert('Réservé à l’administrateur.');
+      return;
+    }
+
+    await loadAllowedTeamNames();
+    const current = (ALLOWED_TEAM_NAMES || []).join('\n');
+    const dlg = document.createElement('dialog');
+
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Accès équipe</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:520px">
+        <div class="label">Prénoms autorisés (un par ligne)</div>
+        <textarea id="team_names_txt" class="input" rows="6" placeholder="Ex :&#10;Nathanaël&#10;Charlène">${escapeHtml(current)}</textarea>
+        <div class="small mt8">
+          • Seuls ces prénoms pourront se connecter en &laquo;&nbsp;Équipe&nbsp;&raquo; avec le mot de passe.<br>
+          • La casse est ignorée (Amine = amine).<br>
+          • Si la liste est vide, tous les prénoms sont acceptés.
+        </div>
+        <div class="row mt12" style="justify-content:flex-end;gap:8px">
+          <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+    dlg.querySelector('#team_save_btn').onclick = async () => {
+      const raw = dlg.querySelector('#team_names_txt').value || '';
+      const arr = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+      try{
+        await teamUsersRef.set(
+          { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        ALLOWED_TEAM_NAMES = arr;
+        notify('Liste équipe mise à jour ✔️','ok');
+        dlg.close?.(); dlg.remove();
+      }catch(e){
+        alert('Erreur lors de la sauvegarde.');
+      }
+    };
+  }
+
+  // On ajoute un bouton juste à côté de "Mot de passe équipe" dans la toolbar
+  const btnPass = document.getElementById('btnTeamPass');
+  if (btnPass && btnPass.parentNode){
+    const btn = document.createElement('button');
+    btn.id = 'btnTeamUsers';
+    btn.className = btnPass.className; // même style
+    btn.textContent = 'Équipe – accès';
+    btn.style.marginLeft = '6px';
+    btn.onclick = openTeamUsersDialog;
+    btnPass.parentNode.insertBefore(btn, btnPass.nextSibling);
+  }
+
+  // ---------- 5) Admin : stats par personne (bouton "Admin – Stats") ----------
+  // On remplace openAdminDialog par une version qui affiche les stats équipe + garde tes réglages manuels
+  const oldOpenAdminDialog = window.openAdminDialog; // au cas où, si tu veux le réutiliser plus tard
+
+  window.openAdminDialog = function(){
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+
+    // Regroupe par prénom (créés par role = 'team') sur le mois courant
+    const per = {};
+    (ALL_R || []).forEach(r => {
+      if (r.deleted) return;
+      if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
+      if (r.createdByRole !== 'team') return;
+      const name = (r.createdByName || '').trim();
+      if (!name) return;
+
+      if (!per[name]) per[name] = { total: 0, honored: 0, noShow: 0, cancelled: 0 };
+      per[name].total++;
+      if (r.status === 'honored') per[name].honored++;
+      else if (r.status === 'no_show') per[name].noShow++;
+      else if (r.status === 'cancelled') per[name].cancelled++;
+    });
+
+    const rows = Object.entries(per).sort((a,b) => a[0].localeCompare(b[0]));
+    const bodyRows = rows.length
+      ? rows.map(([name, st]) => {
+          const total = st.total || 0;
+          const hon   = st.honored || 0;
+          const rate  = total ? Math.round(hon * 100 / total) : 0;
+          return `<tr>
+            <td>${escapeHtml(name)}</td>
+            <td style="text-align:right">${total}</td>
+            <td style="text-align:right">${hon}</td>
+            <td style="text-align:right">${st.noShow || 0}</td>
+            <td style="text-align:right">${st.cancelled || 0}</td>
+            <td style="text-align:right">${rate}%</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="6" class="small">Aucun RDV équipe sur le mois en cours.</td></tr>';
+
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Stats équipe — mois en cours</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:720px">
+        <div class="small" style="margin-bottom:8px">
+          Basé sur la date du rendez-vous (${moisFR(now.getMonth())} ${now.getFullYear()}).
+        </div>
+        <div style="overflow:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">Prénom</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">RDV placés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Honorés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Non honorés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Annulés</th>
+                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Taux honorés</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bodyRows}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Section de réglage manuel (ton ancienne modale) -->
+        <div class="card mt12">
+          <div class="label">Ajuster manuellement les compteurs mensuels</div>
+          <div class="row" style="gap:8px;margin-top:8px">
+            <button class="btn btn-neutral btn-xs" id="setCreated">Fixer “Enregistrés”</button>
+            <button class="btn btn-neutral btn-xs" id="setHonored">Fixer “Honorés”</button>
+            <button class="btn btn-neutral btn-xs" id="setReminders">Fixer “Rappels”</button>
+          </div>
+          <div class="small mt8">
+            Ces compteurs utilisent le doc <code>stats/${now.getFullYear()}-${pad(now.getMonth()+1)}</code>.
+          </div>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+    dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+    // même logique que ton ancien openAdminDialog
+    const statId = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    dlg.querySelector('#setCreated').onclick = async () => {
+      const cur = Number(document.getElementById('k_created')?.textContent || '0');
+      const v = prompt('Nouveau “Enregistrés” :', cur);
+      if (v == null) return;
+      await db.collection('stats').doc(statId).set({ created: parseInt(v,10) || 0 }, { merge: true });
+      loadAll();
+    };
+    dlg.querySelector('#setHonored').onclick = async () => {
+      const cur = Number(document.getElementById('k_honored')?.textContent || '0');
+      const v = prompt('Nouveau “Honorés” :', cur);
+      if (v == null) return;
+      await db.collection('stats').doc(statId).set({ honored: parseInt(v,10) || 0 }, { merge: true });
+      loadAll();
+    };
+    dlg.querySelector('#setReminders').onclick = async () => {
+      const cur = Number(document.getElementById('k_reminders')?.textContent || '0');
+      const v = prompt('Nouveau “Rappels” :', cur);
+      if (v == null) return;
+      await db.collection('stats').doc(statId).set({ reminders: parseInt(v,10) || 0 }, { merge: true });
+      loadAll();
+    };
+  };
+
+})(); 
+
 </script>
 </section>
 </body>
