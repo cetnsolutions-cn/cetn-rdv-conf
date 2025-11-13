@@ -746,7 +746,6 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
       <button class="tab" data-view="tomorrow">Demain <span class="pill" id="count_tomorrow">0</span></button>
       <button class="tab" data-view="upcoming">À venir <span class="pill" id="count_upcoming">0</span></button>
       <button class="tab" data-view="todo">À faire <span class="pill" id="todoCount">0</span></button>
-      <button class="tab" data-view="messages">Messages</button>
       <button class="tab" data-view="trash">🗑️ Corbeille <span class="pill" id="count_trash">0</span></button>
     </div>
     <div id="cross" class="cross hide"></div>
@@ -4020,6 +4019,471 @@ window.openStatusDialog = function(id){
     }
 
   }, true); // true = capture, pour passer avant les autres listeners
+
+})();
+// === PATCH "CONFIRMER PLUS TARD" & BOUTON "À CONFIRMER" v3 ===
+// A coller APRES tous tes autres scripts (db, submitRDV, loadAll, etc.)
+
+(function(){
+
+  if (typeof db === 'undefined' || typeof firebase === 'undefined') return;
+
+  // -------- 1) Bouton "Confirmer plus tard" dans le wizard --------
+  function setupConfirmLaterButton(){
+    const btnSMS = document.getElementById('btnSMS');
+    const btnWA  = document.getElementById('btnWA');
+
+    // On cache définitivement le bouton WhatsApp dans le wizard
+    if (btnWA) {
+      btnWA.style.display = 'none';
+      btnWA.disabled = true;
+    }
+
+    if (!btnSMS) return;
+
+    // Si déjà créé, on ne recrée pas
+    if (document.getElementById('btnConfirmLater')) return;
+
+    const btnLater = document.createElement('button');
+    btnLater.id = 'btnConfirmLater';
+    btnLater.className = 'btn btn-neutral btn-xs';
+    btnLater.textContent = 'Confirmer plus tard';
+
+    // On insère juste à côté du bouton SMS
+    btnSMS.insertAdjacentElement('afterend', btnLater);
+
+    btnLater.addEventListener('click', handleConfirmLater);
+  }
+
+  async function handleConfirmLater(){
+    try {
+      const a       = document.getElementById('w_agency').value;
+      const civ     = document.getElementById('w_civ').value;
+      const name    = document.getElementById('w_name').value.trim();
+      const dateTxt = document.getElementById('w_date').value.trim();
+      const timeTxt = document.getElementById('w_time').value.trim();
+      const model   = document.getElementById('w_model').value.trim();
+      const source  = document.getElementById('w_source').value.trim();
+      const phone10 = normalizeFR10(document.getElementById('w_phone').value);
+
+      // On réutilise les mêmes validations que le wizard
+      const e1 = document.getElementById('e1');
+      const e2 = document.getElementById('e2');
+      const e3 = document.getElementById('e3');
+      const e4 = document.getElementById('e4');
+      const e5 = document.getElementById('e5');
+      const e6 = document.getElementById('e6');
+      const e7 = document.getElementById('e7');
+
+      if (e1) e1.style.display = 'none';
+      if (e2) e2.style.display = 'none';
+      if (e3) e3.style.display = 'none';
+      if (e4) e4.style.display = 'none';
+      if (e5) e5.style.display = 'none';
+      if (e6) e6.style.display = 'none';
+      if (e7) e7.style.display = 'none';
+
+      if (!a) {
+        if (e1) e1.style.display = 'block';
+        showStep(1);
+        return;
+      }
+      if (!civ || !name) {
+        if (e2) e2.style.display = 'block';
+        showStep(2);
+        return;
+      }
+      if (!phone10) {
+        if (e3) e3.style.display = 'block';
+        showStep(3);
+        return;
+      }
+      if (!/^\d{2}\/\d{2}\/\d{2}$/.test(dateTxt)) {
+        if (e4) e4.style.display = 'block';
+        showStep(4);
+        return;
+      }
+      if (!/^\d{2}:\d{2}$/.test(timeTxt)) {
+        if (e5) e5.style.display = 'block';
+        showStep(5);
+        return;
+      }
+      if (!model) {
+        if (e6) e6.style.display = 'block';
+        showStep(6);
+        return;
+      }
+      if (!source) {
+        if (e7) e7.style.display = 'block';
+        showStep(7);
+        return;
+      }
+
+      const payload = {
+        agency: a,
+        civ,
+        name,
+        phone: "33" + phone10.slice(1),
+        dateText: dateTxt,
+        timeText: timeTxt,
+        dateISO: jjmma_to_iso(dateTxt),
+        model,
+        source,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdByName: (window.ROLE && window.ROLE.name) || null,
+        createdByRole: (window.ROLE && window.ROLE.role) || null,
+        deleted: false,
+        status: null,
+        statusAt: null,
+        reminderSent: false,
+        reminderAt: null,
+        noteText: null,
+        noteDueISO: null,
+        noteUpdatedAt: null,
+        gesteCommercial: false,
+        gesteAmount: null,
+        honorBilling: null,
+        // Flags "à confirmer"
+        pendingConfirm: true,
+        pendingConfirmAt: null
+      };
+
+      // Enregistrement du RDV "à confirmer"
+      const ref = await db.collection('rdv').add(payload);
+
+      // On incrémente les stats "enregistrés" comme submitRDV
+      const now = new Date();
+      const idStat = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+      await db.collection('stats').doc(idStat).set({
+        created: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true });
+
+      if (typeof notify === 'function') {
+        notify('RDV enregistré pour confirmation plus tard ✔️', 'ok');
+      }
+
+      // On remet le wizard au début + reset champs
+      if (typeof showStep === 'function') showStep(1);
+      ['w_civ','w_name','w_phone','w_date','w_time','w_model','w_source'].forEach(id=>{
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+
+      // On recharge les données pour que la liste et le compteur soient à jour
+      if (typeof loadAll === 'function') loadAll();
+      updatePendingConfirmButton();
+
+    } catch (e) {
+      console.error(e);
+      const sendErr = document.getElementById('sendErr');
+      if (sendErr) {
+        sendErr.textContent = 'Erreur lors de l’enregistrement pour confirmation plus tard.';
+        sendErr.style.display = 'block';
+      } else {
+        alert('Erreur lors de l’enregistrement du RDV.');
+      }
+    }
+  }
+
+  // -------- 2) Récupération des RDV "à confirmer" DIRECTEMENT dans Firestore --------
+  async function fetchPendingList(){
+    try{
+      // On récupère TOUS les RDV à confirmer (sans filtrer ici)
+      let q = db.collection('rdv')
+        .where('deleted','==',false)
+        .where('pendingConfirm','==',true);
+
+      const snap = await q.get();
+      const all = [];
+      snap.forEach(doc=>{
+        const d = doc.data() || {};
+        d.id = doc.id;
+        all.push(d);
+      });
+
+      let list = all;
+
+      // 🔐 Si ce n’est PAS un admin : on filtre côté JS
+      if (window.ROLE && window.ROLE.role !== 'admin') {
+        const me = (window.ROLE.name || '').trim().toLowerCase();
+
+        list = all.filter(d => {
+          const creatorName = (d.createdByName || '').trim().toLowerCase();
+          const creatorRole = (d.createdByRole || '').trim().toLowerCase();
+
+          // ✅ L’équipe voit UNIQUEMENT :
+          //  - les RDV créés par elle-même
+          //  - ET qui ne sont pas des RDV admin
+          if (!creatorName) return false;
+          if (creatorRole === 'admin') return false; // on masque tout ce qui vient d'admin
+          return creatorName === me;
+        });
+      }
+
+      // Tri par date/heure
+      list.sort((a,b)=> (a.dateISO||'').localeCompare(b.dateISO||'') 
+                      || (a.timeText||'').localeCompare(b.timeText||''));
+
+      window.__PENDING_RDV_LIST = list;
+      return list;
+
+    }catch(e){
+      console.error('Erreur fetchPendingList', e);
+      window.__PENDING_RDV_LIST = [];
+      return [];
+    }
+  }
+
+  // -------- 3) Bouton "À confirmer" dans la barre du haut --------
+  function ensurePendingConfirmButton(){
+    const toolbar = document.querySelector('.toolbar');
+    if (!toolbar) return;
+
+    let btn = document.getElementById('btnPendingConfirm');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'btnPendingConfirm';
+      btn.className = 'btn btn-neutral btn-xs';
+      btn.innerHTML = 'À confirmer <span id="pendingConfirmCount" class="pill">0</span>';
+
+      const ref = document.getElementById('btnReminders') || document.getElementById('btnLogout');
+      if (ref && ref.parentElement === toolbar) {
+        toolbar.insertBefore(btn, ref);
+      } else {
+        toolbar.appendChild(btn);
+      }
+
+      btn.addEventListener('click', openPendingConfirmPanel);
+    }
+  }
+
+  async function updatePendingConfirmButton(){
+    ensurePendingConfirmButton();
+    const span = document.getElementById('pendingConfirmCount');
+    const btn  = document.getElementById('btnPendingConfirm');
+    if (!span || !btn) return;
+
+    try{
+      const list = await fetchPendingList();
+      const n = list.length;
+      span.textContent = String(n);
+      btn.classList.toggle('blink', n > 0);
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  window.updatePendingConfirmButton = updatePendingConfirmButton;
+
+  // On branche sur ton refresh global si tu l'utilises
+  window.addEventListener('app:refresh', function(){
+    updatePendingConfirmButton();
+  });
+
+  // Si loadAll existe, on ajoute un petit hook pour rafraîchir le compteur après chargement
+  if (typeof window.loadAll === 'function') {
+    const oldLoadAll = window.loadAll;
+    window.loadAll = async function(){
+      await oldLoadAll.apply(this, arguments);
+      try { updatePendingConfirmButton(); } catch(e){}
+    };
+  }
+
+  // -------- 4) Panel "RDV à confirmer" --------
+  function openPendingConfirmPanel(){
+    ensurePendingConfirmButton();
+
+    const dlg = document.createElement('dialog');
+    dlg.style.maxWidth = '900px';
+    dlg.style.width = 'min(96vw,900px)';
+    dlg.style.padding = '0';
+    dlg.id = 'pendingConfirmDlg';
+
+    dlg.innerHTML = `
+      <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">RDV à confirmer</div>
+        <button class="btn btn-neutral btn-xs" id="pc_close">Fermer</button>
+      </div>
+      <div style="padding:14px">
+        <div class="small" id="pc_header"></div>
+        <div id="pc_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,680px);overflow:auto"></div>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open'))();
+
+    dlg.querySelector('#pc_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
+
+    async function render(){
+      const listEl = dlg.querySelector('#pc_list');
+      const header = dlg.querySelector('#pc_header');
+
+      let items = Array.isArray(window.__PENDING_RDV_LIST) ? window.__PENDING_RDV_LIST : null;
+      if (!items) {
+        items = await fetchPendingList();
+      }
+
+      if (header) {
+        header.innerHTML = items.length
+          ? `RDV à confirmer : <b>${items.length}</b>`
+          : 'Aucun RDV en attente de confirmation.';
+      }
+
+      listEl.innerHTML = '';
+      if (!items.length) return;
+
+      items.forEach(r=>{
+        const row = document.createElement('div');
+        row.className = 'rdv';
+        const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
+
+        row.innerHTML = `
+          <div>
+            <div class="title">${fmtNice(r.dateISO, r.timeText)} — ${escapeHtml(civName)}</div>
+            <div class="meta">${toFR(r.phone)} • ${escapeHtml(r.model||'')}</div>
+            <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              ${r.agency ? `<span class="badge">${escapeHtml(r.agency)}</span>` : ''}
+              <span class="bubble orange">En attente de confirmation</span>
+            </div>
+          </div>
+          <div class="rdv-actions" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            <button class="btn btn-primary btn-xs" data-confirm="${r.id}">Confirmer par SMS</button>
+            <button class="btn btn-neutral btn-xs" data-cancel="${r.id}" style="border-color:#e11d48;color:#e11d48">
+              Annuler le RDV
+            </button>
+          </div>
+        `;
+        listEl.appendChild(row);
+      });
+
+      // Bouton "Confirmer par SMS"
+      listEl.querySelectorAll('[data-confirm]').forEach(btn=>{
+        btn.addEventListener('click', async (ev)=>{
+          ev.stopPropagation?.();
+          const id = btn.getAttribute('data-confirm');
+          const r = (window.__PENDING_RDV_LIST || []).find(x => x.id === id);
+          if (!r) return;
+          const prev = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = '…';
+          try {
+            await sendPendingConfirmation(r);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = prev;
+            await render();        // rechargement après confirmation
+          }
+        });
+      });
+
+      // Bouton "Annuler le RDV"
+      listEl.querySelectorAll('[data-cancel]').forEach(btn=>{
+        btn.addEventListener('click', async (ev)=>{
+          ev.stopPropagation?.();
+          const id = btn.getAttribute('data-cancel');
+          const r = (window.__PENDING_RDV_LIST || []).find(x => x.id === id);
+          if (!r) return;
+          const prev = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = '…';
+          try {
+            await cancelPending(r);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = prev;
+            await render();        // rechargement après annulation
+          }
+        });
+      });
+    }
+
+    dlg.__rerender = render;
+    render();
+  }
+
+  async function sendPendingConfirmation(r){
+    const text = msgFromTpl('confirmation', r.agency, r.dateText||'', r.timeText||'', r.model||'');
+    const channel = 'sms';
+
+    // On ouvre l'app SMS (comme pour submitRDV en mode SMS)
+    try {
+      openChannelAndLog(r.phone, text, channel);
+    } catch(e) {
+      console.error(e);
+    }
+
+    // On enregistre que c'est confirmé + message dans "messages"
+    try {
+      await db.collection('rdv').doc(r.id).set({
+        pendingConfirm: false,
+        pendingConfirmAt: firebase.firestore.FieldValue.serverTimestamp(),
+        channel: channel,
+        firstMsgChannel: channel,
+        firstMsgAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      await db.collection('messages').add({
+        rdvId: r.id,
+        phone: r.phone,
+        agency: r.agency,
+        channel: channel,
+        type: 'confirmation',
+        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // On enlève de la liste en mémoire
+      window.__PENDING_RDV_LIST = (window.__PENDING_RDV_LIST || []).filter(x => x.id !== r.id);
+
+      if (typeof notify === 'function') {
+        notify('Confirmation envoyée ✔️','ok');
+      }
+    } catch(e) {
+      console.error(e);
+      if (typeof notify === 'function') {
+        notify('Confirmation envoyée, mais erreur d’enregistrement en base.','warn');
+      }
+    } finally {
+      if (typeof loadAll === 'function') loadAll();
+      updatePendingConfirmButton();
+    }
+  }
+
+  async function cancelPending(r){
+    if (!r || !r.id) return;
+    const ok = confirm('Annuler définitivement ce rendez-vous ?');
+    if (!ok) return;
+
+    try{
+      await db.collection('rdv').doc(r.id).set({
+        deleted: true,
+        pendingConfirm: false,
+        pendingConfirmAt: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'annule',
+        statusAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // On enlève de la liste en mémoire
+      window.__PENDING_RDV_LIST = (window.__PENDING_RDV_LIST || []).filter(x => x.id !== r.id);
+
+      if (typeof notify === 'function') {
+        notify('RDV annulé et retiré de la liste.','ok');
+      }
+    }catch(e){
+      console.error(e);
+      if (typeof notify === 'function') {
+        notify('Erreur lors de l’annulation du RDV.','warn');
+      }
+    }finally{
+      if (typeof loadAll === 'function') loadAll();
+      updatePendingConfirmButton();
+    }
+  }
+
+  // --- init ---
+  setupConfirmLaterButton();
+  ensurePendingConfirmButton();
+  setTimeout(updatePendingConfirmButton, 800);
 
 })();
 </script>
