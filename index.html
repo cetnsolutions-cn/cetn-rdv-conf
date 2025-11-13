@@ -3284,6 +3284,20 @@ window.openStatusDialog = function(id){
     return ALLOWED_TEAM_NAMES.includes(norm);
   }
 
+  // ---------- 7) Visibilité des KPIs pour équipe / admin ----------
+  function updateKpiVisibility(){
+    const kpisBar = document.querySelector('.kpis'); // <div class="kpis mt12">...</div>
+    if (!kpisBar) return;
+
+    if (ROLE && ROLE.role === 'team'){
+      // équipe => on cache complètement la barre KPI
+      kpisBar.style.display = 'none';
+    } else {
+      // admin (ou autre) => visible normalement
+      kpisBar.style.display = '';
+    }
+  }
+
   // Précharge en silence
   loadAllowedTeamNames().catch(()=>{});
 
@@ -3309,7 +3323,13 @@ window.openStatusDialog = function(id){
         return;
       }
 
+      // On passe en rôle équipe
       ROLE = { role: 'team', name: n }; // on garde la casse
+
+      // Cache tout de suite les KPIs pour éviter le flash
+      updateKpiVisibility();
+
+      // On entre dans l'appli (écran principal)
       enter();
     };
   }
@@ -3318,6 +3338,10 @@ window.openStatusDialog = function(id){
   const __origLoadAll = window.loadAll;
   if (typeof __origLoadAll === 'function'){
     window.loadAll = async function(){
+
+      // Avant même le chargement, on ajuste la visibilité KPIs
+      updateKpiVisibility();
+
       await __origLoadAll();
 
       if (ROLE && ROLE.role === 'team'){
@@ -3360,7 +3384,7 @@ window.openStatusDialog = function(id){
         try{ typeof renderList          === 'function' && renderList(); }catch(e){}
       }
 
-      // Bouton Mes stats / visibilité KPI après chaque loadAll
+      // Bouton Mes stats + visibilité KPIs après chaque loadAll
       ensureTeamStatsButton();
       updateKpiVisibility();
     };
@@ -3610,27 +3634,17 @@ window.openStatusDialog = function(id){
     logoutBtn.parentNode.insertBefore(btn, logoutBtn);
   }
 
-  // ---------- 7) Visibilité des KPIs pour équipe / admin ----------
-  function updateKpiVisibility(){
-    // ta barre de KPIs :
-    // <div class="kpis mt12"> ... </div>
-    const kpisBar = document.querySelector('.kpis');
-    if (!kpisBar) return;
+  // ---------- 8) Hook sur enter() pour que "Mes stats" soit déjà là dès l'arrivée dans l'app ----------
+  const __origEnter = window.enter;
+  if (typeof __origEnter === 'function'){
+    window.enter = function(){
+      __origEnter();
 
-    if (ROLE && ROLE.role === 'team'){
-      // équipe => on cache complètement la barre KPI (ils ont seulement "Mes stats")
-      kpisBar.style.display = 'none';
-    } else {
-      // admin (ou autre) => visible normalement
-      kpisBar.style.display = '';
-    }
+      // Dès que l’écran principal est rendu :
+      ensureTeamStatsButton();
+      updateKpiVisibility();
+    };
   }
-
-  // Fallback initial (au cas où loadAll n'a pas encore tourné)
-  setTimeout(()=>{
-    ensureTeamStatsButton();
-    updateKpiVisibility();
-  }, 1000);
 
 })();
 </script>
