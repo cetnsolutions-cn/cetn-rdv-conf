@@ -1056,7 +1056,7 @@ function refreshKpis(){
   try{ computeRevenueToday(); }catch(e){}
 }
 /* ---------- Login / rôles ---------- */
-const ADMIN_PIN="972";
+const ADMIN_PIN="130724";
 let ROLE={role:null,name:null};
 async function tryPasskey(getOnly=false){
   if(!window.PublicKeyCredential) throw new Error('Passkey non supporté');
@@ -3962,6 +3962,64 @@ window.openStatusDialog = function(id){
       }
     };
   }
+
+})();
+// === PROTECTION PASSKEY PAR CODE ADMIN — C&N SOLUTIONS ===
+// À coller tout en bas de la page, après tous les autres <script>.
+
+(function(){
+
+  // --------- 1) CODE ADMIN À DÉFINIR ICI ---------
+  const ADMIN_CODE = "130724"; // <= change juste ce code si tu veux
+
+  // --------- 2) Détecter si le bouton cliqué est le bouton Passkey ---------
+  function isPasskeyButton(el){
+    if (!el) return false;
+
+    // Si tu as un id fixe pour ton bouton, tu peux le mettre ici
+    // ex: <button id="btnPasskey">Passkey</button>
+    if (el.id === "btnPasskey") return true;
+
+    // Sinon on se base sur le texte du bouton : "Passkey"
+    const txt = (el.textContent || "").toLowerCase();
+    return txt.includes("passkey");
+  }
+
+  // --------- 3) Interception du clic sur le bouton Passkey ---------
+  document.addEventListener("click", function(ev){
+    const btn = ev.target.closest("button, a");
+    if (!btn) return;
+
+    // Ce n'est pas le bouton Passkey -> on laisse tranquille
+    if (!isPasskeyButton(btn)) return;
+
+    // Si on a déjà validé l'admin pour ce clic, on laisse passer
+    if (btn.dataset.adminOk === "1"){
+      btn.dataset.adminOk = "";
+      return;
+    }
+
+    // On bloque le clic normal
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+
+    // Demande du code admin
+    const code = prompt("Code admin requis pour créer une nouvelle Passkey :");
+    if (code === null) {
+      // Annulé
+      return;
+    }
+
+    if (code === ADMIN_CODE){
+      // Code correct -> on re-déclenche un clic propre
+      btn.dataset.adminOk = "1";
+      btn.click();
+    } else {
+      alert("Code admin incorrect.");
+    }
+
+  }, true); // true = capture, pour passer avant les autres listeners
 
 })();
 </script>
