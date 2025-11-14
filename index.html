@@ -2281,14 +2281,33 @@ function renderList(){
 left.style.cursor='default';
 left.onclick = (e)=>{ e?.stopPropagation?.(); /* no-op */ };
 const actions=document.createElement('div'); actions.className='rdv-actions';
-if (VIEW==='trash') {
-  if (ROLE.role==='admin') {
-    const cb=document.createElement('input'); cb.type='checkbox'; cb.className='selbox'; cb.dataset.id=r.id;
-    cb.onchange=(e)=>{ if(e.target.checked) SELECTED.add(r.id); else SELECTED.delete(r.id); };
+if (VIEW === 'trash') {
+  if (ROLE.role === 'admin') {
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'selbox';
+    cb.dataset.id = r.id;
+
+    // 🔁 IMPORTANT : on restaure l'état depuis le Set SELECTED
+    cb.checked = SELECTED.has(r.id);
+
+    cb.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        SELECTED.add(r.id);
+      } else {
+        SELECTED.delete(r.id);
+      }
+    });
+
     actions.appendChild(cb);
   }
-  const gear=document.createElement('button'); gear.className='btn btn-neutral btn-xs icon-only'; gear.title='Réglages'; gear.innerHTML='<i class="fa-solid fa-gear"></i>';
-  gear.onclick=()=>openTrashActionDialog(r); actions.appendChild(gear);
+
+  const gear = document.createElement('button');
+  gear.className = 'btn btn-neutral btn-xs icon-only';
+  gear.title = 'Réglages';
+  gear.innerHTML = '<i class="fa-solid fa-gear"></i>';
+  gear.onclick = () => openTrashActionDialog(r);
+  actions.appendChild(gear);
 } else {
   // (ON) : bouton Rappel visible pour les RDV d'aujourd'hui non rappelés et encore à venir
   try {
