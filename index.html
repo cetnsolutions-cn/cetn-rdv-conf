@@ -2618,7 +2618,9 @@ async function openReschedDialog(id){
       </div>
       <div class="row mt12" style="justify-content:flex-end;gap:8px">
         <button id="rs_sms" class="btn btn-neutral btn-xs">Confirmer par SMS</button>
-        <button id="rs_wa" class="btn btn-primary btn-xs">Confirmer par WhatsApp</button>
+        <button id="rs_wa" class="btn btn-primary btn-xs hidden" style="display:none !important;" disabled aria-hidden="true">
+  Confirmer par WhatsApp
+</button>
       </div>
     </div>`;
   document.body.appendChild(dlg); dlg.showModal?.() ?? dlg.setAttribute('open','');
