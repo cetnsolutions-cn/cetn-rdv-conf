@@ -4178,6 +4178,55 @@ L’équipe {{TAGLINE}}`;
   };
 
 })();
+// === PATCH GLOBAL : DÉSACTIVER / CACHER WHATSAPP PARTOUT ===
+// A coller tout en bas de la page, après tous les autres scripts.
+
+(function(){
+
+  document.addEventListener('DOMContentLoaded', function(){
+
+    // 1) Bouton du wizard avec id="btnWA" (s'il existe)
+    let btnWA = document.getElementById('btnWA');
+
+    // Si le bouton n'existe pas mais que du JS l'utilise, on crée un faux bouton invisible
+    if (!btnWA) {
+      btnWA = document.createElement('button');
+      btnWA.id = 'btnWA';
+      btnWA.type = 'button';
+      btnWA.style.display = 'none';
+      btnWA.disabled = true;
+      document.body.appendChild(btnWA);
+    } else {
+      // S'il existe, on le rend invisible et inutilisable
+      btnWA.style.display = 'none';
+      btnWA.disabled = true;
+    }
+
+    // 2) On masque / neutralise tous les autres boutons / liens WhatsApp possibles
+    const waSelectors = [
+      'button[data-channel="whatsapp"]',
+      'a[data-channel="whatsapp"]',
+      '.btn-whatsapp',
+      '.whatsapp',
+      '.fa-whatsapp',
+      '[href*="wa.me"]',
+      '[href*="api.whatsapp.com"]'
+    ];
+
+    waSelectors.forEach(function(sel){
+      document.querySelectorAll(sel).forEach(function(el){
+        try {
+          el.style.display = 'none';      // plus visible
+          el.disabled = true;             // plus cliquable
+          el.removeAttribute('href');     // on enlève les liens WA
+          el.removeAttribute('onclick');  // on enlève les actions JS
+        } catch(e){}
+      });
+    });
+
+  });
+
+})();
 
 </script>
 </section>
