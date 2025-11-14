@@ -3410,7 +3410,7 @@ window.openStatusDialog = function(id){
     };
   }
 
-  // ---------- 4) Admin : gestion des prénoms autorisés ----------
+ // ---------- 4) Admin : gestion des prénoms autorisés ----------
 const oldOpenAdminDialog = window.openAdminDialog;
 
 window.openAdminDialog = function(){
@@ -3583,6 +3583,68 @@ window.openAdminDialog = function(){
     }
   });
 };
+
+// ---------- Admin : gestion des prénoms autorisés / accès équipe ----------
+async function openTeamUsersDialog(){
+  if (!ROLE || ROLE.role !== 'admin'){
+    alert('Réservé à l’administrateur.');
+    return;
+  }
+
+  await loadAllowedTeamNames();
+  const current = (ALLOWED_TEAM_NAMES || []).join('\n');
+  const dlg = document.createElement('dialog');
+
+  dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Accès équipe</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-width:520px">
+        <div class="label">Prénoms autorisés (un par ligne)</div>
+        <textarea id="team_names_txt" class="input" rows="6" placeholder="Ex :&#10;Nathanaël&#10;Charlène">${escapeHtml(current)}</textarea>
+        <div class="small mt8">
+          • Seuls ces prénoms pourront se connecter en &laquo;&nbsp;Équipe&nbsp;&raquo; avec le mot de passe.<br>
+          • La casse est respectée (Nathanaël ≠ nathanaël).<br>
+          • Si la liste est vide, aucun accès équipe n’est possible.
+        </div>
+        <div class="row mt12" style="justify-content:flex-end;gap:8px">
+          <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
+        </div>
+      </div>`;
+
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  dlg.querySelector('#team_save_btn').onclick = async () => {
+    const raw = dlg.querySelector('#team_names_txt').value || '';
+    const arr = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    try{
+      await teamUsersRef.set(
+        { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      ALLOWED_TEAM_NAMES = arr;
+      notify('Liste équipe mise à jour ✔️','ok');
+      dlg.close?.(); dlg.remove();
+    }catch(e){
+      alert('Erreur lors de la sauvegarde.');
+    }
+  };
+}
+
+// Bouton "Équipe – accès" (admin)
+const btnPass = document.getElementById('btnTeamPass');
+if (btnPass && btnPass.parentNode){
+  const btn = document.createElement('button');
+  btn.id = 'btnTeamUsers';
+  btn.className = btnPass.className;
+  btn.textContent = 'Équipe – accès';
+  btn.style.marginLeft = '6px';
+  btn.onclick = openTeamUsersDialog;
+  btnPass.parentNode.insertBefore(btn, btnPass.nextSibling);
+}
+
   // ---------- 6) ÉQUIPE : bouton "Mes stats" ----------
   function openMyStatsDialog(){
   if (!ROLE || ROLE.role !== 'team'){
@@ -4295,8 +4357,6 @@ L’équipe {{TAGLINE}}`;
     console.error('Realtime stats error', err);
   });
 })();
-
-
 </script>
 </section>
 </body>
