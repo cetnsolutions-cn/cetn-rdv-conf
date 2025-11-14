@@ -4227,6 +4227,56 @@ L’équipe {{TAGLINE}}`;
   });
 
 })();
+// === SYNC TEMPS RÉEL RDV / STATS ENTRE TOUS LES POSTES ===
+(function(){
+  if (typeof db === 'undefined' || !db.collection) return;
+  if (window.__cnRealtimeSub) return; // évite plusieurs abonnements
+  window.__cnRealtimeSub = true;
+
+  // 🔁 RDV en temps réel
+  db.collection('rdv').onSnapshot(function(snap){
+    // 1) On met à jour ALL_R avec la dernière version de tous les RDV
+    ALL_R = snap.docs.map(function(d){
+      return Object.assign({ id: d.id }, d.data());
+    });
+
+    // Si l'onglet n'est pas visible, on laisse les timers 1s recalculer au retour
+    if (document.visibilityState !== 'visible') return;
+
+    // 2) On recalcule tout ce qui dépend des RDV
+    try { computeUpcoming(); }          catch(e){}
+    try { computeDueToday(); }          catch(e){}
+    try { computeTodo(); }              catch(e){}
+    try { computeRevenueToday(); }      catch(e){}
+    try { updateReminderButton(); }     catch(e){}
+    try { updatePendingButton(); }      catch(e){}
+    try { updateTabCounts(); }          catch(e){}
+    try { updateStatusChips(); }        catch(e){}
+    try { renderList(); }               catch(e){}
+  }, function(err){
+    console.error('Realtime rdv error', err);
+  });
+
+  // 🔁 Stats agrégées (k_created / k_honored / k_reminders) en temps réel
+  var now    = new Date();
+  var statId = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+
+  db.collection('stats').doc(statId).onSnapshot(function(doc){
+    if (!doc.exists) return;
+    var data = doc.data() || {};
+
+    var elCreated   = document.getElementById('k_created');
+    var elHonored   = document.getElementById('k_honored');
+    var elReminders = document.getElementById('k_reminders');
+
+    if (elCreated)   elCreated.textContent   = (data.created   ?? 0);
+    if (elHonored)   elHonored.textContent   = (data.honored   ?? 0);
+    if (elReminders) elReminders.textContent = (data.reminders ?? 0);
+  }, function(err){
+    console.error('Realtime stats error', err);
+  });
+})();
+
 
 </script>
 </section>
