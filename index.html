@@ -453,23 +453,24 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 /* Init thème : respecte l’OS par défaut. Pour forcer :
    document.documentElement.dataset.theme='dark' ou 'light' */
 (() => {
- (() => {
   try {
     const saved = localStorage.getItem('cn_theme');
     if (saved === 'dark' || saved === 'light') {
       document.documentElement.dataset.theme = saved;
     }
+
     // expose un helper optionnel :
-    window.CN_setTheme = (mode)=>{
-      if(mode!=='dark' && mode!=='light'){
+    window.CN_setTheme = (mode) => {
+      if (mode !== 'dark' && mode !== 'light') {
+        // repasser en mode "auto" (suivre l’OS)
         delete document.documentElement.dataset.theme;
         localStorage.removeItem('cn_theme');
         return;
       }
-      document.documentElement.dataset.theme=mode;
+      document.documentElement.dataset.theme = mode;
       localStorage.setItem('cn_theme', mode);
     };
-  } catch(_) {}
+  } catch (_) {}
 })();
 </script>
 <script>
@@ -3391,260 +3392,308 @@ window.openStatusDialog = function(id){
   }
 
   // ---------- 4) Admin : gestion des prénoms autorisés ----------
-  async function openTeamUsersDialog(){
-    if (!ROLE || ROLE.role !== 'admin'){
-      alert('Réservé à l’administrateur.');
+const oldOpenAdminDialog = window.openAdminDialog;
+
+window.openAdminDialog = function(){
+  if (!ROLE || ROLE.role !== 'admin'){
+    alert('Réservé à l’administrateur.');
+    return;
+  }
+
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+
+  // petit helper au cas où escapeHtml n'existe pas
+  function escHtml(str){
+    if (typeof escapeHtml === 'function') return escapeHtml(str);
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  const per = {};
+  (ALL_R || []).forEach(r => {
+    if (!r || r.deleted) return;
+    if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
+
+    // ✅ on prend TOUT le monde : admin + équipe
+    const name = (r.createdByName || '').trim();
+    if (!name) return;
+
+    const key = name;
+    if (!per[key]) per[key] = { total: 0, honored: 0, noShow: 0, cancelled: 0 };
+    per[key].total++;
+
+    if (r.status === 'honored')        per[key].honored++;
+    else if (r.status === 'no_show')   per[key].noShow++;
+    else if (r.status === 'cancelled') per[key].cancelled++;
+  });
+
+  const rows = Object.entries(per).sort((a,b) => a[0].localeCompare(b[0],'fr-FR'));
+
+  const bodyRows = rows.length
+    ? rows.map(([name, st]) => {
+        const total     = st.total     || 0;
+        const hon       = st.honored   || 0;
+        const noShow    = st.noShow    || 0;
+        const cancelled = st.cancelled || 0;
+
+        // ✅ taux seulement sur honorés + non honorés (annulés exclus)
+        const base = hon + noShow;
+        const rate = base ? Math.round(hon * 100 / base) : 0;
+
+        const nameAttr = escHtml(name);
+
+        return `<tr data-creator="${nameAttr}">
+          <td>${escHtml(name)}</td>
+          <td style="text-align:right">${total}</td>
+          <td style="text-align:right">${hon}</td>
+          <td style="text-align:right">${noShow}</td>
+          <td style="text-align:right">${cancelled}</td>
+          <td style="text-align:right">${rate}%</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn btn-neutral btn-xs" data-action="reset-stats" data-creator="${nameAttr}">
+              Réinitialiser
+            </button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" class="small">Aucun RDV sur le mois en cours.</td></tr>';
+
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Stats par personne — mois en cours</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div style="padding:16px;max-width:860px">
+      <div class="small" style="margin-bottom:8px">
+        Basé sur la date du rendez-vous (${moisFR(now.getMonth())} ${now.getFullYear()}).<br>
+        Le <strong>taux honorés</strong> est calculé sur <strong>Honorés + Non honorés</strong> (annulés exclus).<br>
+        Le bouton <strong>Réinitialiser</strong> agit sur tous les RDV de la personne pour le mois en cours.
+      </div>
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">Nom</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">RDV placés</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Honorés</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Non honorés</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Annulés</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Taux honorés (hors annulés)</th>
+              <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bodyRows}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+
+  // --------- Actions : Réinitialiser ----------
+  dlg.addEventListener('click', async (ev)=>{
+    const btnReset = ev.target.closest('[data-action="reset-stats"]');
+    if (!btnReset) return;
+
+    const creator = btnReset.dataset.creator || '';
+    if (!creator) return;
+
+    const ymNow = ym; // capture
+
+    // helper pour filtrer les RDV du mois / personne
+    function getMatchingRDVs(){
+      const targetNorm = creator.trim().toLowerCase();
+      const ids = [];
+      (ALL_R || []).forEach(r=>{
+        if (!r || r.deleted) return;
+        if (!r.dateISO || !r.dateISO.startsWith(ymNow)) return;
+        const nameNorm = (r.createdByName || '').trim().toLowerCase();
+        if (!nameNorm || nameNorm !== targetNorm) return;
+        if (!r.id) return;
+        ids.push(r.id);
+      });
+      return ids;
+    }
+
+    // Réinitialiser : enlève createdByName pour le mois courant
+    const ids = getMatchingRDVs();
+    if (!ids.length){
+      alert(`Aucun RDV trouvé pour ${creator} sur ce mois.`);
       return;
     }
 
-    await loadAllowedTeamNames();
-    const current = (ALLOWED_TEAM_NAMES || []).join('\n');
-    const dlg = document.createElement('dialog');
+    if (!confirm(`Réinitialiser les stats de ${creator} pour le mois en cours ?\n\nCela enlèvera son nom de ${ids.length} RDV de ce mois.`)){
+      return;
+    }
 
-    dlg.innerHTML = `
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Accès équipe</div>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-      </div>
-      <div style="padding:16px;max-width:520px">
-        <div class="label">Prénoms autorisés (un par ligne)</div>
-        <textarea id="team_names_txt" class="input" rows="6" placeholder="Ex :&#10;Nathanaël&#10;Charlène">${escapeHtml(current)}</textarea>
-        <div class="small mt8">
-          • Seuls ces prénoms pourront se connecter en &laquo;&nbsp;Équipe&nbsp;&raquo; avec le mot de passe.<br>
-          • La casse est respectée (Nathanaël ≠ nathanaël).<br>
-          • Si la liste est vide, aucun accès équipe n’est possible.
-        </div>
-        <div class="row mt12" style="justify-content:flex-end;gap:8px">
-          <button id="team_save_btn" class="btn btn-primary btn-xs">Enregistrer</button>
-        </div>
-      </div>`;
+    try{
+      for (const id of ids){
+        await db.collection('rdv').doc(id).set({
+          createdByName: firebase.firestore.FieldValue.delete(),
+          createdByRole: firebase.firestore.FieldValue.delete()
+        }, { merge:true });
 
-    document.body.appendChild(dlg);
-    dlg.showModal?.() ?? dlg.setAttribute('open','');
-
-    dlg.querySelector('#team_save_btn').onclick = async () => {
-      const raw = dlg.querySelector('#team_names_txt').value || '';
-      const arr = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
-      try{
-        await teamUsersRef.set(
-          { names: arr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
-          { merge: true }
-        );
-        ALLOWED_TEAM_NAMES = arr;
-        notify('Liste équipe mise à jour ✔️','ok');
-        dlg.close?.(); dlg.remove();
-      }catch(e){
-        alert('Erreur lors de la sauvegarde.');
+        // mise à jour locale
+        if (Array.isArray(ALL_R)){
+          const idx = ALL_R.findIndex(x => x.id === id);
+          if (idx >= 0){
+            ALL_R[idx] = { ...ALL_R[idx] };
+            delete ALL_R[idx].createdByName;
+            delete ALL_R[idx].createdByRole;
+          }
+        }
       }
-    };
-  }
 
-  // Bouton "Équipe – accès" (admin)
-  const btnPass = document.getElementById('btnTeamPass');
-  if (btnPass && btnPass.parentNode){
-    const btn = document.createElement('button');
-    btn.id = 'btnTeamUsers';
-    btn.className = btnPass.className;
-    btn.textContent = 'Équipe – accès';
-    btn.style.marginLeft = '6px';
-    btn.onclick = openTeamUsersDialog;
-    btnPass.parentNode.insertBefore(btn, btnPass.nextSibling);
-  }
+      try{ notify && notify(`Stats réinitialisées pour ${creator} ✔️`,'ok'); }catch(_){}
+      try{ computeUpcoming?.(); computeTodo?.(); renderList?.(); }catch(_){}
 
-  // ---------- 5) Admin : stats globales par personne ----------
-  const oldOpenAdminDialog = window.openAdminDialog;
-
-  window.openAdminDialog = function(){
-    if (!ROLE || ROLE.role !== 'admin'){
-      alert('Réservé à l’administrateur.');
-      return;
+      dlg.close?.(); dlg.remove();
+      // réouvrir la fenêtre mise à jour
+      window.openAdminDialog();
+    }catch(e){
+      console.error(e);
+      alert('Erreur lors de la réinitialisation.');
     }
-
-    const now = new Date();
-    const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
-
-    const per = {};
-    (ALL_R || []).forEach(r => {
-      if (r.deleted) return;
-      if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
-      if (r.createdByRole !== 'team') return;
-      const name = (r.createdByName || '').trim();
-      if (!name) return;
-
-      if (!per[name]) per[name] = { total: 0, honored: 0, noShow: 0, cancelled: 0 };
-      per[name].total++;
-      if (r.status === 'honored') per[name].honored++;
-      else if (r.status === 'no_show') per[name].noShow++;
-      else if (r.status === 'cancelled') per[name].cancelled++;
-    });
-
-    const rows = Object.entries(per).sort((a,b) => a[0].localeCompare(b[0]));
-    const bodyRows = rows.length
-      ? rows.map(([name, st]) => {
-          const total = st.total || 0;
-          const hon   = st.honored || 0;
-          const rate  = total ? Math.round(hon * 100 / total) : 0;
-          return `<tr>
-            <td>${escapeHtml(name)}</td>
-            <td style="text-align:right">${total}</td>
-            <td style="text-align:right">${hon}</td>
-            <td style="text-align:right">${st.noShow || 0}</td>
-            <td style="text-align:right">${st.cancelled || 0}</td>
-            <td style="text-align:right">${rate}%</td>
-          </tr>`;
-        }).join('')
-      : '<tr><td colspan="6" class="small">Aucun RDV équipe sur le mois en cours.</td></tr>';
-
-    const dlg = document.createElement('dialog');
-    dlg.innerHTML = `
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Stats équipe — mois en cours</div>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-      </div>
-      <div style="padding:16px;max-width:720px">
-        <div class="small" style="margin-bottom:8px">
-          Basé sur la date du rendez-vous (${moisFR(now.getMonth())} ${now.getFullYear()}).
-        </div>
-        <div style="overflow:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:14px">
-            <thead>
-              <tr>
-                <th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">Prénom</th>
-                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">RDV placés</th>
-                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Honorés</th>
-                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Non honorés</th>
-                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Annulés</th>
-                <th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">Taux honorés</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${bodyRows}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
-
-    document.body.appendChild(dlg);
-    dlg.showModal?.() ?? dlg.setAttribute('open','');
-  };
-
+  });
+};
   // ---------- 6) ÉQUIPE : bouton "Mes stats" ----------
   function openMyStatsDialog(){
-    if (!ROLE || ROLE.role !== 'team'){
-      alert('Réservé aux membres de l’équipe.');
-      return;
+  if (!ROLE || ROLE.role !== 'team'){
+    alert('Réservé aux membres de l’équipe.');
+    return;
+  }
+
+  const now = new Date();
+  const ym  = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  const myNameNorm = (ROLE.name || '').trim().toLowerCase();
+  if (!myNameNorm){
+    alert('Nom de profil introuvable (ROLE.name vide).');
+    return;
+  }
+
+  let total = 0;
+  let upcoming = 0;
+  let honored = 0;
+  let noShow = 0;
+  let cancelled = 0;
+
+  (ALL_R || []).forEach(r => {
+    if (!r || r.deleted) return;
+    if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
+
+    // ✅ On ne garde QUE les RDV placés par ce membre d'équipe
+    if (r.createdByRole !== 'team') return;
+    const creatorNorm = (r.createdByName || '').trim().toLowerCase();
+    if (!creatorNorm || creatorNorm !== myNameNorm) return;
+
+    total++;
+
+    const s = r.status;
+    if (s === 'honored')      honored++;
+    else if (s === 'no_show') noShow++;
+    else if (s === 'cancelled') cancelled++;
+
+    const d = r.dateISO;
+    if (d && d >= todayStr && s !== 'honored' && s !== 'no_show' && s !== 'cancelled'){
+      upcoming++;
     }
+  });
 
-    const now = new Date();
-    const ym  = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
-    const todayStr = new Date().toISOString().slice(0,10);
+  // ✅ Taux calculé uniquement sur honorés + non honorés (annulés exclus)
+  const effectiveBase = (honored + noShow);
+  const rate = effectiveBase > 0 ? Math.round(honored * 100 / effectiveBase) : 0;
 
-    let total = 0;
-    let upcoming = 0;
-    let honored = 0;
-    let noShow = 0;
-    let cancelled = 0;
-
-    (ALL_R || []).forEach(r => {
-      if (!r || r.deleted) return;
-      if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
-
-      total++;
-      const s = r.status;
-
-      if (s === 'honored') honored++;
-      else if (s === 'no_show') noShow++;
-      else if (s === 'cancelled') cancelled++;
-
-      const d = r.dateISO;
-      if (d && d >= todayStr && s !== 'honored' && s !== 'no_show' && s !== 'cancelled'){
-        upcoming++;
-      }
-    });
-
-    const effectiveBase = total - cancelled;
-    const rate = effectiveBase > 0 ? Math.round(honored * 100 / effectiveBase) : 0;
-
-    const dlg = document.createElement('dialog');
-    dlg.innerHTML = `
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Mes stats — mois en cours</div>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Mes stats — mois en cours</div>
+      <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+    <div style="padding:16px;max-width:520px">
+      <div class="small" style="margin-bottom:10px">
+        Basé sur la date des RDV (${moisFR(now.getMonth())} ${now.getFullYear()}) pour <strong>${escapeHtml(ROLE.name)}</strong>.<br>
+        Le <strong>taux honorés</strong> est calculé sur <strong>tes RDV honorés + non honorés</strong> (annulés exclus).
       </div>
-      <div style="padding:16px;max-width:520px">
-        <div class="small" style="margin-bottom:10px">
-          Basé sur la date des RDV (${moisFR(now.getMonth())} ${now.getFullYear()}) pour <strong>${escapeHtml(ROLE.name)}</strong>.
+      <div class="row" style="flex-wrap:wrap;gap:10px">
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">RDV du mois</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${total}</div>
         </div>
-        <div class="row" style="flex-wrap:wrap;gap:10px">
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">RDV du mois</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${total}</div>
-          </div>
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">À venir</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${upcoming}</div>
-          </div>
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">Honorés</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${honored}</div>
-          </div>
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">Non honorés</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${noShow}</div>
-          </div>
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">Annulés</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${cancelled}</div>
-          </div>
-          <div class="card" style="flex:1;min-width:140px">
-            <div class="label">Taux honorés (hors annulés)</div>
-            <div style="font-size:26px;font-weight:700;margin-top:4px">${rate}%</div>
-          </div>
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">À venir</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${upcoming}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">Honorés</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${honored}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">Non honorés</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${noShow}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">Annulés</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${cancelled}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:140px">
+          <div class="label">Taux honorés (hors annulés)</div>
+          <div style="font-size:26px;font-weight:700;margin-top:4px">${rate}%</div>
         </div>
       </div>
-    `;
+    </div>
+  `;
 
-    document.body.appendChild(dlg);
-    dlg.showModal?.() ?? dlg.setAttribute('open','');
+  document.body.appendChild(dlg);
+  dlg.showModal?.() ?? dlg.setAttribute('open','');
+}
+
+function ensureTeamStatsButton(){
+  const logoutBtn = document.getElementById('btnLogout')
+                    || document.querySelector('[data-role="logout"]')
+                    || document.querySelector('.btn-logout');
+
+  const existing = document.getElementById('btnMyStatsTeam');
+
+  if (!ROLE || ROLE.role !== 'team'){
+    // pas équipe => on enlève "Mes stats" s'il existe
+    if (existing) existing.remove();
+    return;
   }
 
-  function ensureTeamStatsButton(){
-    const logoutBtn = document.getElementById('btnLogout')
-                      || document.querySelector('[data-role="logout"]')
-                      || document.querySelector('.btn-logout');
+  if (!logoutBtn) return;
+  if (existing) return; // déjà présent
 
-    const existing = document.getElementById('btnMyStatsTeam');
+  const btn = document.createElement('button');
+  btn.id = 'btnMyStatsTeam';
+  btn.textContent = 'Mes stats';
+  btn.className = logoutBtn.className;
+  btn.style.marginRight = '6px';
+  btn.onclick = openMyStatsDialog;
 
-    if (!ROLE || ROLE.role !== 'team'){
-      // pas équipe => on enlève "Mes stats" s'il existe
-      if (existing) existing.remove();
-      return;
-    }
+  logoutBtn.parentNode.insertBefore(btn, logoutBtn);
+}
 
-    if (!logoutBtn) return;
-    if (existing) return; // déjà présent
+// ---------- 8) Hook sur enter() pour que "Mes stats" soit déjà là dès l'arrivée dans l'app ----------
+const __origEnter = window.enter;
+if (typeof __origEnter === 'function'){
+  window.enter = function(){
+    __origEnter();
 
-    const btn = document.createElement('button');
-    btn.id = 'btnMyStatsTeam';
-    btn.textContent = 'Mes stats';
-    btn.className = logoutBtn.className;
-    btn.style.marginRight = '6px';
-    btn.onclick = openMyStatsDialog;
-
-    logoutBtn.parentNode.insertBefore(btn, logoutBtn);
-  }
-
-  // ---------- 8) Hook sur enter() pour que "Mes stats" soit déjà là dès l'arrivée dans l'app ----------
-  const __origEnter = window.enter;
-  if (typeof __origEnter === 'function'){
-    window.enter = function(){
-      __origEnter();
-
-      // Dès que l’écran principal est rendu :
-      ensureTeamStatsButton();
-      updateKpiVisibility();
-    };
-  }
+    // Dès que l’écran principal est rendu :
+    ensureTeamStatsButton();
+    updateKpiVisibility();
+  };
+}
 
 })();
 // === MODULE IDENTITÉ ADMIN — C&N SOLUTIONS ===
@@ -3756,213 +3805,7 @@ window.openStatusDialog = function(id){
   }
 
 })();
-/* === MODULE "PLACÉ PAR" — voir & modifier la personne qui a placé le RDV === */
-/* À coller tout en bas de ton script, après toutes tes fonctions existantes. */
 
-(function(){
-
-  // On attend que la fonction openRDVSheet soit définie
-  if (typeof openRDVSheet !== 'function') return;
-
-  // Petite fonction de secours au cas où escapeHtml n'existe pas déjà
-  function safeEscapeHtml(str){
-    if (typeof escapeHtml === 'function') return escapeHtml(str);
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  // On garde la version originale
-  const originalOpenRDVSheet = openRDVSheet;
-
-  // On remplace openRDVSheet par un wrapper
-  window.openRDVSheet = function(r){
-    // on ouvre la fiche normalement
-    originalOpenRDVSheet(r);
-    // puis on injecte la ligne "Placé par" dans la modale
-    try { enhanceCreatorInLastSheet(r); } catch(e){ console.error(e); }
-  };
-
-  /**
-   * Ajoute/Met à jour la ligne "Placé par : ..." dans la fiche RDV ouverte.
-   * - visible pour tout le monde
-   * - bouton cliquable qui ouvre la modale de changement
-   */
-  function enhanceCreatorInLastSheet(r){
-    const dialogs = document.querySelectorAll('dialog[open]');
-    if (!dialogs.length) return;
-    const dlg = dialogs[dialogs.length - 1];
-    const body = dlg.querySelector('.dlg-body');
-    if (!body) return;
-
-    // Ne pas dupliquer si déjà présent
-    if (body.querySelector('[data-role="creator-info"]')) return;
-
-    const small = document.createElement('div');
-    small.className = 'small mt6';
-    small.dataset.role = 'creator-info';
-
-    const label = (r.createdByName || '—');
-    const dateTxt = r.createdAt ? (' • ' + fmtDT(r.createdAt)) : '';
-
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-ghost btn-xs';
-    btn.textContent = `${label}${dateTxt}`;
-    btn.title = 'Voir / modifier la personne qui a placé le RDV';
-
-    btn.addEventListener('click', () => {
-      openChangeCreatorDialog(r.id, r.createdByName || '', small);
-    });
-
-    small.textContent = 'Placé par : ';
-    small.appendChild(btn);
-
-    // On insère cette ligne juste sous la première .small de la fiche
-    const firstMeta = body.querySelector('.small');
-    if (firstMeta && firstMeta.parentNode) {
-      firstMeta.parentNode.insertBefore(small, firstMeta.nextSibling);
-    } else {
-      body.insertBefore(small, body.firstChild);
-    }
-  }
-
-  /**
-   * Modale pour changer "Placé par"
-   * ⚠️ Ici : PAS DE VÉRIFICATION ADMIN → tout utilisateur de cette page peut modifier.
-   * => Ne mets ce module QUE dans ta page admin, pas dans la page équipe.
-   */
-  async function openChangeCreatorDialog(rId, currentName, infoNode){
-
-    // On récupère la fiche complète pour avoir createdAt à jour
-    let r = (Array.isArray(ALL_R) ? ALL_R.find(x => x.id === rId) : null);
-    try{
-      if (!r) {
-        const snap = await db.collection('rdv').doc(rId).get();
-        if (snap.exists) r = { id: snap.id, ...snap.data() };
-      }
-    }catch(e){
-      console.error(e);
-    }
-
-    // Liste des prénoms déjà utilisés (créateurs) pour auto-complétion
-    const knownNames = Array.from(
-      new Set(
-        (ALL_R || [])
-          .map(x => (x.createdByName || '').trim())
-          .filter(Boolean)
-      )
-    ).sort((a,b)=>a.localeCompare(b,'fr-FR'));
-
-    const optionsHtml = knownNames
-      .map(n => `<option value="${safeEscapeHtml(n)}"></option>`)
-      .join('');
-
-    const dlg = document.createElement('dialog');
-    dlg.innerHTML = `
-      <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Modifier "Placé par"</div>
-        <button class="btn btn-neutral btn-xs" id="creator_close">Fermer</button>
-      </div>
-      <div class="dlg-body" style="padding:16px;max-width:480px">
-        <div class="small" style="margin-bottom:8px">
-          RDV du ${r && r.dateISO && r.timeText ? fmtNice(r.dateISO, r.timeText) : '—'}
-        </div>
-        <div class="label">Prénom / nom de la personne qui a placé le RDV</div>
-        <input id="creator_name" class="input" list="creator_list" placeholder="Ex : Lucas" value="${safeEscapeHtml(currentName || '')}">
-        <datalist id="creator_list">
-          ${optionsHtml}
-        </datalist>
-        <div class="small mt8">💡 Tu peux choisir dans la liste ou saisir un nouveau prénom.</div>
-        <div class="row mt12" style="justify-content:flex-end;gap:8px">
-          <button class="btn btn-neutral btn-xs" id="creator_clear">Effacer</button>
-          <button class="btn btn-primary btn-xs" id="creator_save">Enregistrer</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(dlg);
-
-    // Ouverture "safe" de la modale
-    try {
-      if (typeof dlg.showModal === 'function') {
-        dlg.showModal();
-      } else {
-        dlg.setAttribute('open','');
-      }
-    } catch(e) {
-      console.error(e);
-      dlg.setAttribute('open','');
-    }
-
-    const $loc = (s)=>dlg.querySelector(s);
-
-    $loc('#creator_close').onclick = () => {
-      dlg.close?.();
-      dlg.remove();
-    };
-
-    // Bouton "Effacer" = remet vide (mais on demande quand même une conf)
-    $loc('#creator_clear').onclick = () => {
-      if (confirm('Effacer le nom de la personne qui a placé ce RDV ?')) {
-        $loc('#creator_name').value = '';
-      }
-    };
-
-    $loc('#creator_save').onclick = async () => {
-      const nv = ($loc('#creator_name').value || '').trim();
-      if (!nv) {
-        alert('Merci de saisir au minimum un prénom.');
-        return;
-      }
-
-      try{
-        // Écriture Firestore
-        await db.collection('rdv').doc(rId).set({
-          createdByName: nv,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        // Mise à jour en mémoire locale
-        try{
-          if (Array.isArray(ALL_R)) {
-            const idx = ALL_R.findIndex(x => x.id === rId);
-            if (idx >= 0) {
-              ALL_R[idx] = { ...ALL_R[idx], createdByName: nv };
-            }
-          }
-        }catch(_){}
-
-        // Rafraîchir la liste principale
-        try{ typeof renderList === 'function' && renderList(); }catch(_){}
-        try{ typeof updateTabCounts === 'function' && updateTabCounts(); }catch(_){}
-
-        // Mettre à jour la ligne dans la fiche ouverte si on a un noeud cible
-        if (infoNode) {
-          const baseDate = r && r.createdAt ? (' • ' + fmtDT(r.createdAt)) : '';
-          infoNode.innerHTML = 'Placé par : ';
-          const btn = document.createElement('button');
-          btn.className = 'btn btn-ghost btn-xs';
-          btn.textContent = nv + baseDate;
-          btn.title = 'Voir / modifier la personne qui a placé le RDV';
-          btn.addEventListener('click', () => {
-            openChangeCreatorDialog(rId, nv, infoNode);
-          });
-          infoNode.appendChild(btn);
-        }
-
-        notify('Créateur du RDV mis à jour ✔️','ok');
-        dlg.close?.();
-        dlg.remove();
-      }catch(e){
-        console.error(e);
-        alert('Erreur lors de la mise à jour de "Placé par".');
-      }
-    };
-  }
-
-})();
 // === PROTECTION PASSKEY PAR CODE ADMIN — C&N SOLUTIONS ===
 // À coller tout en bas de la page, après tous les autres <script>.
 
@@ -4021,207 +3864,7 @@ window.openStatusDialog = function(id){
   }, true); // true = capture, pour passer avant les autres listeners
 
 })();
-// === CHANGER "PLACÉ PAR" — PIN ADMIN + LISTE PRÉNOMS AUTORISÉS ===
-// Place ce bloc TOUT EN BAS, après tous tes autres scripts (db, UI, ...)
 
-(function(){
-  if (typeof window === 'undefined' || typeof db === 'undefined' || typeof firebase === 'undefined') return;
-
-  // -------- 0) PIN admin : même code que le login admin --------
-  const FALLBACK_PIN = '2580';
-
-  async function getAdminPin(){
-    // 1) variable globale (souvent utilisée au login)
-    if (window.ADMIN_PIN) return String(window.ADMIN_PIN);
-    // 2) localStorage (si ton login y stocke le PIN)
-    try{
-      const ls = localStorage.getItem('ADMIN_PIN');
-      if (ls) return String(ls);
-    }catch(_){}
-    // 3) Firestore config/security.adminPin
-    try{
-      const snapCfg = await db.collection('config').doc('security').get();
-      const pin = snapCfg.exists ? (snapCfg.data()||{}).adminPin : null;
-      if (pin) return String(pin);
-    }catch(_){}
-    // 4) fallback sécurisé (change-le dès que possible)
-    return FALLBACK_PIN;
-  }
-
-  async function askAdminPin(){
-    const pin = await getAdminPin();
-    const v = prompt('Code admin requis :');
-    if (!v) return false;
-    if (String(v) !== String(pin)){ alert('Code incorrect.'); return false; }
-    return true;
-  }
-
-  // -------- 1) Charger la liste des prénoms autorisés --------
-  let TEAM_CACHE = null;
-  async function loadAllowedTeamNames(){
-    if (Array.isArray(TEAM_CACHE)) return TEAM_CACHE;
-    let arr = [];
-    try{
-      const snap = await db.collection('config').doc('teamUsers').get();
-      if (snap.exists){
-        const data = snap.data() || {};
-        if (Array.isArray(data.names)) arr = data.names;
-      }
-    }catch(_){}
-    if ((!arr || !arr.length) && Array.isArray(window.ALLOWED_TEAM_NAMES)){
-      arr = window.ALLOWED_TEAM_NAMES;
-    }
-    TEAM_CACHE = (arr||[]).map(x=>String(x||'').trim()).filter(Boolean);
-    return TEAM_CACHE;
-  }
-
-  // -------- 2) Récup RDV --------
-  async function getRDVById(id){
-    const d = await db.collection('rdv').doc(id).get();
-    if (!d.exists) throw new Error('RDV introuvable');
-    const x = d.data()||{};
-    x.id = d.id;
-    return x;
-  }
-
-  function findRDVIdFromEl(el){
-    const tryAttrs = ['rdvId','rdv','rdv-id','id'];
-    let n = el;
-    for (let i=0;i<6 && n;i++, n=n.parentElement){
-      if (!n) break;
-      // data-*
-      if (n.dataset){
-        if (n.dataset.rdvId) return n.dataset.rdvId;
-        if (n.dataset.rdv)   return n.dataset.rdv;
-        if (n.dataset.id)    return n.dataset.id;
-      }
-      // getAttribute
-      for (const a of tryAttrs){
-        const v = n.getAttribute && (n.getAttribute('data-'+a) || n.getAttribute(a));
-        if (v) return v;
-      }
-    }
-    return null;
-  }
-
-  // -------- 3) Modale de changement --------
-  function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-
-  async function openChangePlacerModal(rdv){
-    const team = await loadAllowedTeamNames();
-
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='460px';
-    dlg.style.width='min(92vw,460px)';
-    dlg.style.padding='0';
-    dlg.innerHTML = `
-      <form method="dialog" style="margin:0">
-        <div style="padding:12px 14px;border-bottom:1px solid var(--line,#e5e7eb);display:flex;justify-content:space-between;align-items:center">
-          <div style="font-weight:800">Changer “placé par”</div>
-          <button class="btn btn-neutral btn-xs" value="close">Fermer</button>
-        </div>
-        <div style="padding:14px;display:grid;gap:10px">
-          <div class="small" style="opacity:.85">
-            RDV : ${esc((rdv.civ||'')+' '+(rdv.name||''))} — ${esc(rdv.dateText||'')} ${esc(rdv.timeText||'')}
-          </div>
-
-          <label class="small" style="opacity:.85">Choisir un prénom autorisé</label>
-          <select id="pl_sel" class="input" style="width:100%">
-            <option value="">— Sélectionner —</option>
-            ${team.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-          </select>
-
-          <div class="small" style="opacity:.7">ou saisir un nom libre</div>
-          <input id="pl_free" class="input" placeholder="Ex. Amine" />
-
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
-            <button type="button" class="btn btn-neutral btn-xs" id="pl_cancel">Annuler</button>
-            <button type="button" class="btn btn-primary btn-xs" id="pl_save">Enregistrer</button>
-          </div>
-        </div>
-      </form>
-    `;
-    document.body.appendChild(dlg);
-    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-
-    const $ = s => dlg.querySelector(s);
-    $('#pl_cancel').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
-
-    // préselection si déjà un placeur
-    if (rdv.createdByName){
-      const cur = String(rdv.createdByName).trim();
-      const opt = Array.from($('#pl_sel').options).find(o => (o.value||'').trim().toLowerCase() === cur.toLowerCase());
-      if (opt) $('#pl_sel').value = opt.value; else $('#pl_free').value = cur;
-    }
-
-    $('#pl_save').onclick = async ()=>{
-      const sel  = String($('#pl_sel').value||'').trim();
-      const free = String($('#pl_free').value||'').trim();
-      const name = sel || free;
-      if (!name){ alert('Merci de choisir ou saisir un nom.'); return; }
-
-      $('#pl_save').disabled = true;
-      $('#pl_save').textContent = '…';
-
-      try{
-        const newRole = rdv.createdByRole || 'team'; // on conserve le rôle existant
-        await db.collection('rdv').doc(rdv.id).set({
-          createdByName: name,
-          createdByRole: newRole
-        }, { merge:true });
-
-        try{ notify?.('“Placé par” mis à jour ✔️','ok'); }catch(_){}
-        try{ computeUpcoming?.(); computeTodo?.(); renderList?.(); loadAll?.(); }catch(_){}
-        dlg.close?.(); dlg.remove();
-      }catch(e){
-        console.error(e);
-        alert('Erreur lors de la mise à jour.');
-        $('#pl_save').disabled = false;
-        $('#pl_save').textContent = 'Enregistrer';
-      }
-    };
-  }
-
-  // -------- 4) Interception des clics sur "changer placé par" --------
-  document.addEventListener('click', async (e)=>{
-    const t = e.target;
-    const trigger = t.closest?.(
-      '#cn-changeplacer-btn,.change-placer,.btn-change-placer,' +
-      '[data-action*="placeur"],[data-action*="placer"],[data-change="placeur"],[data-change="placer"],' +
-      'button,a'
-    );
-    if (!trigger) return;
-
-    const label = (trigger.textContent||'').toLowerCase();
-    const looksLike = /placer|placeur/.test(label) ||
-                      trigger.id?.includes?.('placeur') ||
-                      trigger.className?.includes?.('placeur') ||
-                      trigger.matches?.('#cn-changeplacer-btn,[data-action*="placeur"],[data-action*="placer"],[data-change="placeur"],[data-change="placer"],.change-placer,.btn-change-placer');
-
-    if (!looksLike) return;
-
-    e.preventDefault(); e.stopPropagation();
-
-    // Demande TOUJOURS le PIN admin
-    const ok = await askAdminPin();
-    if (!ok) return;
-
-    // Trouver l'ID RDV
-    let rdvId = findRDVIdFromEl(trigger);
-    if (!rdvId && trigger.rdv && trigger.rdv.id) rdvId = trigger.rdv.id;
-    if (!rdvId && window.CURRENT_RDV && CURRENT_RDV.id) rdvId = CURRENT_RDV.id;
-
-    if (!rdvId){ alert('Impossible d’identifier le RDV. (Ajoute data-rdv-id="...")'); return; }
-
-    try{
-      const rdv = await getRDVById(rdvId);
-      openChangePlacerModal(rdv);
-    }catch(e){
-      console.error(e); alert('RDV introuvable.');
-    }
-  }, true);
-
-})();
 // === PATCH ANNULATION — choix "client" vs "agence" + modèle éditable par agence ===
 // A coller tel quel tout en bas de ta page, APRES tous tes autres scripts (db, UI, etc.)
 
@@ -4535,6 +4178,7 @@ L’équipe {{TAGLINE}}`;
   };
 
 })();
+
 </script>
 </section>
 </body>
