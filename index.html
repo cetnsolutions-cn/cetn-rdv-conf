@@ -698,7 +698,9 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
       </div>
       <div class="toolbar">
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnTeamPass">Mot de passe équipe</button>
-        <button class="btn btn-warn btn-xs" id="btnPendingReq">Demandes en cours <span id="pendingCount" class="pill">0</span></button>
+      <button class="btn btn-warn btn-xs admin-only hide" id="btnPendingReq">
+  Demandes en cours <span id="pendingCount" class="pill">0</span>
+</button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAdminStats">Admin – Stats</button>
         <button class="btn btn-neutral btn-xs admin-only hide" id="btnAgencies">Agences</button>
         <button class="btn btn-neutral btn-xs" id="btnReminders">Rappels <span id="remCount" class="pill">0</span></button>
@@ -1293,7 +1295,31 @@ async function submitRDV(channel){
 
 /* ---------- Dashboard + Liste + Pagination + Filtres ---------- */
 function countPendingRequests(){ return ALL_R.filter(r=>r.deleted===true && !!r.deleteRequest).length; }
-function updatePendingButton(){ const btn=$('#btnPendingReq'), cnt=$('#pendingCount'); if(!btn||!cnt) return; const n=countPendingRequests(); btn.classList.toggle('blink',n>0); cnt.textContent=String(n); btn.classList.remove('hide'); }
+function updatePendingButton(){
+  const btn = $('#btnPendingReq');
+  const cnt = $('#pendingCount');
+  if (!btn || !cnt) return;
+
+  const n = countPendingRequests();
+
+  // Met à jour la pastille
+  cnt.textContent = String(n);
+
+  // Clignote seulement s’il y a des demandes
+  btn.classList.toggle('blink', n > 0);
+
+  // Si aucune demande -> bouton caché
+  if (n > 0) {
+    // Si admin connecté, on l’affiche
+    if (ROLE.role === 'admin') {
+      btn.classList.remove('hide');
+      btn.style.display = '';
+    }
+  } else {
+    // Zéro demande : on masque visuellement le bouton
+    btn.style.display = 'none';
+  }
+}
 function populateAgencyFilter(){
   const sel=$('#filterAgency'); if(!sel) return;
   const keys=mergedAgencyKeys();
@@ -4357,6 +4383,7 @@ L’équipe {{TAGLINE}}`;
     console.error('Realtime stats error', err);
   });
 })();
+
 </script>
 </section>
 </body>
