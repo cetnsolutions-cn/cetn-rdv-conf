@@ -4472,1186 +4472,1099 @@ L’équipe {{TAGLINE}}`;
     console.error('Realtime stats error', err);
   });
 })();
-(function(){
+(function(){ 
 
-  // ============================================================
-  // 1. CONFIGURATION & DONNÉES
-  // ============================================================
-   
-  let GLOBAL_CONFIG = {
-    adminPin: "130724",       
-    admins: ["Nathanaël", "Charlène"], 
-    teamUsers: [], 
-    teamPass: "972", 
-    enableFaceID: true,
-    maintenanceMode: false,
-    sources: ["Leboncoin", "Facebook", "MyTrack", "Téléphone", "Instagram"],
-    appTitle: "RDV — C&N Solutions",
-    loginTitle: "Connexion",
+  // ============================================================ 
+  // 1. CONFIGURATION & DONNÉES 
+  // ============================================================ 
     
-    // Thème par défaut (CLAIR)
-    theme: {
-      bg_page: "#f8fafc", bg_card: "#ffffff", text_main: "#0b1320", text_muted: "#6b7280",
-      btn_primary: "#3b82f6", btn_text: "#ffffff",
-      tab_active_bg: "#111827", tab_active_text: "#ffffff",
+  let GLOBAL_CONFIG = { 
+    adminPin: "130724",        
+    admins: ["Nathanaël", "Charlène"],  
+    teamUsers: [],  
+    teamPass: "972",  
+    enableFaceID: true, 
+    maintenanceMode: false, 
+    sources: ["Leboncoin", "Facebook", "MyTrack", "Téléphone", "Instagram"], 
+    appTitle: "RDV — C&N Solutions", 
+    loginTitle: "Connexion", 
+    
+    // Thème par défaut (CLAIR) 
+    theme: { 
+      bg_page: "#f8fafc", bg_card: "#ffffff", text_main: "#0b1320", text_muted: "#6b7280", 
+      btn_primary: "#3b82f6", btn_text: "#ffffff", 
+      tab_active_bg: "#111827", tab_active_text: "#ffffff", 
       kpi_ca_bg: "#ecfdf5", kpi_ca_text: "#10b981",         
       kpi_rem_bg: "#eff6ff", kpi_rem_text: "#3b82f6",       
       kpi_hon_bg: "#f5f3ff", kpi_hon_text: "#8b5cf6",       
-      kpi_noshow_bg: "#fffbeb", kpi_noshow_text: "#f59e0b",
-    }
-  };
+      kpi_noshow_bg: "#fffbeb", kpi_noshow_text: "#f59e0b", 
+    } 
+  }; 
 
-  const dbRef = db.collection('config').doc('globalSettings');
+  const dbRef = db.collection('config').doc('globalSettings'); 
 
-  function startRealtimeSync(){
-    dbRef.onSnapshot((doc) => {
-      if(doc.exists){
-        const data = doc.data();
-        GLOBAL_CONFIG = { ...GLOBAL_CONFIG, ...data };
-        if(data.theme) GLOBAL_CONFIG.theme = { ...GLOBAL_CONFIG.theme, ...data.theme };
-        if(!GLOBAL_CONFIG.teamUsers) GLOBAL_CONFIG.teamUsers = [];
+  function startRealtimeSync(){ 
+    dbRef.onSnapshot((doc) => { 
+      if(doc.exists){ 
+        const data = doc.data(); 
+        GLOBAL_CONFIG = { ...GLOBAL_CONFIG, ...data }; 
+        if(data.theme) GLOBAL_CONFIG.theme = { ...GLOBAL_CONFIG.theme, ...data.theme }; 
+        if(!GLOBAL_CONFIG.teamUsers) GLOBAL_CONFIG.teamUsers = []; 
         
-        applyAllVisuals();
-        updateWizardSources();
-        if(typeof window.TEAM_PASS !== 'undefined') window.TEAM_PASS = GLOBAL_CONFIG.teamPass;
-      } else { dbRef.set(GLOBAL_CONFIG); }
-    });
-  }
+        applyAllVisuals(); 
+        updateWizardSources(); 
+        if(typeof window.TEAM_PASS !== 'undefined') window.TEAM_PASS = GLOBAL_CONFIG.teamPass; 
+      } else { dbRef.set(GLOBAL_CONFIG); } 
+    }); 
+  } 
 
-  // --- MOTEUR GRAPHIQUE INTELLIGENT ---
-  window.applyAllVisuals = function(){
-    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    let t = GLOBAL_CONFIG.theme;
+  // --- MOTEUR GRAPHIQUE INTELLIGENT --- 
+  window.applyAllVisuals = function(){ 
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; 
+    let t = GLOBAL_CONFIG.theme; 
 
-    if(isDark) {
-        // MODE SOMBRE FORCÉ
-        t = {
-            bg_page: "#020617",          // Noir profond
-            bg_card: "#1e293b",          // Gris nuit
-            text_main: "#f1f5f9",        // Blanc
-            text_muted: "#94a3b8",       // Gris clair
-            btn_primary: "#3b82f6",      
-            btn_text: "#ffffff",
-            tab_active_bg: "#3b82f6",    
-            tab_active_text: "#ffffff",
+    if(isDark) { 
+        t = { 
+            bg_page: "#020617", bg_card: "#1e293b", text_main: "#f1f5f9", text_muted: "#94a3b8", 
+            btn_primary: "#3b82f6", btn_text: "#ffffff", tab_active_bg: "#3b82f6", tab_active_text: "#ffffff", 
+            kpi_ca_bg: "#064e3b", kpi_ca_text: "#34d399", kpi_rem_bg: "#1e3a8a", kpi_rem_text: "#60a5fa", 
+            kpi_hon_bg: "#581c87", kpi_hon_text: "#c084fc", kpi_noshow_bg: "#78350f", kpi_noshow_text: "#fbbf24", 
+        }; 
+    } 
 
-            kpi_ca_bg: "#064e3b", kpi_ca_text: "#34d399",
-            kpi_rem_bg: "#1e3a8a", kpi_rem_text: "#60a5fa",
-            kpi_hon_bg: "#581c87", kpi_hon_text: "#c084fc",
-            kpi_noshow_bg: "#78350f", kpi_noshow_text: "#fbbf24",
-        };
-    }
-
-    let styleTag = document.getElementById('cn-theme-override');
-    if(!styleTag){ styleTag = document.createElement('style'); styleTag.id='cn-theme-override'; document.head.appendChild(styleTag); }
+    let styleTag = document.getElementById('cn-theme-override'); 
+    if(!styleTag){ styleTag = document.createElement('style'); styleTag.id='cn-theme-override'; document.head.appendChild(styleTag); } 
     
-    styleTag.innerHTML = `
-      html, body { background-color: ${t.bg_page} !important; color: ${t.text_main} !important; }
-      
-      h1, h2, h3, .rdv .title, .login-title, .pl-title, .role-name, .hw-label { color: ${t.text_main} !important; }
-      .label, .small, .rdv .meta, .login-subtitle { color: ${t.text_muted} !important; }
-      
-      /* FONDS GÉNÉRAUX */
-      .card, .rdv, .kpi, dialog, .wiz, .role-card, .history-widget, .tabs { 
-          background-color: ${t.bg_card} !important; 
-          border-color: ${isDark ? '#334155' : 'rgba(0,0,0,0.08)'} !important; 
-          color: ${t.text_main} !important;
-      }
-      
-      /* LOGIN SPÉCIFIQUE */
-      #login {
-          background: ${isDark ? '#020617' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'} !important;
-      }
-      .modern-login-wrap {
-          background: ${isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.9)'} !important;
-          border-color: ${isDark ? '#334155' : 'rgba(255,255,255,0.5)'} !important;
-      }
+    styleTag.innerHTML = ` 
+      html, body { background-color: ${t.bg_page} !important; color: ${t.text_main} !important; } 
+      h1, h2, h3, .rdv .title, .login-title, .pl-title, .role-name, .hw-label { color: ${t.text_main} !important; } 
+      .label, .small, .rdv .meta, .login-subtitle { color: ${t.text_muted} !important; } 
+      .card, .rdv, .kpi, dialog, .wiz, .role-card, .history-widget, .tabs { background-color: ${t.bg_card} !important; border-color: ${isDark ? '#334155' : 'rgba(0,0,0,0.08)'} !important; color: ${t.text_main} !important; } 
+      #login { background: ${isDark ? '#020617' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'} !important; } 
+      .modern-login-wrap { background: ${isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.9)'} !important; border-color: ${isDark ? '#334155' : 'rgba(255,255,255,0.5)'} !important; } 
+      input, select, textarea, .modern-input, .hw-input { background-color: ${isDark ? '#0f172a' : '#f1f5f9'} !important; color: ${t.text_main} !important; border: 1px solid ${isDark ? '#334155' : 'transparent'} !important; } 
+      .wiz .nav, .wiz .row { background-color: transparent !important; border-top: 1px solid ${isDark ? '#334155' : '#eee'} !important; } 
+      .nav, .nav-pills, .toolbar, .filters, .bg-white, .bg-light { background-color: ${isDark ? '#1e293b' : 'inherit'} !important; color: ${t.text_main} !important; border-color: ${isDark ? '#334155' : '#e2e8f0'} !important; } 
+      dialog .row, dialog .flex { background-color: transparent !important; } 
+      .btn-group .btn, .filters button, .nav-pills .nav-link, .nav-pills button { background-color: transparent !important; color: ${t.text_muted} !important; border: none !important; } 
+      .btn-group .btn.active, .filters button.active, .nav-pills .nav-link.active, .nav-pills button.active { background-color: ${isDark ? '#3b82f6' : '#fff'} !important; color: #ffffff !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; } 
+      .btn-primary { background-color: ${t.btn_primary} !important; color: ${t.btn_text} !important; border:none !important; } 
+      .tab.active { background-color: ${t.tab_active_bg} !important; color: ${t.tab_active_text} !important; } 
+      .tab:not(.active) { color: ${t.text_muted} !important; } 
+      .btn-neutral, .btn-ghost { background-color: ${isDark ? '#334155' : '#f1f5f9'} !important; color: ${t.text_main} !important; } 
+      .kpi.green { background-color: ${t.kpi_ca_bg} !important; border-color: ${t.kpi_ca_text} !important; } .kpi.green b { color: ${t.kpi_ca_text} !important; } 
+      .kpi.blue { background-color: ${t.kpi_rem_bg} !important; border-color: ${t.kpi_rem_text} !important; } .kpi.blue b { color: ${t.kpi_rem_text} !important; } 
+      .kpi.violet { background-color: ${t.kpi_hon_bg} !important; border-color: ${t.kpi_hon_text} !important; } .kpi.violet b { color: ${t.kpi_hon_text} !important; } 
+      .kpi.amber { background-color: ${t.kpi_noshow_bg} !important; border-color: ${t.kpi_noshow_text} !important; } .kpi.amber b { color: ${t.kpi_noshow_text} !important; } 
+    `; 
 
-      /* INPUTS */
-      input, select, textarea, .modern-input, .hw-input {
-          background-color: ${isDark ? '#0f172a' : '#f1f5f9'} !important; 
-          color: ${t.text_main} !important;
-          border: 1px solid ${isDark ? '#334155' : 'transparent'} !important;
-      }
-
-      /* BARRES WIZARD */
-      .wiz .nav, .wiz .row {
-          background-color: transparent !important;
-          border-top: 1px solid ${isDark ? '#334155' : '#eee'} !important;
-      }
-
-      /* --- CORRECTIF SPECIFIQUE POUR LA BARRE RAPPELS (LA BANDE BLANCHE) --- */
-      
-      /* 1. On force tous les conteneurs de navigation à prendre la couleur sombre */
-      .nav, .nav-pills, .toolbar, .filters, .bg-white, .bg-light {
-          background-color: ${isDark ? '#1e293b' : 'inherit'} !important; /* Gris nuit */
-          color: ${t.text_main} !important;
-          border-color: ${isDark ? '#334155' : '#e2e8f0'} !important;
-      }
-
-      /* 2. On corrige l'intérieur du Dialog Rappel spécifiquement */
-      dialog .row, dialog .flex {
-           background-color: transparent !important;
-      }
-
-      /* 3. Les boutons eux-mêmes */
-      .btn-group .btn, .filters button, .nav-pills .nav-link, .nav-pills button {
-          background-color: transparent !important;
-          color: ${t.text_muted} !important;
-          border: none !important;
-      }
-
-      /* 4. Le bouton ACTIF (Aujourd'hui) */
-      .btn-group .btn.active, .filters button.active, .nav-pills .nav-link.active, .nav-pills button.active {
-          background-color: ${isDark ? '#3b82f6' : '#fff'} !important;
-          color: #ffffff !important;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-      }
-
-      .btn-primary { background-color: ${t.btn_primary} !important; color: ${t.btn_text} !important; border:none !important; }
-      
-      /* ONGLETS PRINCIPAUX */
-      .tab.active { background-color: ${t.tab_active_bg} !important; color: ${t.tab_active_text} !important; }
-      .tab:not(.active) { color: ${t.text_muted} !important; }
-
-      .btn-neutral, .btn-ghost {
-          background-color: ${isDark ? '#334155' : '#f1f5f9'} !important;
-          color: ${t.text_main} !important;
-      }
-      
-      /* KPIS */
-      .kpi.green { background-color: ${t.kpi_ca_bg} !important; border-color: ${t.kpi_ca_text} !important; } .kpi.green b { color: ${t.kpi_ca_text} !important; }
-      .kpi.blue { background-color: ${t.kpi_rem_bg} !important; border-color: ${t.kpi_rem_text} !important; } .kpi.blue b { color: ${t.kpi_rem_text} !important; }
-      .kpi.violet { background-color: ${t.kpi_hon_bg} !important; border-color: ${t.kpi_hon_text} !important; } .kpi.violet b { color: ${t.kpi_hon_text} !important; }
-      .kpi.amber { background-color: ${t.kpi_noshow_bg} !important; border-color: ${t.kpi_noshow_text} !important; } .kpi.amber b { color: ${t.kpi_noshow_text} !important; }
-    `;
-
-    document.title = GLOBAL_CONFIG.appTitle;
-    const logH2 = document.querySelector('#login h2'); if(logH2) logH2.textContent = GLOBAL_CONFIG.loginTitle;
+    document.title = GLOBAL_CONFIG.appTitle; 
+    const logH2 = document.querySelector('#login h2'); if(logH2) logH2.textContent = GLOBAL_CONFIG.loginTitle; 
     
-    // GESTION AFFICHAGE FACEID
-    const bioDisplay = GLOBAL_CONFIG.enableFaceID ? '' : 'none';
+    // --- GESTION DES BOUTONS LOGIN ---
     const btnBio = document.getElementById('btnLoginAdminPasskey');
+    const btnPin = document.getElementById('btnLoginAdminPin');
     const btnEnroll = document.getElementById('btnEnroll');
     
+    // 1. Face ID : visible seulement si activé
     if(btnBio) {
-        btnBio.style.display = bioDisplay;
-        if(bioDisplay === 'none'){
-             const btnPin = document.getElementById('btnLoginAdminPin');
-             if(btnPin) btnPin.style.display = ''; 
-        }
+        btnBio.style.display = GLOBAL_CONFIG.enableFaceID ? 'block' : 'none';
+    }
+
+    // 2. Code PIN : TOUJOURS VISIBLE (Correction demandée)
+    // On force le display block pour qu'il ne disparaisse jamais
+    if(btnPin) {
+        btnPin.style.display = 'block'; 
+        btnPin.style.visibility = 'visible';
+        btnPin.style.opacity = '1';
     }
     
     if(btnEnroll) {
         const p = btnEnroll.closest('.mt12') || btnEnroll.parentElement;
-        if(p) p.style.display = bioDisplay; else btnEnroll.style.display = bioDisplay;
+        const disp = GLOBAL_CONFIG.enableFaceID ? '' : 'none';
+        if(p) p.style.display = disp; else btnEnroll.style.display = disp;
     }
-    const btnOldPass = document.getElementById('btnTeamPass'); if(btnOldPass) btnOldPass.style.display = 'none';
+    const btnOldPass = document.getElementById('btnTeamPass'); if(btnOldPass) btnOldPass.style.display = 'none'; 
 
-    if(GLOBAL_CONFIG.maintenanceMode && ROLE && ROLE.role === 'team'){
-       document.body.classList.add('maintenance-active');
-    } else {
-       document.body.classList.remove('maintenance-active');
-    }
-  }
+    if(GLOBAL_CONFIG.maintenanceMode && ROLE && ROLE.role === 'team'){ 
+       document.body.classList.add('maintenance-active'); 
+    } else { 
+       document.body.classList.remove('maintenance-active'); 
+    } 
+  } 
 
-  // Écouteur changement mode
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', window.applyAllVisuals);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', window.applyAllVisuals); 
 
-  function updateWizardSources(){
-     const dl = document.getElementById('sourcesList');
-     if(dl) dl.innerHTML = GLOBAL_CONFIG.sources.map(s => `<option value="${s}"></option>`).join('');
-     const chipsDiv = document.getElementById('dyn_source_chips');
-     if(chipsDiv){
-        chipsDiv.innerHTML = GLOBAL_CONFIG.sources.map(s => `<button class="chip" onclick="$('#w_source').value='${s}'; next()">${s}</button>`).join('');
-     }
-  }
+  function updateWizardSources(){ 
+     const dl = document.getElementById('sourcesList'); 
+     if(dl) dl.innerHTML = GLOBAL_CONFIG.sources.map(s => `<option value="${s}"></option>`).join(''); 
+     const chipsDiv = document.getElementById('dyn_source_chips'); 
+     if(chipsDiv){ 
+        chipsDiv.innerHTML = GLOBAL_CONFIG.sources.map(s => `<button class="chip" onclick="$('#w_source').value='${s}'; next()">${s}</button>`).join(''); 
+     } 
+  } 
 
-  function refreshAllData(){
-    if(typeof computeTodo === 'function') computeTodo();
-    if(typeof updatePendingConfirms === 'function') updatePendingConfirms();
-  }
-  startRealtimeSync();
+  function refreshAllData(){ 
+    if(typeof computeTodo === 'function') computeTodo(); 
+    if(typeof updatePendingConfirms === 'function') updatePendingConfirms(); 
+  } 
+  startRealtimeSync(); 
+
+  // ============================================================ 
+  // 2. LOGIQUE WIZARD & CONFIRMATION 
+  // ============================================================ 
+  function showWelcomeMessage(name){ 
+     const ov = document.createElement('div'); 
+     ov.style.cssText = `position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,0.95);display:flex;align-items:center;justify-content:center;animation:fadeOutWelcome 0.8s ease forwards;animation-delay:1.5s;`; 
+     if(window.matchMedia('(prefers-color-scheme: dark)').matches) ov.style.background = "rgba(15,23,42,0.95)"; 
+     ov.innerHTML = `<div style="font-size:32px;font-weight:800;color:var(--text_main);animation:popIn 0.5s;">Bonjour, ${escapeHtml(name)} 👋</div>`; 
+     document.body.appendChild(ov); setTimeout(() => { ov.remove(); }, 2500); 
+  } 
+  const stAnim = document.createElement('style'); stAnim.innerHTML = `@keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} } @keyframes fadeOutWelcome { to{opacity:0; visibility:hidden;} }`; document.head.appendChild(stAnim); 
+
+  const wizObserver = new MutationObserver(() => { 
+     const step8 = document.querySelector('.step[data-step="8"]'); 
+     if(step8 && !document.getElementById('btnSendLater')){ 
+        const nav = step8.querySelector('.nav .row');  
+        if(nav){ 
+           const btn = document.createElement('button'); 
+           btn.id = 'btnSendLater'; btn.className = 'btn btn-neutral btn-xs'; btn.innerHTML = '🕒 Confirmer + tard'; 
+           btn.style.marginTop = '6px'; btn.style.width = '100%'; 
+           btn.onclick = (e) => { e.preventDefault(); submitRDV('later'); }; 
+           nav.parentElement.appendChild(btn);  
+        } 
+     } 
+  }); 
+  const wizEl = document.querySelector('.wiz'); if(wizEl) wizObserver.observe(wizEl, { attributes: true, subtree: true, attributeFilter:['class'] }); 
+
+  const _origSubmit = window.submitRDV; 
+  window.submitRDV = async function(channel){ 
+     if(channel === 'later'){ 
+        const a=$('#w_agency').value, civ=$('#w_civ').value, name=$('#w_name').value.trim(), 
+        dateTxt=$('#w_date').value, timeTxt=$('#w_time').value, model=$('#w_model').value.trim(), 
+        source=$('#w_source').value.trim(); 
+        const phone10 = normalizeFR10($('#w_phone').value); 
+        if(!a || !civ || !name || !phone10 || !dateTxt || !timeTxt || !model) return alert('Champs incomplets.'); 
+        const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt), model,source, channel: null, confirmationPending: true, createdAt:firebase.firestore.FieldValue.serverTimestamp(), createdByName:ROLE.name, createdByRole:ROLE.role, deleted:false }; 
+        try { await db.collection('rdv').add(payload); showStep(1); ['w_civ','w_name','w_phone','w_date','w_time','w_model','w_source'].forEach(id=>$('#'+id).value=''); loadAll(); updatePendingConfirms(); } catch(e) { alert("Erreur."); } 
+        return; 
+     } 
+     if(_origSubmit) _origSubmit(channel); 
+  }; 
+
+  function updatePendingConfirms(){ 
+     const pending = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true); 
+     const count = pending.length; 
+     let btn = document.getElementById('btnToConfirm'); 
+     if(!btn){ 
+        const toolbar = document.querySelector('.toolbar'); 
+        if(toolbar){ btn = document.createElement('button'); btn.id = 'btnToConfirm'; btn.className = 'btn btn-neutral btn-xs'; toolbar.insertBefore(btn, document.getElementById('btnReminders')); btn.onclick = openConfirmPanel; } 
+     } 
+     if(btn){ 
+        btn.innerHTML = `À confirmer <span class="pill">${count}</span>`; 
+        btn.style.display = count > 0 ? '' : 'none'; 
+        if(count > 0) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#d97706'; btn.style.background = '#fffbeb'; } 
+     } 
+  } 
+  setInterval(updatePendingConfirms, 2000); 
+
+  window.openConfirmPanel = function(){ 
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches; 
+    const dlg = document.createElement('dialog'); 
+    dlg.style.maxWidth='800px'; dlg.style.width='min(96vw,800px)'; dlg.style.padding='0'; 
+    if(isDark) dlg.style.background = "#1e293b"; 
+    
+    dlg.innerHTML = ` 
+      <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:${isDark?'#451a03':'#fffbeb'}; color:${isDark?'#fbbf24':'#92400e'}"> 
+        <div style="font-weight:800;">🔔 Rendez-vous à confirmer</div> 
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button> 
+      </div> 
+      <div style="padding:16px;max-height:70vh;overflow-y:auto" id="conf_list"></div> 
+    `; 
+    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))(); 
+
+    function render(){ 
+       const list = dlg.querySelector('#conf_list'); 
+       const items = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true); 
+       list.innerHTML = ''; 
+       if(items.length===0) { list.innerHTML = '<div class="small">Tout est à jour.</div>'; return; } 
+       items.forEach(r => { 
+          const row = document.createElement('div'); row.className = 'rdv'; 
+          const who = r.createdByName || 'Inconnu'; 
+          row.innerHTML = ` 
+              <div><div class="title">${fmtNice(r.dateISO,r.timeText)} — ${r.civ} ${r.name}</div><div class="meta">${toFR(r.phone)} • ${r.model}</div><div class="mt8"><span class="bubble orange">Placé par : ${who}</span> <span class="badge">${r.agency}</span></div></div> 
+              <div class="rdv-actions" style="flex-direction:column;gap:6px"><button class="btn btn-primary btn-xs" id="send_now_${r.id}">Envoyer SMS</button><button class="btn btn-warn btn-xs" id="cancel_${r.id}">Annuler RDV</button></div> 
+          `; 
+          row.querySelector(`#send_now_${r.id}`).onclick = async () => { await markConfirmed(r, 'sms'); row.remove(); updatePendingConfirms(); }; 
+          row.querySelector(`#cancel_${r.id}`).onclick = async () => { if(!confirm('Annuler ?')) return; row.remove(); updatePendingConfirms(); }; 
+          list.appendChild(row); 
+       }); 
+    } 
+    render(); 
+  }; 
+
+  async function markConfirmed(r, channel){ 
+     await db.collection('rdv').doc(r.id).set({ confirmationPending: firebase.firestore.FieldValue.delete(), firstMsgAt: firebase.firestore.FieldValue.serverTimestamp(), firstMsgChannel: channel }, {merge:true}); 
+     const local = ALL_R.find(x=>x.id===r.id); if(local) { delete local.confirmationPending; local.firstMsgAt=new Date(); } 
+  } 
+
+  // ============================================================ 
+  // 3. PANNEAU DE RÉGLAGES
+  // ============================================================ 
+  window.openGlobalSettings = function(){ 
+    if(!ROLE || ROLE.role !== 'admin') return alert("Accès interdit."); 
+    
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches; 
+    const bg = isDark ? '#1e293b' : '#fff'; 
+    const bgHead = isDark ? '#0f172a' : '#f1f5f9'; 
+    const text = isDark ? '#fff' : '#333'; 
+    const border = isDark ? '#334155' : '#e2e8f0'; 
+    const inputBg = isDark ? '#020617' : '#fff'; 
+
+    const dlg = document.createElement('dialog'); 
+    dlg.style.maxWidth='800px'; dlg.style.width='min(98vw, 800px)'; dlg.style.padding='0'; 
+    dlg.style.background = bg; dlg.style.color = text; 
+    
+    dlg.innerHTML = ` 
+      <div style="padding:14px 16px;border-bottom:1px solid ${border};display:flex;justify-content:space-between;align-items:center;background:${bgHead};color:${text}"> 
+        <div style="font-weight:800;display:flex;align-items:center;gap:8px">🎛️ Centre de Contrôle</div> 
+        <button class="btn btn-neutral btn-xs" id="set_close">Fermer</button> 
+      </div> 
+      <div style="display:flex;border-bottom:1px solid ${border};background:${bg};overflow-x:auto"> 
+        <button class="set-tab active" data-target="tab_theme">🎨 Apparence</button> 
+        <button class="set-tab" data-target="tab_team">👥 Équipe</button> 
+        <button class="set-tab" data-target="tab_secu">🔐 Admin</button> 
+        <button class="set-tab" data-target="tab_biz">💼 Sources</button> 
+      </div> 
+      <div style="padding:20px;max-height:70vh;overflow-y:auto;background:${bg};color:${text}"> 
+        <div id="tab_theme" class="set-content"> 
+           <div style="background:${isDark?'#172554':'#f0f9ff'};padding:10px;border-radius:8px;margin-bottom:15px;color:${isDark?'#93c5fd':'#0369a1'};font-size:14px">ℹ️ En <b>Mode Sombre</b>, les couleurs sont auto.</div> 
+           <div class="color-section-title">Général</div> 
+           <div class="row" style="gap:15px;margin-bottom:15px"> 
+             ${colorInput('bg_page', 'Fond de page')} ${colorInput('bg_card', 'Cartes (Blocs)')} 
+             ${colorInput('text_main', 'Texte principal')} ${colorInput('btn_primary', 'Boutons (Action)')} 
+           </div> 
+           <div class="color-section-title">Onglets (Menu)</div> 
+           <div class="row" style="gap:15px;margin-bottom:15px"> 
+             ${colorInput('tab_active_bg', 'Fond Onglet Actif')} ${colorInput('tab_active_text', 'Texte Onglet Actif')} 
+           </div> 
+           <div class="color-section-title">KPI</div> 
+           <div class="row" style="gap:15px;margin-bottom:15px"> 
+             ${colorInput('kpi_ca_bg', 'CA Fond')} ${colorInput('kpi_ca_text', 'CA Texte')} 
+             ${colorInput('kpi_rem_bg', 'Rappel Fond')} ${colorInput('kpi_rem_text', 'Rappel Texte')} 
+           </div> 
+           <div class="color-section-title">Textes de l'appli</div> 
+           <div class="row" style="gap:10px"> 
+             <input id="set_title_app" class="input" value="${GLOBAL_CONFIG.appTitle}" placeholder="Titre Onglet" style="background:${inputBg};color:${text};border:1px solid ${border}"> 
+             <input id="set_title_login" class="input" value="${GLOBAL_CONFIG.loginTitle}" placeholder="Titre Login" style="background:${inputBg};color:${text};border:1px solid ${border}"> 
+           </div> 
+        </div> 
+        <div id="tab_team" class="set-content" style="display:none"> 
+          <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid ${border};margin-bottom:15px;background:${isDark?'#451a03':'#fffbeb'};cursor:pointer;color:${text}"> 
+              <div><div style="font-weight:700;color:${isDark?'#fbbf24':'#92400e'}">🚧 Mode Maintenance</div><div class="small">Bloque l'écriture pour l'équipe.</div></div> 
+              <input type="checkbox" id="set_maint" style="transform:scale(1.3)" ${GLOBAL_CONFIG.maintenanceMode ? 'checked' : ''}> 
+          </label> 
+          <div class="label" style="color:${text}">Membres</div> 
+          <div id="team_users_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px"></div> 
+          <div class="row" style="gap:8px"> 
+              <input id="new_tm_name" class="input" placeholder="Nom" style="flex:1;background:${inputBg};color:${text};border:1px solid ${border}"> 
+              <input id="new_tm_pass" class="input" placeholder="Mot de passe" style="flex:1;background:${inputBg};color:${text};border:1px solid ${border}"> 
+              <button id="add_tm_btn" class="btn btn-neutral btn-xs">Ajouter</button> 
+          </div> 
+        </div> 
+        <div id="tab_secu" class="set-content" style="display:none"> 
+           <div class="label" style="color:${text}">Code PIN Admin</div> 
+           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px;background:${inputBg};color:${text};border:1px solid ${border}"> 
+           <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid ${border};margin-bottom:20px;cursor:pointer;color:${text};background:${bg}"> 
+              <div><div style="font-weight:700">Connexion FaceID / TouchID</div></div> 
+              <input type="checkbox" id="set_faceid" style="transform:scale(1.3)" ${GLOBAL_CONFIG.enableFaceID ? 'checked' : ''}> 
+           </label> 
+           <div class="label" style="color:${text}">Liste des Admins</div> 
+           <div id="admin_list" class="chips-container" style="margin-bottom:10px"></div> 
+           <div class="row" style="gap:8px"><input id="new_admin" class="input" placeholder="Nouvel admin..." style="background:${inputBg};color:${text};border:1px solid ${border}"><button id="add_admin" class="btn btn-neutral btn-xs">Ajouter</button></div> 
+        </div> 
+        <div id="tab_biz" class="set-content" style="display:none"> 
+           <div class="label" style="color:${text}">Sources RDV</div> 
+           <textarea id="set_sources" class="input" rows="3" style="background:${inputBg};color:${text};border:1px solid ${border}">${GLOBAL_CONFIG.sources.join(', ')}</textarea> 
+        </div> 
+      </div> 
+      <div style="padding:16px;border-top:1px solid ${border};text-align:right;background:${bgHead};position:sticky;bottom:0"> 
+        <button id="btn_save_all" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px;font-weight:bold;">💾 ENREGISTRER TOUT</button> 
+      </div> 
+    `; 
+
+    function colorInput(key, label){ return `<div style="flex:1;min-width:140px"><div class="label" style="font-size:11px;margin-bottom:4px;color:${isDark?'#aaa':'#555'}">${label}</div><div style="display:flex;align-items:center;gap:8px;border:1px solid ${border};padding:4px;border-radius:8px;background:${inputBg}"><input type="color" id="th_${key}" value="${GLOBAL_CONFIG.theme[key]}" style="border:none;width:25px;height:25px;cursor:pointer;background:none"></div></div>`; } 
+
+    const style = document.createElement('style'); 
+    style.innerHTML = `.set-tab{flex:1;padding:12px;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;color:${isDark?'#94a3b8':'#64748b'}}.set-tab.active{border-color:#3b82f6;color:#3b82f6;background:${isDark?'#1e3a8a':'#eff6ff'}}.chips-container{display:flex;flex-wrap:wrap;gap:8px}.color-section-title{font-weight:800;margin:15px 0 8px 0;border-bottom:1px solid ${border};color:${text}}`; 
+    dlg.appendChild(style); document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))(); 
+
+    const tabs = dlg.querySelectorAll('.set-tab'); const contents = dlg.querySelectorAll('.set-content'); 
+    tabs.forEach(t => t.onclick = () => { tabs.forEach(x=>x.classList.remove('active')); contents.forEach(x=>x.style.display='none'); t.classList.add('active'); dlg.querySelector('#'+t.dataset.target).style.display='block'; }); 
+
+    let tUsers = JSON.parse(JSON.stringify(GLOBAL_CONFIG.teamUsers || [])); 
+    function renderTeam(){ 
+       const c = dlg.querySelector('#team_users_list'); c.innerHTML=''; 
+       tUsers.forEach((u,i)=>{ 
+          const blocked = u.blocked === true; 
+          const statusStyle = blocked ? 'opacity:0.6;text-decoration:line-through;background:#7f1d1d' : `background:${isDark?'#0f172a':'#f1f5f9'}`; 
+          c.innerHTML += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;margin-bottom:4px;${statusStyle};color:${text}"><div><b>${u.name}</b> <span class="small">(${u.pass})</span>${blocked?' <span style="color:red">BLOQUÉ</span>':''}</div><div style="display:flex;gap:5px"><button class="btn btn-xs btn-neutral icon-only" onclick="window._editTm(${i})">✏️</button><button class="btn btn-xs ${blocked?'btn-primary':'btn-neutral'}" onclick="window._blockTm(${i})">${blocked?'✅':'🚫'}</button><button class="btn btn-warn btn-xs icon-only" onclick="window._delTm(${i})">🗑️</button></div></div>`; 
+       }); 
+    } 
+    window._delTm = (i)=>{ tUsers.splice(i,1); renderTeam(); }; 
+    window._blockTm = (i)=>{ tUsers[i].blocked = !tUsers[i].blocked; renderTeam(); }; 
+    window._editTm = async (i) => { 
+        const u = tUsers[i]; const oldName = u.name; 
+        const newN = prompt("Nom :", u.name); if(newN===null)return; 
+        const newP = prompt("Pass :", u.pass); if(newP===null)return; 
+        if(newN && newP){ 
+            if(newN !== oldName && confirm(`Transférer les RDV de ${oldName} vers ${newN} ?`)){ try { const snap = await db.collection('rdv').where('createdByName', '==', oldName).get(); const updates = []; snap.forEach(doc => updates.push(db.collection('rdv').doc(doc.id).update({ createdByName: newN }))); await Promise.all(updates); notify("Transféré !", "ok"); } catch(e) { alert("Erreur transfert."); } } 
+            tUsers[i].name = newN; tUsers[i].pass = newP; renderTeam(); 
+        } 
+    }; 
+    renderTeam(); 
+    dlg.querySelector('#add_tm_btn').onclick=()=>{ const n=dlg.querySelector('#new_tm_name').value.trim(), p=dlg.querySelector('#new_tm_pass').value.trim(); if(n&&p){ tUsers.push({name:n,pass:p,blocked:false}); renderTeam(); dlg.querySelector('#new_tm_name').value=''; dlg.querySelector('#new_tm_pass').value=''; }}; 
+
+    let tAdmins = [...GLOBAL_CONFIG.admins]; 
+    function renderAdmins(){ const c = dlg.querySelector('#admin_list'); c.innerHTML=''; tAdmins.forEach((a,i)=>{ c.innerHTML += `<span class="bubble gray">${a} <i class="fa-solid fa-xmark" style="cursor:pointer;margin-left:5px" onclick="window._delAdm(${i})"></i></span>`; }); } 
+    window._delAdm = (i)=>{ tAdmins.splice(i,1); renderAdmins(); }; renderAdmins(); 
+    dlg.querySelector('#add_admin').onclick=()=>{ const v=dlg.querySelector('#new_admin').value.trim(); if(v){ tAdmins.push(v); renderAdmins(); dlg.querySelector('#new_admin').value=''; }}; 
+
+    dlg.querySelector('#btn_save_all').onclick = async () => { 
+       const btn=dlg.querySelector('#btn_save_all'); btn.textContent="Sauvegarde..."; btn.disabled=true; 
+       try { 
+         const theme = {}; for (const key in GLOBAL_CONFIG.theme) { const input = dlg.querySelector('#th_' + key); if(input) theme[key] = input.value; else theme[key] = GLOBAL_CONFIG.theme[key]; } 
+         const srcRaw = dlg.querySelector('#set_sources').value; 
+         await dbRef.set({ adminPin: dlg.querySelector('#set_adminPin').value, enableFaceID: dlg.querySelector('#set_faceid').checked, maintenanceMode: dlg.querySelector('#set_maint').checked, appTitle: dlg.querySelector('#set_title_app').value, loginTitle: dlg.querySelector('#set_title_login').value, teamUsers: tUsers, admins: tAdmins, sources: srcRaw.split(',').map(s=>s.trim()).filter(s=>s), theme: theme }, {merge:true}); 
+         notify("Sauvegardé !", "ok"); dlg.close(); dlg.remove(); 
+       } catch(e){ alert("Erreur: "+e); btn.disabled=false; } 
+    }; 
+    dlg.querySelector('#set_close').onclick = () => { dlg.close(); dlg.remove(); }; 
+  }; 
+
+  // INJECTION UI 
+  const originalEnter = window.enter; 
+  window.enter = async function(){ 
+    await originalEnter(); applyAllVisuals(); updatePendingConfirms();  
+    if(ROLE && ROLE.role === 'admin'){ 
+      const toolbar = document.querySelector('.toolbar'); 
+      if(toolbar && !document.getElementById('btnGlobalSettings')){ 
+        const btn = document.createElement('button'); btn.id = 'btnGlobalSettings'; btn.className = 'btn btn-neutral btn-xs'; btn.innerHTML = '⚙️ Réglages'; btn.onclick = window.openGlobalSettings; 
+        toolbar.insertBefore(btn, toolbar.firstChild); const old = document.getElementById('btnTeamUsers'); if(old) old.remove(); 
+      } 
+    } 
+    if(ROLE && ROLE.name) showWelcomeMessage(ROLE.name); 
+  }; 
+
+  // LOGIN BUTTONS & DIALOGS 
+  const btnTeam = document.getElementById('btnLoginTeam'); 
+  if(btnTeam){ 
+      const newBtnTeam = btnTeam.cloneNode(true); btnTeam.parentNode.replaceChild(newBtnTeam, btnTeam); 
+      newBtnTeam.onclick = () => { 
+          const n = document.getElementById('eqName').value.trim(); const p = document.getElementById('eqPass').value.trim(); 
+          if(!n || !p) return alert("Remplissez tous les champs."); 
+          const users = GLOBAL_CONFIG.teamUsers || []; 
+          const found = users.find(u => u.name.toLowerCase() === n.toLowerCase()); 
+          let authOK = false; 
+          if(found) { if(found.blocked) return alert("Accès suspendu."); if(found.pass === p) authOK = true; } else { if(GLOBAL_CONFIG.teamPass && p === GLOBAL_CONFIG.teamPass) authOK = true; } 
+          if(!authOK) return alert("Erreur identifiants."); 
+          ROLE = {role:'team', name: (found ? found.name : n)}; enter(); 
+      }; 
+  } 
+  const btnPin = document.getElementById('btnLoginAdminPin'); 
+  if(btnPin){ 
+    const n = btnPin.cloneNode(true); btnPin.parentNode.replaceChild(n, btnPin); 
+    n.onclick = () => { const pin = prompt("Code administrateur :"); if (pin === GLOBAL_CONFIG.adminPin) openIdentity(); else if (pin) alert("Code incorrect."); }; 
+  } 
+  const btnPK = document.getElementById('btnLoginAdminPasskey'); 
+  if(btnPK){ 
+    const n = btnPK.cloneNode(true); btnPK.parentNode.replaceChild(n, btnPK); 
+    n.onclick = async () => { if(!GLOBAL_CONFIG.enableFaceID) return; try{ await tryPasskey(true); openIdentity(); } catch(e){ alert('Erreur biométrie.'); } }; 
+  } 
+    
+  function openIdentity(){ 
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches; 
+    const dlg = document.createElement('dialog'); 
+    dlg.style.padding='0'; dlg.style.border=`1px solid ${isDark?'#334155':'#eee'}`; dlg.style.borderRadius='12px'; dlg.style.maxWidth='360px'; 
+    if(isDark) dlg.style.background = "#1e293b"; 
+    dlg.innerHTML = `<div style="padding:15px;border-bottom:1px solid ${isDark?'#334155':'#eee'};font-weight:bold;font-size:16px;text-align:center;color:${isDark?'#fff':'#333'}">Qui se connecte ?</div><div id="lst" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>`; 
+    (GLOBAL_CONFIG.admins||[]).forEach(a=>{ 
+       const b=document.createElement('button'); b.className='btn btn-neutral'; b.style.cssText="width:100%; padding:14px; font-size:18px; font-weight:700; display:block;"; b.textContent=a; 
+       b.onclick=()=>{ ROLE={role:'admin',name:a}; enter(); dlg.close(); dlg.remove(); }; 
+       dlg.querySelector('#lst').appendChild(b); 
+    }); 
+    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))(); 
+  } 
+  const st = document.createElement('style'); st.innerHTML = `body.maintenance-active .wiz { pointer-events:none; opacity:0.5; filter:grayscale(1); }`; document.head.appendChild(st); 
+
+})(); 
+(function(){ 
+
+  // 1. DESIGN LOGIN "APPLE" 
+  const style = document.createElement('style'); 
+  style.innerHTML = ` 
+    #login { 
+      position: fixed; inset: 0; width: 100% !important; height: 100% !important; 
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important; 
+      display: flex; align-items: center; justify-content: center; 
+      padding: 20px; margin: 0 !important; border-radius: 0 !important; border: none !important; 
+      box-shadow: none !important; z-index: 999; 
+    } 
+    .modern-login-wrap { 
+      background: rgba(255, 255, 255, 0.9); 
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); 
+      width: 100%; max-width: 420px; padding: 40px 30px; border-radius: 30px; 
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset; 
+      text-align: center; position: relative; overflow: hidden; transition: all 0.3s ease; 
+    } 
+    .login-title { font-size: 24px; font-weight: 900; margin-bottom: 30px; color: #0f172a; letter-spacing: -0.5px; } 
+    .login-subtitle { font-size: 14px; color: #64748b; margin-top: -25px; margin-bottom: 30px; font-weight: 500; } 
+    .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; } 
+    .role-card { 
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; 
+      padding: 25px 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); 
+      display: flex; flex-direction: column; align-items: center; gap: 10px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.02); 
+    } 
+    .role-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); border-color: #3b82f6; } 
+    .role-card:active { transform: scale(0.96); } 
+    .role-icon { font-size: 32px; margin-bottom: 5px; } 
+    .role-name { font-weight: 700; font-size: 15px; color: #334155; } 
+    .login-view { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); } 
+    .login-view.active { display: block; } 
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } 
+    .modern-input { 
+      width: 100%; padding: 16px; background: #f1f5f9; border: 2px solid transparent; 
+      border-radius: 16px; font-size: 16px; color: #0f172a; margin-bottom: 12px; 
+      transition: 0.2s; font-weight: 500; 
+    } 
+    .modern-input:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); outline: none; } 
+    .btn-back { background: transparent; border: none; color: #94a3b8; font-weight: 600; font-size: 14px; cursor: pointer; padding: 10px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 5px; } 
+    .btn-back:hover { color: #334155; } 
+    #btnLoginAdminPasskey, #btnLoginAdminPin, #btnLoginTeam { width: 100%; padding: 16px; border-radius: 16px; font-weight: 700; font-size: 16px; cursor: pointer; margin-bottom: 10px; border: none; transition: 0.2s; } 
+    #btnLoginAdminPasskey { background: #0f172a; color: #fff; box-shadow: 0 10px 20px rgba(15,23,42,0.2); } 
+    #btnLoginAdminPasskey:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(15,23,42,0.3); } 
+    #btnLoginAdminPin { background: #fff; color: #0f172a; border: 2px solid #e2e8f0; } 
+    #btnLoginAdminPin:hover { border-color: #cbd5e1; background: #f8fafc; } 
+    #btnLoginTeam { background: #3b82f6; color: #fff; box-shadow: 0 10px 20px rgba(59,130,246,0.3); margin-top: 5px; } 
+    #btnLoginTeam:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(59,130,246,0.4); } 
+    #login h2, #login .row, #login .small, #login .label { display: none !important; } 
+  `; 
+  document.head.appendChild(style); 
+
+  function initModernLogin(){ 
+    const loginContainer = document.getElementById('login'); 
+    if(!loginContainer) return; 
+    const wrap = document.createElement('div'); 
+    wrap.className = 'modern-login-wrap'; 
+    wrap.innerHTML = ` 
+      <div class="login-title">C&N Solutions</div> 
+      <div class="login-subtitle">Portail d'accès sécurisé</div> 
+      <div id="view-choice" class="login-view active"> 
+        <div class="role-grid"> 
+           <div class="role-card" onclick="window.switchLogin('admin')"><div class="role-icon">👑</div><div class="role-name">Admin</div></div> 
+           <div class="role-card" onclick="window.switchLogin('team')"><div class="role-icon">💼</div><div class="role-name">Équipe</div></div> 
+        </div> 
+      </div> 
+      <div id="view-admin" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Authentification Admin</div><div id="admin-btns-area"></div></div> 
+      <div id="view-team" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Connexion Membre</div><div id="team-inputs-area"></div></div> 
+    `; 
+    loginContainer.appendChild(wrap); 
+
+    const btnBio = document.getElementById('btnLoginAdminPasskey'); 
+    const btnPin = document.getElementById('btnLoginAdminPin'); 
+    const adminArea = wrap.querySelector('#admin-btns-area'); 
+    if(btnBio) { btnBio.innerHTML = `<i class="fa-solid fa-fingerprint"></i> FaceID / TouchID`; adminArea.appendChild(btnBio); } 
+    
+    // --- CORRECTION LOGIN : FORCER LE PIN ---
+    if(btnPin) { 
+        btnPin.innerHTML = `Code PIN`; 
+        btnPin.style.display = 'block'; // On force l'affichage ici aussi
+        adminArea.appendChild(btnPin); 
+    } 
+
+    const inName = document.getElementById('eqName'); 
+    const inPass = document.getElementById('eqPass'); 
+    const btnEnter = document.getElementById('btnLoginTeam'); 
+    const teamArea = wrap.querySelector('#team-inputs-area'); 
+    if(inName) { inName.className = 'modern-input'; inName.placeholder = "Identifiant"; teamArea.appendChild(inName); } 
+    if(inPass) { inPass.className = 'modern-input'; inPass.placeholder = "Mot de passe"; teamArea.appendChild(inPass); } 
+    if(btnEnter) { btnEnter.textContent = "Se connecter"; teamArea.appendChild(btnEnter); } 
+
+    const btnEnroll = document.getElementById('btnEnroll'); 
+    if(btnEnroll) { 
+       const secureEnroll = btnEnroll.cloneNode(true); btnEnroll.parentNode.replaceChild(secureEnroll, btnEnroll); 
+       secureEnroll.className = 'btn btn-ghost btn-xs'; secureEnroll.style.marginTop = '15px'; secureEnroll.innerHTML = '📲 Enregistrer ce téléphone'; 
+       secureEnroll.onclick = async () => { 
+           const code = prompt("⛔ SÉCURITÉ ADMIN\nCode PIN :"); if(!code) return; 
+           try { 
+               const doc = await db.collection('config').doc('globalSettings').get(); 
+               if(code === (doc.data()||{}).adminPin || "130724"){ if(typeof tryPasskey === 'function') tryPasskey(false); } else { alert("Code incorrect."); } 
+           } catch(e){ alert("Erreur : " + e.message); } 
+       }; 
+       adminArea.appendChild(secureEnroll); 
+    } 
+    // Refresh visual state once DOM is built 
+    if(typeof window.applyAllVisuals === 'function') window.applyAllVisuals(); 
+  } 
+  window.switchLogin = function(viewName){ document.querySelectorAll('.login-view').forEach(v => v.classList.remove('active')); document.getElementById('view-'+viewName).classList.add('active'); }; 
+  setTimeout(initModernLogin, 50); 
+
+})(); 
+(function(){ 
+
+  // ============================================================ 
+  // 1. STYLE MODERNE (Onglets & Date) 
+  // ============================================================ 
+  const style = document.createElement('style'); 
+  style.innerHTML = ` 
+    .tabs { 
+      background: #f1f5f9 !important; padding: 5px !important; border-radius: 14px !important; 
+      display: flex !important; gap: 0 !important; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); 
+    } 
+    .tab { 
+      flex: 1 !important; border: none !important; background: transparent !important; color: #64748b !important; 
+      font-weight: 600 !important; font-size: 13px !important; padding: 10px 4px !important; border-radius: 10px !important; transition: all 0.2s ease !important; text-align: center !important; margin: 0 !important; 
+    } 
+    .tab:hover:not(.active) { background: rgba(0,0,0,0.03) !important; color: #475569 !important; } 
+    .tab.active { background: #ffffff !important; color: #0f172a !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02) !important; transform: scale(1) !important; } 
+    .tab .pill { background: #e2e8f0 !important; color: #64748b !important; font-size: 10px !important; padding: 2px 6px !important; border-radius: 99px !important; margin-left: 6px !important; border: none !important; } 
+    .tab.active .pill { background: #0f172a !important; color: #fff !important; } 
+
+    .history-widget { 
+      display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #cbd5e1; 
+      padding: 4px 4px 4px 12px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: all 0.2s; 
+    } 
+    .hw-label { font-weight: 600; font-size: 13px; color: #334155; display:flex; align-items:center; gap:6px; } 
+    .hw-input { border: none; background: #f8fafc; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; color: #0f172a; font-weight: 600; outline: none; cursor: pointer; } 
+    .hw-badge { background: #eff6ff; color: #3b82f6; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; display: none; border: 1px solid #dbeafe; } 
+    .hw-badge.visible { display: inline-block; animation: popIn 0.3s; } 
+  `; 
+  document.head.appendChild(style); 
+
+  let HISTORY_DATE = null; 
+  setTimeout(() => { 
+    const dateGroup = document.querySelector('.date-group'); 
+    if(dateGroup){ 
+       dateGroup.innerHTML = ''; dateGroup.className = ''; 
+       const widget = document.createElement('div'); widget.className = 'history-widget'; 
+       widget.innerHTML = `<div class="hw-label"><i class="fa-regular fa-calendar"></i> Consulter :</div><input type="date" class="hw-input" id="historyDateInput"><div class="hw-badge" id="historyCount">0 RDV</div><button class="btn btn-ghost btn-xs icon-only" id="clearHistory" style="width:28px;height:28px;margin-left:4px;display:none">✕</button>`; 
+       dateGroup.appendChild(widget); 
+
+       const input = widget.querySelector('#historyDateInput'); const badge = widget.querySelector('#historyCount'); const close = widget.querySelector('#clearHistory'); 
+       input.addEventListener('input', (e) => { 
+          const val = e.target.value; if(!val) return; HISTORY_DATE = val; 
+          const count = (ALL_R||[]).filter(r => !r.deleted && r.dateISO === HISTORY_DATE).length; 
+          badge.textContent = `${count} RDV`; badge.classList.add('visible'); close.style.display = 'flex'; forceHistoryView(); 
+       }); 
+       close.addEventListener('click', () => { HISTORY_DATE = null; input.value = ''; badge.classList.remove('visible'); close.style.display = 'none'; document.querySelector('.tab[data-view="today"]').click(); }); 
+    } 
+  }, 500); 
+
+  function forceHistoryView(){ document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); if(typeof renderList === 'function') renderList(); notify(`Historique affiché`, "ok"); } 
+  function formatDateFr(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}`; } 
+
+  window.currFiltered = function(){ 
+     if(HISTORY_DATE){ 
+        let arr = (ALL_R||[]).filter(r => !r.deleted); 
+        if(FILTER_AGENCY && FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY); 
+        return arr.filter(r => r.dateISO === HISTORY_DATE); 
+     } 
+     const q = (document.getElementById('search')?.value || '').trim(); 
+     if (q.length > 0) { 
+        let arr = ALL_R.filter(r => !r.deleted); 
+        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency || '') === FILTER_AGENCY); 
+        return arr.filter(r => rowMatchesQuery(r, q)); 
+     } 
+     let arr = ALL_R.slice(); const tISO = todayISO(); 
+     if (VIEW === 'trash'){ arr = arr.filter(r => r.deleted === true); if (SHOW_ONLY_REQ) arr = arr.filter(r => !!r.deleteRequest); }  
+     else if (VIEW === 'todo'){ 
+        const now=new Date(); const nowM=now.getHours()*60+now.getMinutes(); 
+        arr = arr.filter(r=>{ if (r.deleted || r.status) return false; const d=(r.dateISO||''); const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); const mins=m?(+m[1]*60+ +m[2]):-1; return (d && (d<tISO) || (d===tISO && mins>=0 && mins<= nowM)); }); 
+     } else { 
+        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY); 
+        arr = arr.filter(r => !r.deleted); 
+        if (VIEW === 'today'){ arr = arr.filter(r => r.dateISO === tISO && !r.status); } 
+        else if (VIEW === 'tomorrow'){ const iso=isoOf(addDays(new Date(),1)); arr = arr.filter(r => r.dateISO === iso && !r.status); } 
+        else if (VIEW === 'upcoming'){ const now=new Date(); const nowM=now.getHours()*60+now.getMinutes(); arr = arr.filter(r=>{ if (r.status) return false; if ((r.dateISO||'') > tISO) return true; if ((r.dateISO||'') < tISO) return false; const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false; const minutes=+m[1]*60+ +m[2]; return minutes>=nowM; }); } 
+     } 
+     return arr; 
+  }; 
+})(); 
+(function(){ 
+
+  // ============================================================ 
+  // 1. CSS DU NOUVEAU MENU D'ACTIONS (MODERNE) 
+  // ============================================================ 
+  const style = document.createElement('style'); 
+  style.innerHTML = ` 
+    /* Grille des boutons d'action */ 
+    .act-grid {  
+      display: grid;  
+      grid-template-columns: 1fr 1fr;  
+      gap: 12px;  
+      margin-bottom: 15px;  
+    } 
+     
+    /* Style des boutons carrés */ 
+    .act-btn { 
+      display: flex;  
+      flex-direction: column;  
+      align-items: center;  
+      justify-content: center; 
+      padding: 16px;  
+      border-radius: 18px;  
+      background: var(--input-bg) !important; 
+      border: 1px solid var(--border) !important;  
+      color: var(--ink) !important;  
+      font-weight: 600; 
+      transition: all 0.2s ease;  
+      cursor: pointer;  
+      text-decoration: none;  
+      font-size: 13px; 
+      text-align: center; 
+    } 
+     
+    .act-btn i {  
+      font-size: 24px;  
+      margin-bottom: 8px;  
+      color: var(--primary) !important;  
+    } 
+     
+    .act-btn:hover {  
+      background: var(--card) !important;  
+      border-color: var(--primary) !important;  
+      transform: translateY(-2px);  
+    } 
+     
+    /* Boutons Danger (Rouge) */ 
+    .act-btn.danger {  
+      color: #ef4444 !important;  
+      border-color: rgba(239, 68, 68, 0.3) !important;  
+      background: rgba(239, 68, 68, 0.1) !important;  
+    } 
+    .act-btn.danger i { color: #ef4444 !important; } 
+
+    /* Titres de section */ 
+    .act-title {  
+      font-size: 11px;  
+      font-weight: 700;  
+      color: var(--muted) !important;  
+      text-transform: uppercase;  
+      letter-spacing: 1px;  
+      margin: 10px 0 6px 0;  
+    } 
+  `; 
+  document.head.appendChild(style); 
+
+
+  // ============================================================ 
+  // 2. REMPLACEMENT DU MENU "ACTIONS" (⚙️) 
+  // ============================================================ 
+   
+  // On écrase l'ancienne fonction pour afficher la version Pro 
+  window.openActionDialog = function(r){ 
+    const tISO = todayISO(); 
+    const now = new Date(); 
+    const nowM = now.getHours()*60 + now.getMinutes(); 
+     
+    // Calcul si le RDV est futur (pour afficher Rappel ou non) 
+    const m = (r.timeText||'').match(/(\d{2}):(\d{2})/);  
+    const mins = m ? (+m[1]*60 + +m[2]) : -1; 
+    const isFuture = (r.dateISO > tISO) || (r.dateISO === tISO && mins > nowM); 
+     
+    const dlg = document.createElement('dialog'); 
+    dlg.style.maxWidth = '600px';  
+    dlg.style.width = 'min(95vw, 600px)';  
+    dlg.style.padding = '0'; 
+     
+    // HTML DU NOUVEAU MENU 
+    dlg.innerHTML = ` 
+      <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--input-bg)"> 
+        <div> 
+           <div style="font-weight:800;font-size:16px;color:var(--ink)">${escapeHtml(r.civ)} ${escapeHtml(r.name)}</div> 
+           <div class="small" style="color:var(--muted)">${fmtNice(r.dateISO,r.timeText)}</div> 
+        </div> 
+        <button class="btn btn-neutral btn-xs icon-only" style="border-radius:50%" onclick="this.closest('dialog').close()">✕</button> 
+      </div> 
+       
+      <div style="padding:20px;max-height:75vh;overflow-y:auto;background:var(--card)"> 
+        
+        <div class="act-title">Contact</div> 
+        <div class="act-grid"> 
+           <a href="${telHref(r.phone)}" class="act-btn"> 
+              <i class="fa-solid fa-phone"></i> Appeler 
+           </a> 
+           <button class="act-btn" id="act_open"> 
+              <i class="fa-solid fa-eye"></i> Voir Fiche 
+           </button> 
+        </div> 
+
+        <div class="act-title">Gestion</div> 
+        <div class="act-grid"> 
+           <button class="act-btn" id="act_status"> 
+              <i class="fa-solid fa-check-to-slot"></i> Statut 
+           </button> 
+           <button class="act-btn" id="act_edit"> 
+              <i class="fa-solid fa-pen"></i> Modifier 
+           </button> 
+           ${r.status!=='honored' ? `<button class="act-btn" id="act_resched"><i class="fa-solid fa-calendar-days"></i> Reporter</button>` : ''} 
+           ${isFuture ? `<button class="act-btn" id="act_remind"><i class="fa-solid fa-bell"></i> ${r.reminderSent ? 'Relancer' : 'Rappel'}</button>` : ''} 
+        </div> 
+
+        <div class="act-title">Options</div> 
+        <div class="act-grid"> 
+           <button class="act-btn" id="act_note"> 
+              <i class="fa-solid fa-note-sticky"></i> Note 
+           </button> 
+           <button class="act-btn" id="act_resend"> 
+              <i class="fa-solid fa-paper-plane"></i> Renvoyer Conf. 
+           </button> 
+        </div> 
+
+        <div class="act-title" style="color:#ef4444">Zone Danger</div> 
+        <div class="act-grid"> 
+           ${r.status!=='honored' && r.status!=='cancelled' ? `<button class="act-btn danger" id="act_cancel"><i class="fa-solid fa-ban"></i> Annuler RDV</button>` : ''} 
+            
+           ${ROLE && ROLE.role==='admin'  
+              ? `<button class="act-btn danger" id="act_trash"><i class="fa-solid fa-trash"></i> Corbeille</button>`  
+              : `<button class="act-btn danger" id="act_req_del"><i class="fa-solid fa-trash"></i> Demander Suppr.</button>`} 
+        </div> 
+
+      </div> 
+    `; 
+     
+    document.body.appendChild(dlg);  
+    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))(); 
+
+    // BRANCHEMENT DES ACTIONS 
+    const $ = (s) => dlg.querySelector(s); 
+     
+    $('#act_open').onclick=()=>{ dlg.close(); dlg.remove(); openRDVSheet(r); }; 
+    $('#act_resend').onclick=()=>{ resendConfirmation(r); }; 
+    $('#act_remind')?.addEventListener('click', ()=>{ sendReminder(r); }); 
+    $('#act_note').onclick=()=>{ openNoteDialog(r.id); }; 
+    $('#act_edit').onclick=()=>{ openEditDialog(r.id); }; 
+    $('#act_resched')?.addEventListener('click', ()=>{ openReschedDialog(r.id); }); 
+    $('#act_cancel')?.addEventListener('click', ()=>{ cancelRDV(r); }); 
+    $('#act_status').onclick=()=>{ openStatusDialog(r.id); }; 
+
+    if(ROLE.role==='admin'){ 
+      $('#act_trash').onclick=async()=>{  
+         if(confirm('Mettre ce RDV à la corbeille ?')){  
+             await db.collection('rdv').doc(r.id).set({deleted:true,deletedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});  
+             dlg.close(); dlg.remove(); loadAll();  
+         }  
+      }; 
+    } else { 
+      $('#act_req_del').onclick=()=>{ openDeleteRequestDialog(r); }; 
+    } 
+  }; 
+
+
+  // ============================================================ 
+  // 3. SÉCURITÉ LOGIN ADMIN (GARANTIE D'AFFICHAGE) 
+  // ============================================================ 
+   
+  // Ce petit bout de code surveille en permanence l'écran de connexion 
+  // Il remet le bouton PIN s'il disparait pour une raison X ou Y
+  setInterval(() => { 
+     const btnPin = document.getElementById('btnLoginAdminPin'); 
+     if(btnPin){ 
+        // Si le bouton PIN est caché, on le force visible
+        if(btnPin.style.display === 'none' || getComputedStyle(btnPin).display === 'none') {
+            btnPin.style.display = 'block'; 
+        }
+     } 
+  }, 500); 
+
+})();
+(function(){
 
   // ============================================================
-  // 2. LOGIQUE WIZARD & CONFIRMATION
+  // 1. BASE DE DONNÉES VÉHICULES (LOCALE & GRATUITE)
   // ============================================================
-  function showWelcomeMessage(name){
-     const ov = document.createElement('div');
-     ov.style.cssText = `position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,0.95);display:flex;align-items:center;justify-content:center;animation:fadeOutWelcome 0.8s ease forwards;animation-delay:1.5s;`;
-     if(window.matchMedia('(prefers-color-scheme: dark)').matches) ov.style.background = "rgba(15,23,42,0.95)";
-     ov.innerHTML = `<div style="font-size:32px;font-weight:800;color:var(--text_main);animation:popIn 0.5s;">Bonjour, ${escapeHtml(name)} 👋</div>`;
-     document.body.appendChild(ov); setTimeout(() => { ov.remove(); }, 2500);
-  }
-  const stAnim = document.createElement('style'); stAnim.innerHTML = `@keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} } @keyframes fadeOutWelcome { to{opacity:0; visibility:hidden;} }`; document.head.appendChild(stAnim);
+  const CAR_DB = [
+    "Peugeot 208", "Peugeot 2008", "Peugeot 308", "Peugeot 3008", "Peugeot 5008", "Peugeot 508", "Peugeot Rifter",
+    "Renault Clio IV", "Renault Clio V", "Renault Captur", "Renault Megane", "Renault Kadjar", "Renault Austral", "Renault Arkana", "Renault Twingo", "Renault Zoe", "Renault Kangoo",
+    "Dacia Sandero", "Dacia Sandero Stepway", "Dacia Duster", "Dacia Jogger", "Dacia Spring",
+    "Citroën C3", "Citroën C3 Aircross", "Citroën C4", "Citroën C5 Aircross", "Citroën Berlingo",
+    "Volkswagen Golf", "Volkswagen Polo", "Volkswagen Tiguan", "Volkswagen T-Roc", "Volkswagen T-Cross", "Volkswagen Passat",
+    "Toyota Yaris", "Toyota Yaris Cross", "Toyota Corolla", "Toyota C-HR", "Toyota RAV4", "Toyota Aygo",
+    "Fiat 500", "Fiat Panda", "Fiat Tipo",
+    "Ford Puma", "Ford Fiesta", "Ford Focus", "Ford Kuga",
+    "Tesla Model 3", "Tesla Model Y",
+    "Mercedes Classe A", "Mercedes Classe C", "Mercedes GLA", "Mercedes GLC",
+    "BMW Série 1", "BMW Série 3", "BMW X1", "BMW X3",
+    "Audi A1", "Audi A3", "Audi Q2", "Audi Q3",
+    "Nissan Qashqai", "Nissan Juke",
+    "Hyundai Tucson", "Hyundai Kona", "Kia Sportage", "Kia Niro",
+    "Opel Corsa", "Opel Mokka", "Opel Astra",
+    "Mini Cooper", "Mini Countryman",
+    "Seat Ibiza", "Seat Leon", "Seat Arona"
+  ];
 
+  // ============================================================
+  // 2. CSS DU WIZARD MODERNE
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* --- WIZARD CONTAINER --- */
+    .wiz {
+      background: var(--card-bg) !important;
+      border: 1px solid var(--border) !important;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15) !important;
+      border-radius: 24px !important;
+      padding: 25px !important;
+      position: relative; overflow: visible;
+    }
+    .wiz h2 { display: none; } /* On cache le vieux titre */
+    .step-title { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 20px; text-align: center; letter-spacing: -0.5px; }
+
+    /* --- AGENCES (Grid) --- */
+    .wiz-ag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+    .wiz-ag-card {
+      background: var(--input-bg); border: 2px solid transparent;
+      border-radius: 16px; padding: 15px 10px; text-align: center;
+      cursor: pointer; transition: all 0.2s ease;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .wiz-ag-card:hover { background: var(--card-bg); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .wiz-ag-card.selected { border-color: var(--primary); background: rgba(59,130,246,0.08); color: var(--primary); }
+    .wiz-ag-icon { font-size: 26px; }
+    .wiz-ag-name { font-weight: 700; font-size: 13px; line-height: 1.2; }
+
+    /* --- CIVILITÉ (Gros Boutons) --- */
+    .wiz-civ-wrap { display: flex; gap: 15px; margin-bottom: 20px; }
+    .wiz-civ-btn {
+      flex: 1; padding: 18px; border-radius: 16px; border: 2px solid var(--border);
+      background: var(--input-bg); font-weight: 700; font-size: 16px; cursor: pointer;
+      color: var(--ink); text-align: center; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .wiz-civ-btn:hover { border-color: var(--muted); }
+    .wiz-civ-btn.active { 
+      background: var(--primary); color: #fff; border-color: var(--primary); 
+      box-shadow: 0 5px 15px rgba(59,130,246,0.3); transform: scale(1.02);
+    }
+
+    /* --- AUTOCOMPLETE VOITURE --- */
+    .car-suggestions {
+      display: none; flex-direction: column; gap: 5px;
+      margin-top: 10px; max-height: 200px; overflow-y: auto;
+    }
+    .car-suggestions.visible { display: flex; }
+    .car-item {
+      padding: 12px 15px; background: var(--input-bg); border-radius: 12px;
+      cursor: pointer; font-weight: 500; font-size: 14px; color: var(--ink);
+      transition: 0.1s; border: 1px solid transparent;
+      display: flex; justify-content: space-between;
+    }
+    .car-item:hover { background: var(--primary); color: #fff; }
+    .car-item span { opacity: 0.5; font-size: 12px; }
+
+    /* --- DATE & HEURE (Design Clean) --- */
+    .wiz-date-wrapper {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      background: var(--input-bg); border-radius: 18px; padding: 5px; border: 1px solid var(--border);
+    }
+    .wiz-giant-input {
+      width: 100%; padding: 15px; font-size: 18px; text-align: center;
+      border: none; background: transparent; color: var(--ink); font-weight: 700;
+    }
+    .wiz-giant-input:focus { outline: none; }
+
+    /* --- CHIPS (Boutons rapides) --- */
+    .wiz-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; }
+    .wiz-chip {
+      padding: 8px 16px; border-radius: 99px; background: var(--card-bg); border: 1px solid var(--border);
+      font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); transition: 0.2s;
+    }
+    .wiz-chip:hover { color: var(--primary); border-color: var(--primary); transform: translateY(-1px); }
+  `;
+  document.head.appendChild(style);
+
+
+  // ============================================================
+  // 3. TRANSFORMATION DU WIZARD
+  // ============================================================
+  
   const wizObserver = new MutationObserver(() => {
-     const step8 = document.querySelector('.step[data-step="8"]');
-     if(step8 && !document.getElementById('btnSendLater')){
-        const nav = step8.querySelector('.nav .row'); 
-        if(nav){
-           const btn = document.createElement('button');
-           btn.id = 'btnSendLater'; btn.className = 'btn btn-neutral btn-xs'; btn.innerHTML = '🕒 Confirmer + tard';
-           btn.style.marginTop = '6px'; btn.style.width = '100%';
-           btn.onclick = (e) => { e.preventDefault(); submitRDV('later'); };
-           nav.parentElement.appendChild(btn); 
+     const wiz = document.querySelector('.wiz');
+     if(wiz && !wiz.dataset.v44){
+        wiz.dataset.v44 = "true";
+        
+        // Titre
+        if(!wiz.querySelector('.step-title')) {
+           const t = document.createElement('div'); t.className='step-title'; t.innerText='Nouvelle Demande';
+           wiz.prepend(t);
+        }
+
+        // --- ETAPE 1 : AGENCES (Grille Pro) ---
+        const step1 = wiz.querySelector('.step[data-step="1"]');
+        const selAg = document.getElementById('w_agency');
+        if(step1 && selAg){
+           selAg.style.display = 'none';
+           const grid = document.createElement('div'); grid.className = 'wiz-ag-grid';
+           
+           Array.from(selAg.options).filter(o=>o.value).forEach(o => {
+               const c = document.createElement('div'); c.className='wiz-ag-card';
+               c.innerHTML = `<div class="wiz-ag-icon">🏢</div><div class="wiz-ag-name">${o.value}</div>`;
+               c.onclick = () => {
+                   selAg.value = o.value;
+                   grid.querySelectorAll('.wiz-ag-card').forEach(x=>x.classList.remove('selected'));
+                   c.classList.add('selected');
+                   // Auto-next fluide
+                   setTimeout(()=> document.getElementById('n1').click(), 100);
+               };
+               grid.appendChild(c);
+           });
+           step1.insertBefore(grid, step1.querySelector('.nav'));
+           const btnN1 = document.getElementById('n1'); if(btnN1) btnN1.style.display='none';
+        }
+
+        // --- ETAPE 2 : CIVILITÉ & NOM (Design Fix) ---
+        const step2 = wiz.querySelector('.step[data-step="2"]');
+        const selCiv = document.getElementById('w_civ');
+        const inpName = document.getElementById('w_name');
+        if(step2 && selCiv){
+           selCiv.parentElement.style.display = 'none';
+           const civWrap = document.createElement('div'); civWrap.className = 'wiz-civ-wrap';
+           
+           // Boutons Civilité
+           ['M.', 'Mme'].forEach(civ => {
+               const b = document.createElement('div'); 
+               b.className = 'wiz-civ-btn'; 
+               b.innerHTML = civ === 'M.' ? '👨 Monsieur' : '👩 Madame';
+               b.onclick = () => {
+                   selCiv.value = civ;
+                   civWrap.querySelectorAll('.wiz-civ-btn').forEach(x=>x.classList.remove('active'));
+                   b.classList.add('active');
+                   if(inpName) inpName.focus();
+               };
+               civWrap.appendChild(b);
+           });
+           step2.insertBefore(civWrap, step2.querySelector('.nav'));
+           
+           if(inpName) {
+              inpName.className = 'wiz-giant-input';
+              inpName.placeholder = "Prénom du client";
+              // On enveloppe l'input pour le style
+              const wrap = document.createElement('div'); wrap.className = 'wiz-date-wrapper';
+              inpName.parentNode.insertBefore(wrap, inpName);
+              wrap.appendChild(inpName);
+           }
+        }
+
+        // --- ETAPE 6 : VÉHICULE (AUTOCOMPLETE INTELLIGENT) ---
+        const step6 = wiz.querySelector('.step[data-step="6"]');
+        const inpModel = document.getElementById('w_model');
+        if(step6 && inpModel){
+            inpModel.className = 'wiz-giant-input';
+            inpModel.placeholder = "Commençez à taper (ex: clio...)";
+            inpModel.setAttribute('autocomplete', 'off'); // Désactive l'autocomplétion native du navigateur
+            
+            const suggBox = document.createElement('div'); 
+            suggBox.className = 'car-suggestions';
+            step6.insertBefore(suggBox, step6.querySelector('.nav'));
+            
+            inpModel.addEventListener('input', (e) => {
+                const val = e.target.value.toLowerCase().trim();
+                suggBox.innerHTML = '';
+                
+                if(val.length < 2) {
+                    suggBox.classList.remove('visible');
+                    return;
+                }
+                
+                // Filtrage de la base de données
+                const matches = CAR_DB.filter(c => c.toLowerCase().includes(val)).slice(0, 5);
+                
+                if(matches.length > 0){
+                    suggBox.classList.add('visible');
+                    matches.forEach(car => {
+                        const item = document.createElement('div');
+                        item.className = 'car-item';
+                        item.innerHTML = `${car} <span>Sélectionner →</span>`;
+                        item.onclick = () => {
+                            inpModel.value = car;
+                            suggBox.classList.remove('visible');
+                            // AUTO-NEXT MAGIQUE
+                            setTimeout(() => document.getElementById('n6').click(), 100);
+                        };
+                        suggBox.appendChild(item);
+                    });
+                } else {
+                    suggBox.classList.remove('visible');
+                }
+            });
+        }
+
+        // --- ETAPE 3 : TÉLÉPHONE ---
+        const inpPhone = document.getElementById('w_phone');
+        if(inpPhone) {
+           inpPhone.className = 'wiz-giant-input';
+           const wrap = document.createElement('div'); wrap.className = 'wiz-date-wrapper';
+           inpPhone.parentNode.insertBefore(wrap, inpPhone); wrap.appendChild(inpPhone);
+        }
+        
+        // --- ETAPE 4 & 5 : DATE/HEURE ---
+        const inpDate = document.getElementById('w_date');
+        if(inpDate) {
+           inpDate.className = 'wiz-giant-input';
+           const wrap = document.createElement('div'); wrap.className = 'wiz-date-wrapper';
+           inpDate.parentNode.insertBefore(wrap, inpDate); wrap.appendChild(inpDate);
+           
+           // Chips
+           const quick = document.getElementById('quickDateRow');
+           if(quick) quick.className = 'wiz-chips';
+        }
+        const inpTime = document.getElementById('w_time');
+        if(inpTime) {
+           inpTime.className = 'wiz-giant-input';
+           const wrap = document.createElement('div'); wrap.className = 'wiz-date-wrapper';
+           inpTime.parentNode.insertBefore(wrap, inpTime); wrap.appendChild(inpTime);
+           
+           const quickT = document.getElementById('quickTimeRow');
+           if(quickT) quickT.className = 'wiz-chips';
+        }
+
+        // --- ETAPE 7 : SOURCE ---
+        const inpSrc = document.getElementById('w_source');
+        if(inpSrc) {
+           inpSrc.className = 'wiz-giant-input';
+           const wrap = document.createElement('div'); wrap.className = 'wiz-date-wrapper';
+           inpSrc.parentNode.insertBefore(wrap, inpSrc); wrap.appendChild(inpSrc);
         }
      }
   });
-  const wizEl = document.querySelector('.wiz'); if(wizEl) wizObserver.observe(wizEl, { attributes: true, subtree: true, attributeFilter:['class'] });
-
-  const _origSubmit = window.submitRDV;
-  window.submitRDV = async function(channel){
-     if(channel === 'later'){
-        const a=$('#w_agency').value, civ=$('#w_civ').value, name=$('#w_name').value.trim(),
-        dateTxt=$('#w_date').value, timeTxt=$('#w_time').value, model=$('#w_model').value.trim(),
-        source=$('#w_source').value.trim();
-        const phone10 = normalizeFR10($('#w_phone').value);
-        if(!a || !civ || !name || !phone10 || !dateTxt || !timeTxt || !model) return alert('Champs incomplets.');
-        const payload={ agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt), model,source, channel: null, confirmationPending: true, createdAt:firebase.firestore.FieldValue.serverTimestamp(), createdByName:ROLE.name, createdByRole:ROLE.role, deleted:false };
-        try { await db.collection('rdv').add(payload); showStep(1); ['w_civ','w_name','w_phone','w_date','w_time','w_model','w_source'].forEach(id=>$('#'+id).value=''); loadAll(); updatePendingConfirms(); } catch(e) { alert("Erreur."); }
-        return;
-     }
-     if(_origSubmit) _origSubmit(channel);
-  };
-
-  function updatePendingConfirms(){
-     const pending = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true);
-     const count = pending.length;
-     let btn = document.getElementById('btnToConfirm');
-     if(!btn){
-        const toolbar = document.querySelector('.toolbar');
-        if(toolbar){ btn = document.createElement('button'); btn.id = 'btnToConfirm'; btn.className = 'btn btn-neutral btn-xs'; toolbar.insertBefore(btn, document.getElementById('btnReminders')); btn.onclick = openConfirmPanel; }
-     }
-     if(btn){
-        btn.innerHTML = `À confirmer <span class="pill">${count}</span>`;
-        btn.style.display = count > 0 ? '' : 'none';
-        if(count > 0) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#d97706'; btn.style.background = '#fffbeb'; }
-     }
-  }
-  setInterval(updatePendingConfirms, 2000);
-
-  window.openConfirmPanel = function(){
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='800px'; dlg.style.width='min(96vw,800px)'; dlg.style.padding='0';
-    if(isDark) dlg.style.background = "#1e293b";
-    
-    dlg.innerHTML = `
-      <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:${isDark?'#451a03':'#fffbeb'}; color:${isDark?'#fbbf24':'#92400e'}">
-        <div style="font-weight:800;">🔔 Rendez-vous à confirmer</div>
-        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-      </div>
-      <div style="padding:16px;max-height:70vh;overflow-y:auto" id="conf_list"></div>
-    `;
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-
-    function render(){
-       const list = dlg.querySelector('#conf_list');
-       const items = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true);
-       list.innerHTML = '';
-       if(items.length===0) { list.innerHTML = '<div class="small">Tout est à jour.</div>'; return; }
-       items.forEach(r => {
-          const row = document.createElement('div'); row.className = 'rdv';
-          const who = r.createdByName || 'Inconnu';
-          row.innerHTML = `
-             <div><div class="title">${fmtNice(r.dateISO,r.timeText)} — ${r.civ} ${r.name}</div><div class="meta">${toFR(r.phone)} • ${r.model}</div><div class="mt8"><span class="bubble orange">Placé par : ${who}</span> <span class="badge">${r.agency}</span></div></div>
-             <div class="rdv-actions" style="flex-direction:column;gap:6px"><button class="btn btn-primary btn-xs" id="send_now_${r.id}">Envoyer SMS</button><button class="btn btn-warn btn-xs" id="cancel_${r.id}">Annuler RDV</button></div>
-          `;
-          row.querySelector(`#send_now_${r.id}`).onclick = async () => { await markConfirmed(r, 'sms'); row.remove(); updatePendingConfirms(); };
-          row.querySelector(`#cancel_${r.id}`).onclick = async () => { if(!confirm('Annuler ?')) return; row.remove(); updatePendingConfirms(); };
-          list.appendChild(row);
-       });
-    }
-    render();
-  };
-
-  async function markConfirmed(r, channel){
-     await db.collection('rdv').doc(r.id).set({ confirmationPending: firebase.firestore.FieldValue.delete(), firstMsgAt: firebase.firestore.FieldValue.serverTimestamp(), firstMsgChannel: channel }, {merge:true});
-     const local = ALL_R.find(x=>x.id===r.id); if(local) { delete local.confirmationPending; local.firstMsgAt=new Date(); }
-  }
+  const wizEl = document.querySelector('.wiz');
+  if(wizEl) wizObserver.observe(wizEl, { attributes: true, subtree: true, attributeFilter:['class'] });
 
 
   // ============================================================
-  // 3. PANNEAU DE RÉGLAGES (MODE SOMBRE OK)
+  // 4. FIX SÉCURITÉ LOGIN (PIN OBLIGATOIRE)
   // ============================================================
-
-  window.openGlobalSettings = function(){
-    if(!ROLE || ROLE.role !== 'admin') return alert("Accès interdit.");
-    
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const bg = isDark ? '#1e293b' : '#fff';
-    const bgHead = isDark ? '#0f172a' : '#f1f5f9';
-    const text = isDark ? '#fff' : '#333';
-    const border = isDark ? '#334155' : '#e2e8f0';
-    const inputBg = isDark ? '#020617' : '#fff';
-
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='800px'; dlg.style.width='min(98vw, 800px)'; dlg.style.padding='0';
-    dlg.style.background = bg; dlg.style.color = text;
-    
-    dlg.innerHTML = `
-      <div style="padding:14px 16px;border-bottom:1px solid ${border};display:flex;justify-content:space-between;align-items:center;background:${bgHead};color:${text}">
-        <div style="font-weight:800;display:flex;align-items:center;gap:8px">🎛️ Centre de Contrôle</div>
-        <button class="btn btn-neutral btn-xs" id="set_close">Fermer</button>
-      </div>
-      <div style="display:flex;border-bottom:1px solid ${border};background:${bg};overflow-x:auto">
-        <button class="set-tab active" data-target="tab_theme">🎨 Apparence</button>
-        <button class="set-tab" data-target="tab_team">👥 Équipe</button>
-        <button class="set-tab" data-target="tab_secu">🔐 Admin</button>
-        <button class="set-tab" data-target="tab_biz">💼 Sources</button>
-      </div>
-      <div style="padding:20px;max-height:70vh;overflow-y:auto;background:${bg};color:${text}">
-        <div id="tab_theme" class="set-content">
-           <div style="background:${isDark?'#172554':'#f0f9ff'};padding:10px;border-radius:8px;margin-bottom:15px;color:${isDark?'#93c5fd':'#0369a1'};font-size:14px">
-             ℹ️ En <b>Mode Sombre</b>, les couleurs ci-dessous sont ignorées au profit du thème "Nuit" automatique.
-           </div>
-           <div class="color-section-title">Général</div>
-           <div class="row" style="gap:15px;margin-bottom:15px">
-             ${colorInput('bg_page', 'Fond de page')} ${colorInput('bg_card', 'Cartes (Blocs)')}
-             ${colorInput('text_main', 'Texte principal')} ${colorInput('btn_primary', 'Boutons (Action)')}
-           </div>
-           <div class="color-section-title">Onglets (Menu)</div>
-           <div class="row" style="gap:15px;margin-bottom:15px">
-             ${colorInput('tab_active_bg', 'Fond Onglet Actif')} ${colorInput('tab_active_text', 'Texte Onglet Actif')}
-           </div>
-           <div class="color-section-title">KPI</div>
-           <div class="row" style="gap:15px;margin-bottom:15px">
-             ${colorInput('kpi_ca_bg', 'CA Fond')} ${colorInput('kpi_ca_text', 'CA Texte')}
-             ${colorInput('kpi_rem_bg', 'Rappel Fond')} ${colorInput('kpi_rem_text', 'Rappel Texte')}
-           </div>
-           <div class="color-section-title">Textes de l'appli</div>
-           <div class="row" style="gap:10px">
-             <input id="set_title_app" class="input" value="${GLOBAL_CONFIG.appTitle}" placeholder="Titre Onglet" style="background:${inputBg};color:${text};border:1px solid ${border}">
-             <input id="set_title_login" class="input" value="${GLOBAL_CONFIG.loginTitle}" placeholder="Titre Login" style="background:${inputBg};color:${text};border:1px solid ${border}">
-           </div>
-        </div>
-
-        <div id="tab_team" class="set-content" style="display:none">
-          <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid ${border};margin-bottom:15px;background:${isDark?'#451a03':'#fffbeb'};cursor:pointer;color:${text}">
-             <div><div style="font-weight:700;color:${isDark?'#fbbf24':'#92400e'}">🚧 Mode Maintenance</div><div class="small">Bloque l'écriture pour l'équipe.</div></div>
-             <input type="checkbox" id="set_maint" style="transform:scale(1.3)" ${GLOBAL_CONFIG.maintenanceMode ? 'checked' : ''}>
-          </label>
-          <div class="label" style="color:${text}">Membres</div>
-          <div id="team_users_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px"></div>
-          <div class="row" style="gap:8px">
-             <input id="new_tm_name" class="input" placeholder="Nom" style="flex:1;background:${inputBg};color:${text};border:1px solid ${border}">
-             <input id="new_tm_pass" class="input" placeholder="Mot de passe" style="flex:1;background:${inputBg};color:${text};border:1px solid ${border}">
-             <button id="add_tm_btn" class="btn btn-neutral btn-xs">Ajouter</button>
-          </div>
-        </div>
-
-        <div id="tab_secu" class="set-content" style="display:none">
-           <div class="label" style="color:${text}">Code PIN Admin</div>
-           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px;background:${inputBg};color:${text};border:1px solid ${border}">
-           <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid ${border};margin-bottom:20px;cursor:pointer;color:${text};background:${bg}">
-             <div><div style="font-weight:700">Connexion FaceID / TouchID</div></div>
-             <input type="checkbox" id="set_faceid" style="transform:scale(1.3)" ${GLOBAL_CONFIG.enableFaceID ? 'checked' : ''}>
-           </label>
-           <div class="label" style="color:${text}">Liste des Admins</div>
-           <div id="admin_list" class="chips-container" style="margin-bottom:10px"></div>
-           <div class="row" style="gap:8px"><input id="new_admin" class="input" placeholder="Nouvel admin..." style="background:${inputBg};color:${text};border:1px solid ${border}"><button id="add_admin" class="btn btn-neutral btn-xs">Ajouter</button></div>
-        </div>
-
-        <div id="tab_biz" class="set-content" style="display:none">
-           <div class="label" style="color:${text}">Sources RDV</div>
-           <textarea id="set_sources" class="input" rows="3" style="background:${inputBg};color:${text};border:1px solid ${border}">${GLOBAL_CONFIG.sources.join(', ')}</textarea>
-        </div>
-      </div>
-      <div style="padding:16px;border-top:1px solid ${border};text-align:right;background:${bgHead};position:sticky;bottom:0">
-        <button id="btn_save_all" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px;font-weight:bold;">💾 ENREGISTRER TOUT</button>
-      </div>
-    `;
-
-    function colorInput(key, label){ return `<div style="flex:1;min-width:140px"><div class="label" style="font-size:11px;margin-bottom:4px;color:${isDark?'#aaa':'#555'}">${label}</div><div style="display:flex;align-items:center;gap:8px;border:1px solid ${border};padding:4px;border-radius:8px;background:${inputBg}"><input type="color" id="th_${key}" value="${GLOBAL_CONFIG.theme[key]}" style="border:none;width:25px;height:25px;cursor:pointer;background:none"></div></div>`; }
-
-    const style = document.createElement('style');
-    style.innerHTML = `.set-tab{flex:1;padding:12px;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;color:${isDark?'#94a3b8':'#64748b'}}.set-tab.active{border-color:#3b82f6;color:#3b82f6;background:${isDark?'#1e3a8a':'#eff6ff'}}.chips-container{display:flex;flex-wrap:wrap;gap:8px}.color-section-title{font-weight:800;margin:15px 0 8px 0;border-bottom:1px solid ${border};color:${text}}`;
-    dlg.appendChild(style); document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))();
-
-    const tabs = dlg.querySelectorAll('.set-tab'); const contents = dlg.querySelectorAll('.set-content');
-    tabs.forEach(t => t.onclick = () => { tabs.forEach(x=>x.classList.remove('active')); contents.forEach(x=>x.style.display='none'); t.classList.add('active'); dlg.querySelector('#'+t.dataset.target).style.display='block'; });
-
-    let tUsers = JSON.parse(JSON.stringify(GLOBAL_CONFIG.teamUsers || []));
-    function renderTeam(){
-       const c = dlg.querySelector('#team_users_list'); c.innerHTML='';
-       tUsers.forEach((u,i)=>{
-          const blocked = u.blocked === true;
-          const statusStyle = blocked ? 'opacity:0.6;text-decoration:line-through;background:#7f1d1d' : `background:${isDark?'#0f172a':'#f1f5f9'}`;
-          c.innerHTML += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;margin-bottom:4px;${statusStyle};color:${text}"><div><b>${u.name}</b> <span class="small">(${u.pass})</span>${blocked?' <span style="color:red">BLOQUÉ</span>':''}</div><div style="display:flex;gap:5px"><button class="btn btn-xs btn-neutral icon-only" onclick="window._editTm(${i})">✏️</button><button class="btn btn-xs ${blocked?'btn-primary':'btn-neutral'}" onclick="window._blockTm(${i})">${blocked?'✅':'🚫'}</button><button class="btn btn-warn btn-xs icon-only" onclick="window._delTm(${i})">🗑️</button></div></div>`;
-       });
-    }
-    window._delTm = (i)=>{ tUsers.splice(i,1); renderTeam(); };
-    window._blockTm = (i)=>{ tUsers[i].blocked = !tUsers[i].blocked; renderTeam(); };
-    window._editTm = async (i) => {
-        const u = tUsers[i]; const oldName = u.name;
-        const newN = prompt("Nom :", u.name); if(newN===null)return;
-        const newP = prompt("Pass :", u.pass); if(newP===null)return;
-        if(newN && newP){
-            if(newN !== oldName && confirm(`Transférer les RDV de ${oldName} vers ${newN} ?`)){ try { const snap = await db.collection('rdv').where('createdByName', '==', oldName).get(); const updates = []; snap.forEach(doc => updates.push(db.collection('rdv').doc(doc.id).update({ createdByName: newN }))); await Promise.all(updates); notify("Transféré !", "ok"); } catch(e) { alert("Erreur transfert."); } }
-            tUsers[i].name = newN; tUsers[i].pass = newP; renderTeam();
-        }
-    };
-    renderTeam();
-    dlg.querySelector('#add_tm_btn').onclick=()=>{ const n=dlg.querySelector('#new_tm_name').value.trim(), p=dlg.querySelector('#new_tm_pass').value.trim(); if(n&&p){ tUsers.push({name:n,pass:p,blocked:false}); renderTeam(); dlg.querySelector('#new_tm_name').value=''; dlg.querySelector('#new_tm_pass').value=''; }};
-
-    let tAdmins = [...GLOBAL_CONFIG.admins];
-    function renderAdmins(){ const c = dlg.querySelector('#admin_list'); c.innerHTML=''; tAdmins.forEach((a,i)=>{ c.innerHTML += `<span class="bubble gray">${a} <i class="fa-solid fa-xmark" style="cursor:pointer;margin-left:5px" onclick="window._delAdm(${i})"></i></span>`; }); }
-    window._delAdm = (i)=>{ tAdmins.splice(i,1); renderAdmins(); }; renderAdmins();
-    dlg.querySelector('#add_admin').onclick=()=>{ const v=dlg.querySelector('#new_admin').value.trim(); if(v){ tAdmins.push(v); renderAdmins(); dlg.querySelector('#new_admin').value=''; }};
-
-    dlg.querySelector('#btn_save_all').onclick = async () => {
-       const btn=dlg.querySelector('#btn_save_all'); btn.textContent="Sauvegarde..."; btn.disabled=true;
-       try {
-         const theme = {}; for (const key in GLOBAL_CONFIG.theme) { const input = dlg.querySelector('#th_' + key); if(input) theme[key] = input.value; else theme[key] = GLOBAL_CONFIG.theme[key]; }
-         const srcRaw = dlg.querySelector('#set_sources').value;
-         await dbRef.set({ adminPin: dlg.querySelector('#set_adminPin').value, enableFaceID: dlg.querySelector('#set_faceid').checked, maintenanceMode: dlg.querySelector('#set_maint').checked, appTitle: dlg.querySelector('#set_title_app').value, loginTitle: dlg.querySelector('#set_title_login').value, teamUsers: tUsers, admins: tAdmins, sources: srcRaw.split(',').map(s=>s.trim()).filter(s=>s), theme: theme }, {merge:true});
-         notify("Sauvegardé !", "ok"); dlg.close(); dlg.remove();
-       } catch(e){ alert("Erreur: "+e); btn.disabled=false; }
-    };
-    dlg.querySelector('#set_close').onclick = () => { dlg.close(); dlg.remove(); };
-  };
-
-  // INJECTION UI
-  const originalEnter = window.enter;
-  window.enter = async function(){
-    await originalEnter(); applyAllVisuals(); updatePendingConfirms(); 
-    if(ROLE && ROLE.role === 'admin'){
-      const toolbar = document.querySelector('.toolbar');
-      if(toolbar && !document.getElementById('btnGlobalSettings')){
-        const btn = document.createElement('button'); btn.id = 'btnGlobalSettings'; btn.className = 'btn btn-neutral btn-xs'; btn.innerHTML = '⚙️ Réglages'; btn.onclick = window.openGlobalSettings;
-        toolbar.insertBefore(btn, toolbar.firstChild); const old = document.getElementById('btnTeamUsers'); if(old) old.remove();
-      }
-    }
-    if(ROLE && ROLE.name) showWelcomeMessage(ROLE.name);
-  };
-
-  // LOGIN BUTTONS & DIALOGS
-  const btnTeam = document.getElementById('btnLoginTeam');
-  if(btnTeam){
-      const newBtnTeam = btnTeam.cloneNode(true); btnTeam.parentNode.replaceChild(newBtnTeam, btnTeam);
-      newBtnTeam.onclick = () => {
-          const n = document.getElementById('eqName').value.trim(); const p = document.getElementById('eqPass').value.trim();
-          if(!n || !p) return alert("Remplissez tous les champs.");
-          const users = GLOBAL_CONFIG.teamUsers || [];
-          const found = users.find(u => u.name.toLowerCase() === n.toLowerCase());
-          let authOK = false;
-          if(found) { if(found.blocked) return alert("Accès suspendu."); if(found.pass === p) authOK = true; } else { if(GLOBAL_CONFIG.teamPass && p === GLOBAL_CONFIG.teamPass) authOK = true; }
-          if(!authOK) return alert("Erreur identifiants.");
-          ROLE = {role:'team', name: (found ? found.name : n)}; enter();
-      };
-  }
-  const btnPin = document.getElementById('btnLoginAdminPin');
-  if(btnPin){
-    const n = btnPin.cloneNode(true); btnPin.parentNode.replaceChild(n, btnPin);
-    n.onclick = () => { const pin = prompt("Code administrateur :"); if (pin === GLOBAL_CONFIG.adminPin) openIdentity(); else if (pin) alert("Code incorrect."); };
-  }
-  const btnPK = document.getElementById('btnLoginAdminPasskey');
-  if(btnPK){
-    const n = btnPK.cloneNode(true); btnPK.parentNode.replaceChild(n, btnPK);
-    n.onclick = async () => { if(!GLOBAL_CONFIG.enableFaceID) return; try{ await tryPasskey(true); openIdentity(); } catch(e){ alert('Erreur biométrie.'); } };
-  }
-   
-  function openIdentity(){
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const dlg = document.createElement('dialog');
-    dlg.style.padding='0'; dlg.style.border=`1px solid ${isDark?'#334155':'#eee'}`; dlg.style.borderRadius='12px'; dlg.style.maxWidth='360px';
-    if(isDark) dlg.style.background = "#1e293b";
-    dlg.innerHTML = `<div style="padding:15px;border-bottom:1px solid ${isDark?'#334155':'#eee'};font-weight:bold;font-size:16px;text-align:center;color:${isDark?'#fff':'#333'}">Qui se connecte ?</div><div id="lst" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>`;
-    (GLOBAL_CONFIG.admins||[]).forEach(a=>{
-       const b=document.createElement('button'); b.className='btn btn-neutral'; b.style.cssText="width:100%; padding:14px; font-size:18px; font-weight:700; display:block;"; b.textContent=a;
-       b.onclick=()=>{ ROLE={role:'admin',name:a}; enter(); dlg.close(); dlg.remove(); };
-       dlg.querySelector('#lst').appendChild(b);
-    });
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))();
-  }
-  const st = document.createElement('style'); st.innerHTML = `body.maintenance-active .wiz { pointer-events:none; opacity:0.5; filter:grayscale(1); }`; document.head.appendChild(st);
-
-})();
-(function(){
-
-  // 1. DESIGN LOGIN "APPLE"
-  const style = document.createElement('style');
-  style.innerHTML = `
-    #login {
-      position: fixed; inset: 0; width: 100% !important; height: 100% !important;
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
-      display: flex; align-items: center; justify-content: center;
-      padding: 20px; margin: 0 !important; border-radius: 0 !important; border: none !important;
-      box-shadow: none !important; z-index: 999;
-    }
-    .modern-login-wrap {
-      background: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      width: 100%; max-width: 420px; padding: 40px 30px; border-radius: 30px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset;
-      text-align: center; position: relative; overflow: hidden; transition: all 0.3s ease;
-    }
-    .login-title { font-size: 24px; font-weight: 900; margin-bottom: 30px; color: #0f172a; letter-spacing: -0.5px; }
-    .login-subtitle { font-size: 14px; color: #64748b; margin-top: -25px; margin-bottom: 30px; font-weight: 500; }
-    .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-    .role-card {
-      background: #fff; border: 1px solid #e2e8f0; border-radius: 20px;
-      padding: 25px 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-    }
-    .role-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); border-color: #3b82f6; }
-    .role-card:active { transform: scale(0.96); }
-    .role-icon { font-size: 32px; margin-bottom: 5px; }
-    .role-name { font-weight: 700; font-size: 15px; color: #334155; }
-    .login-view { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-    .login-view.active { display: block; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .modern-input {
-      width: 100%; padding: 16px; background: #f1f5f9; border: 2px solid transparent;
-      border-radius: 16px; font-size: 16px; color: #0f172a; margin-bottom: 12px;
-      transition: 0.2s; font-weight: 500;
-    }
-    .modern-input:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); outline: none; }
-    .btn-back { background: transparent; border: none; color: #94a3b8; font-weight: 600; font-size: 14px; cursor: pointer; padding: 10px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 5px; }
-    .btn-back:hover { color: #334155; }
-    #btnLoginAdminPasskey, #btnLoginAdminPin, #btnLoginTeam { width: 100%; padding: 16px; border-radius: 16px; font-weight: 700; font-size: 16px; cursor: pointer; margin-bottom: 10px; border: none; transition: 0.2s; }
-    #btnLoginAdminPasskey { background: #0f172a; color: #fff; box-shadow: 0 10px 20px rgba(15,23,42,0.2); }
-    #btnLoginAdminPasskey:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(15,23,42,0.3); }
-    #btnLoginAdminPin { background: #fff; color: #0f172a; border: 2px solid #e2e8f0; }
-    #btnLoginAdminPin:hover { border-color: #cbd5e1; background: #f8fafc; }
-    #btnLoginTeam { background: #3b82f6; color: #fff; box-shadow: 0 10px 20px rgba(59,130,246,0.3); margin-top: 5px; }
-    #btnLoginTeam:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(59,130,246,0.4); }
-    #login h2, #login .row, #login .small, #login .label { display: none !important; }
-  `;
-  document.head.appendChild(style);
-
-  function initModernLogin(){
-    const loginContainer = document.getElementById('login');
-    if(!loginContainer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'modern-login-wrap';
-    wrap.innerHTML = `
-      <div class="login-title">C&N Solutions</div>
-      <div class="login-subtitle">Portail d'accès sécurisé</div>
-      <div id="view-choice" class="login-view active">
-        <div class="role-grid">
-           <div class="role-card" onclick="window.switchLogin('admin')"><div class="role-icon">👑</div><div class="role-name">Admin</div></div>
-           <div class="role-card" onclick="window.switchLogin('team')"><div class="role-icon">💼</div><div class="role-name">Équipe</div></div>
-        </div>
-      </div>
-      <div id="view-admin" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Authentification Admin</div><div id="admin-btns-area"></div></div>
-      <div id="view-team" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Connexion Membre</div><div id="team-inputs-area"></div></div>
-    `;
-    loginContainer.appendChild(wrap);
-
-    const btnBio = document.getElementById('btnLoginAdminPasskey');
-    const btnPin = document.getElementById('btnLoginAdminPin');
-    const adminArea = wrap.querySelector('#admin-btns-area');
-    if(btnBio) { btnBio.innerHTML = `<i class="fa-solid fa-fingerprint"></i> FaceID / TouchID`; adminArea.appendChild(btnBio); }
-    if(btnPin) { btnPin.innerHTML = `Code PIN`; adminArea.appendChild(btnPin); }
-
-    const inName = document.getElementById('eqName');
-    const inPass = document.getElementById('eqPass');
-    const btnEnter = document.getElementById('btnLoginTeam');
-    const teamArea = wrap.querySelector('#team-inputs-area');
-    if(inName) { inName.className = 'modern-input'; inName.placeholder = "Identifiant"; teamArea.appendChild(inName); }
-    if(inPass) { inPass.className = 'modern-input'; inPass.placeholder = "Mot de passe"; teamArea.appendChild(inPass); }
-    if(btnEnter) { btnEnter.textContent = "Se connecter"; teamArea.appendChild(btnEnter); }
-
-    const btnEnroll = document.getElementById('btnEnroll');
-    if(btnEnroll) {
-       const secureEnroll = btnEnroll.cloneNode(true); btnEnroll.parentNode.replaceChild(secureEnroll, btnEnroll);
-       secureEnroll.className = 'btn btn-ghost btn-xs'; secureEnroll.style.marginTop = '15px'; secureEnroll.innerHTML = '📲 Enregistrer ce téléphone';
-       secureEnroll.onclick = async () => {
-           const code = prompt("⛔ SÉCURITÉ ADMIN\nCode PIN :"); if(!code) return;
-           try {
-               const doc = await db.collection('config').doc('globalSettings').get();
-               if(code === (doc.data()||{}).adminPin || "130724"){ if(typeof tryPasskey === 'function') tryPasskey(false); } else { alert("Code incorrect."); }
-           } catch(e){ alert("Erreur : " + e.message); }
-       };
-       adminArea.appendChild(secureEnroll);
-    }
-    // Refresh visual state once DOM is built
-    if(typeof window.applyAllVisuals === 'function') window.applyAllVisuals();
-  }
-  window.switchLogin = function(viewName){ document.querySelectorAll('.login-view').forEach(v => v.classList.remove('active')); document.getElementById('view-'+viewName).classList.add('active'); };
-  setTimeout(initModernLogin, 50);
-
-})();
-(function(){
-
-  // ============================================================
-  // 1. STYLE MODERNE (Onglets & Date)
-  // ============================================================
-  const style = document.createElement('style');
-  style.innerHTML = `
-    .tabs {
-      background: #f1f5f9 !important; padding: 5px !important; border-radius: 14px !important;
-      display: flex !important; gap: 0 !important; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-    }
-    .tab {
-      flex: 1 !important; border: none !important; background: transparent !important; color: #64748b !important;
-      font-weight: 600 !important; font-size: 13px !important; padding: 10px 4px !important; border-radius: 10px !important; transition: all 0.2s ease !important; text-align: center !important; margin: 0 !important;
-    }
-    .tab:hover:not(.active) { background: rgba(0,0,0,0.03) !important; color: #475569 !important; }
-    .tab.active { background: #ffffff !important; color: #0f172a !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02) !important; transform: scale(1) !important; }
-    .tab .pill { background: #e2e8f0 !important; color: #64748b !important; font-size: 10px !important; padding: 2px 6px !important; border-radius: 99px !important; margin-left: 6px !important; border: none !important; }
-    .tab.active .pill { background: #0f172a !important; color: #fff !important; }
-
-    .history-widget {
-      display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #cbd5e1;
-      padding: 4px 4px 4px 12px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: all 0.2s;
-    }
-    .hw-label { font-weight: 600; font-size: 13px; color: #334155; display:flex; align-items:center; gap:6px; }
-    .hw-input { border: none; background: #f8fafc; padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; color: #0f172a; font-weight: 600; outline: none; cursor: pointer; }
-    .hw-badge { background: #eff6ff; color: #3b82f6; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; display: none; border: 1px solid #dbeafe; }
-    .hw-badge.visible { display: inline-block; animation: popIn 0.3s; }
-  `;
-  document.head.appendChild(style);
-
-  let HISTORY_DATE = null;
-  setTimeout(() => {
-    const dateGroup = document.querySelector('.date-group');
-    if(dateGroup){
-       dateGroup.innerHTML = ''; dateGroup.className = '';
-       const widget = document.createElement('div'); widget.className = 'history-widget';
-       widget.innerHTML = `<div class="hw-label"><i class="fa-regular fa-calendar"></i> Consulter :</div><input type="date" class="hw-input" id="historyDateInput"><div class="hw-badge" id="historyCount">0 RDV</div><button class="btn btn-ghost btn-xs icon-only" id="clearHistory" style="width:28px;height:28px;margin-left:4px;display:none">✕</button>`;
-       dateGroup.appendChild(widget);
-
-       const input = widget.querySelector('#historyDateInput'); const badge = widget.querySelector('#historyCount'); const close = widget.querySelector('#clearHistory');
-       input.addEventListener('input', (e) => {
-          const val = e.target.value; if(!val) return; HISTORY_DATE = val;
-          const count = (ALL_R||[]).filter(r => !r.deleted && r.dateISO === HISTORY_DATE).length;
-          badge.textContent = `${count} RDV`; badge.classList.add('visible'); close.style.display = 'flex'; forceHistoryView();
-       });
-       close.addEventListener('click', () => { HISTORY_DATE = null; input.value = ''; badge.classList.remove('visible'); close.style.display = 'none'; document.querySelector('.tab[data-view="today"]').click(); });
-    }
-  }, 500);
-
-  function forceHistoryView(){ document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); if(typeof renderList === 'function') renderList(); notify(`Historique affiché`, "ok"); }
-  function formatDateFr(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}`; }
-
-  window.currFiltered = function(){
-     if(HISTORY_DATE){
-        let arr = (ALL_R||[]).filter(r => !r.deleted);
-        if(FILTER_AGENCY && FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
-        return arr.filter(r => r.dateISO === HISTORY_DATE);
-     }
-     const q = (document.getElementById('search')?.value || '').trim();
-     if (q.length > 0) {
-        let arr = ALL_R.filter(r => !r.deleted);
-        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency || '') === FILTER_AGENCY);
-        return arr.filter(r => rowMatchesQuery(r, q));
-     }
-     let arr = ALL_R.slice(); const tISO = todayISO();
-     if (VIEW === 'trash'){ arr = arr.filter(r => r.deleted === true); if (SHOW_ONLY_REQ) arr = arr.filter(r => !!r.deleteRequest); } 
-     else if (VIEW === 'todo'){
-        const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
-        arr = arr.filter(r=>{ if (r.deleted || r.status) return false; const d=(r.dateISO||''); const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); const mins=m?(+m[1]*60+ +m[2]):-1; return (d && (d<tISO) || (d===tISO && mins>=0 && mins<= nowM)); });
-     } else {
-        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
-        arr = arr.filter(r => !r.deleted);
-        if (VIEW === 'today'){ arr = arr.filter(r => r.dateISO === tISO && !r.status); }
-        else if (VIEW === 'tomorrow'){ const iso=isoOf(addDays(new Date(),1)); arr = arr.filter(r => r.dateISO === iso && !r.status); }
-        else if (VIEW === 'upcoming'){ const now=new Date(); const nowM=now.getHours()*60+now.getMinutes(); arr = arr.filter(r=>{ if (r.status) return false; if ((r.dateISO||'') > tISO) return true; if ((r.dateISO||'') < tISO) return false; const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false; const minutes=+m[1]*60+ +m[2]; return minutes>=nowM; }); }
-     }
-     return arr;
-  };
-})();
-(function(){
-
-  // ============================================================
-  // 1. CSS DU NOUVEAU MENU D'ACTIONS (MODERNE)
-  // ============================================================
-  const style = document.createElement('style');
-  style.innerHTML = `
-    /* Grille des boutons d'action */
-    .act-grid { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr; 
-      gap: 12px; 
-      margin-bottom: 15px; 
-    }
-    
-    /* Style des boutons carrés */
-    .act-btn {
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: center;
-      padding: 16px; 
-      border-radius: 18px; 
-      background: var(--input-bg) !important;
-      border: 1px solid var(--border) !important; 
-      color: var(--ink) !important; 
-      font-weight: 600;
-      transition: all 0.2s ease; 
-      cursor: pointer; 
-      text-decoration: none; 
-      font-size: 13px;
-      text-align: center;
-    }
-    
-    .act-btn i { 
-      font-size: 24px; 
-      margin-bottom: 8px; 
-      color: var(--primary) !important; 
-    }
-    
-    .act-btn:hover { 
-      background: var(--card) !important; 
-      border-color: var(--primary) !important; 
-      transform: translateY(-2px); 
-    }
-    
-    /* Boutons Danger (Rouge) */
-    .act-btn.danger { 
-      color: #ef4444 !important; 
-      border-color: rgba(239, 68, 68, 0.3) !important; 
-      background: rgba(239, 68, 68, 0.1) !important; 
-    }
-    .act-btn.danger i { color: #ef4444 !important; }
-
-    /* Titres de section */
-    .act-title { 
-      font-size: 11px; 
-      font-weight: 700; 
-      color: var(--muted) !important; 
-      text-transform: uppercase; 
-      letter-spacing: 1px; 
-      margin: 10px 0 6px 0; 
-    }
-  `;
-  document.head.appendChild(style);
-
-
-  // ============================================================
-  // 2. REMPLACEMENT DU MENU "ACTIONS" (⚙️)
-  // ============================================================
-  
-  // On écrase l'ancienne fonction pour afficher la version Pro
-  window.openActionDialog = function(r){
-    const tISO = todayISO();
-    const now = new Date();
-    const nowM = now.getHours()*60 + now.getMinutes();
-    
-    // Calcul si le RDV est futur (pour afficher Rappel ou non)
-    const m = (r.timeText||'').match(/(\d{2}):(\d{2})/); 
-    const mins = m ? (+m[1]*60 + +m[2]) : -1;
-    const isFuture = (r.dateISO > tISO) || (r.dateISO === tISO && mins > nowM);
-    
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth = '600px'; 
-    dlg.style.width = 'min(95vw, 600px)'; 
-    dlg.style.padding = '0';
-    
-    // HTML DU NOUVEAU MENU
-    dlg.innerHTML = `
-      <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--input-bg)">
-        <div>
-           <div style="font-weight:800;font-size:16px;color:var(--ink)">${escapeHtml(r.civ)} ${escapeHtml(r.name)}</div>
-           <div class="small" style="color:var(--muted)">${fmtNice(r.dateISO,r.timeText)}</div>
-        </div>
-        <button class="btn btn-neutral btn-xs icon-only" style="border-radius:50%" onclick="this.closest('dialog').close()">✕</button>
-      </div>
-      
-      <div style="padding:20px;max-height:75vh;overflow-y:auto;background:var(--card)">
-        
-        <div class="act-title">Contact</div>
-        <div class="act-grid">
-           <a href="${telHref(r.phone)}" class="act-btn">
-              <i class="fa-solid fa-phone"></i> Appeler
-           </a>
-           <button class="act-btn" id="act_open">
-              <i class="fa-solid fa-eye"></i> Voir Fiche
-           </button>
-        </div>
-
-        <div class="act-title">Gestion</div>
-        <div class="act-grid">
-           <button class="act-btn" id="act_status">
-              <i class="fa-solid fa-check-to-slot"></i> Statut
-           </button>
-           <button class="act-btn" id="act_edit">
-              <i class="fa-solid fa-pen"></i> Modifier
-           </button>
-           ${r.status!=='honored' ? `<button class="act-btn" id="act_resched"><i class="fa-solid fa-calendar-days"></i> Reporter</button>` : ''}
-           ${isFuture ? `<button class="act-btn" id="act_remind"><i class="fa-solid fa-bell"></i> ${r.reminderSent ? 'Relancer' : 'Rappel'}</button>` : ''}
-        </div>
-
-        <div class="act-title">Options</div>
-        <div class="act-grid">
-           <button class="act-btn" id="act_note">
-              <i class="fa-solid fa-note-sticky"></i> Note
-           </button>
-           <button class="act-btn" id="act_resend">
-              <i class="fa-solid fa-paper-plane"></i> Renvoyer Conf.
-           </button>
-        </div>
-
-        <div class="act-title" style="color:#ef4444">Zone Danger</div>
-        <div class="act-grid">
-           ${r.status!=='honored' && r.status!=='cancelled' ? `<button class="act-btn danger" id="act_cancel"><i class="fa-solid fa-ban"></i> Annuler RDV</button>` : ''}
-           
-           ${ROLE && ROLE.role==='admin' 
-              ? `<button class="act-btn danger" id="act_trash"><i class="fa-solid fa-trash"></i> Corbeille</button>` 
-              : `<button class="act-btn danger" id="act_req_del"><i class="fa-solid fa-trash"></i> Demander Suppr.</button>`}
-        </div>
-
-      </div>
-    `;
-    
-    document.body.appendChild(dlg); 
-    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-
-    // BRANCHEMENT DES ACTIONS
-    const $ = (s) => dlg.querySelector(s);
-    
-    $('#act_open').onclick=()=>{ dlg.close(); dlg.remove(); openRDVSheet(r); };
-    $('#act_resend').onclick=()=>{ resendConfirmation(r); };
-    $('#act_remind')?.addEventListener('click', ()=>{ sendReminder(r); });
-    $('#act_note').onclick=()=>{ openNoteDialog(r.id); };
-    $('#act_edit').onclick=()=>{ openEditDialog(r.id); };
-    $('#act_resched')?.addEventListener('click', ()=>{ openReschedDialog(r.id); });
-    $('#act_cancel')?.addEventListener('click', ()=>{ cancelRDV(r); });
-    $('#act_status').onclick=()=>{ openStatusDialog(r.id); };
-
-    if(ROLE.role==='admin'){
-      $('#act_trash').onclick=async()=>{ 
-         if(confirm('Mettre ce RDV à la corbeille ?')){ 
-             await db.collection('rdv').doc(r.id).set({deleted:true,deletedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); 
-             dlg.close(); dlg.remove(); loadAll(); 
-         } 
-      };
-    } else {
-      $('#act_req_del').onclick=()=>{ openDeleteRequestDialog(r); };
-    }
-  };
-
-
-  // ============================================================
-  // 3. SÉCURITÉ LOGIN ADMIN (GARANTIE D'AFFICHAGE)
-  // ============================================================
-  
-  // Ce petit bout de code surveille en permanence l'écran de connexion
   setInterval(() => {
      const btnBio = document.getElementById('btnLoginAdminPasskey');
      const btnPin = document.getElementById('btnLoginAdminPin');
      
-     // Si le bouton FaceID est caché (display:none), on s'assure que le PIN est visible
-     if(btnBio && btnPin){
-        const bioStyle = window.getComputedStyle(btnBio);
-        if(bioStyle.display === 'none'){
-           // Si FaceID est caché, on force le PIN à s'afficher
+     if(btnPin){
+        // Si FaceID est caché (par le réglage Admin), le PIN doit être visible
+        let isBioHidden = !btnBio || (window.getComputedStyle(btnBio).display === 'none');
+        
+        if(isBioHidden){
            btnPin.style.display = 'block';
-           btnPin.style.visibility = 'visible';
            btnPin.style.opacity = '1';
+           btnPin.style.visibility = 'visible';
+           // Petit style pour qu'il soit beau seul
+           btnPin.style.width = '100%';
+           if(!btnPin.innerText.includes('PIN')) btnPin.innerHTML = "🔑 Code PIN";
         }
      }
   }, 500);
 
 })();
-(function(){
 
-  // ============================================================
-  // 1. STYLE CSS PREMIUM POUR LES MODALES
-  // ============================================================
-  const style = document.createElement('style');
-  style.innerHTML = `
-    /* Style générique des nouvelles modales */
-    .p-dlg-head {
-      padding: 20px; border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-      background: var(--input-bg); border-radius: 24px 24px 0 0;
-    }
-    .p-dlg-title { font-size: 18px; font-weight: 800; color: var(--ink); }
-    .p-dlg-body { padding: 24px; background: var(--card); border-radius: 0 0 24px 24px; max-height: 80vh; overflow-y: auto; }
-    
-    /* Grilles de boutons */
-    .p-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .p-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    
-    /* Boutons de choix (Statut) */
-    .p-choice-btn {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 20px; border-radius: 16px; border: 1px solid var(--border);
-      background: var(--input-bg); color: var(--ink); cursor: pointer; transition: 0.2s;
-      font-weight: 600; text-align: center; font-size: 14px;
-    }
-    .p-choice-btn i { font-size: 24px; margin-bottom: 8px; }
-    .p-choice-btn:hover { transform: scale(1.02); border-color: var(--primary); background: var(--card); }
-    
-    /* Couleurs spécifiques */
-    .p-btn-green { color: #10b981; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); }
-    .p-btn-green:hover { background: rgba(16, 185, 129, 0.2); }
-    .p-btn-orange { color: #f59e0b; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); }
-    .p-btn-red { color: #ef4444; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
-
-    /* Fiche RDV */
-    .sheet-header { text-align: center; margin-bottom: 20px; }
-    .sheet-avatar { 
-       width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 10px; 
-       background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; 
-       font-size: 24px; font-weight: 700; 
-    }
-    .sheet-info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-    .sheet-label { color: var(--muted); font-weight: 500; }
-    .sheet-val { color: var(--ink); font-weight: 600; text-align: right; }
-
-    /* Agences */
-    .ag-card-pro {
-       background: var(--input-bg); border-radius: 16px; padding: 16px; margin-bottom: 12px;
-       display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border);
-    }
-    .ag-card-pro:hover { border-color: var(--primary); }
-  `;
-  document.head.appendChild(style);
-
-
-  // ============================================================
-  // 2. STATUS DIALOG (REFAITE)
-  // ============================================================
-  window.openStatusDialog = function(id){
-    const r = getRDVById(id);
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='500px'; dlg.style.width='min(95vw, 500px)'; dlg.style.padding='0';
-    dlg.style.background='transparent'; dlg.style.border='none'; // Reset pour utiliser nos classes
-    
-    dlg.innerHTML = `
-      <div class="p-dlg-head">
-        <div class="p-dlg-title">Définir le statut</div>
-        <button class="btn btn-ghost btn-xs icon-only" style="border-radius:50%" onclick="this.closest('dialog').close()">✕</button>
-      </div>
-      <div class="p-dlg-body">
-        <div class="p-grid-2">
-           <div class="p-choice-btn p-btn-green" id="s_hon_f">
-              <i class="fa-solid fa-sack-dollar"></i> Honoré (Facturé)
-           </div>
-           <div class="p-choice-btn p-btn-green" id="s_hon_nf">
-              <i class="fa-solid fa-hand-holding-dollar"></i> Honoré (Non Fac.)
-           </div>
-           <div class="p-choice-btn p-btn-orange" id="s_noshow">
-              <i class="fa-solid fa-user-slash"></i> Pas venu
-           </div>
-           <div class="p-choice-btn p-btn-red" id="s_cancel">
-              <i class="fa-solid fa-ban"></i> Annulé
-           </div>
-        </div>
-        <button class="btn btn-neutral" style="width:100%; margin-top:12px" id="s_clear">Retirer le statut</button>
-      </div>
-    `;
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-    
-    const $ = (s)=>dlg.querySelector(s);
-    $('#s_hon_f').onclick=()=>{ setHonor(r,'honored','facturé'); dlg.close(); dlg.remove(); };
-    $('#s_hon_nf').onclick=()=>{ setHonor(r,'honored','non_facturable'); dlg.close(); dlg.remove(); };
-    $('#s_noshow').onclick=()=>{ setHonor(r,'no_show',null); dlg.close(); dlg.remove(); };
-    $('#s_cancel').onclick=()=>{ setHonor(r,'cancelled',null); dlg.close(); dlg.remove(); };
-    $('#s_clear').onclick=()=>{ clearHonor(r); dlg.close(); dlg.remove(); };
-  };
-
-
-  // ============================================================
-  // 3. FICHE RDV (MODERNE & COMPLÈTE)
-  // ============================================================
-  window.openRDVSheet = function(r){
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='600px'; dlg.style.width='min(95vw, 600px)'; dlg.style.padding='0';
-    dlg.style.background='transparent'; dlg.style.border='none';
-
-    const initials = r.name ? r.name.substring(0,2).toUpperCase() : 'RD';
-    
-    dlg.innerHTML = `
-      <div class="p-dlg-head" style="background:var(--card)">
-        <div class="p-dlg-title">Fiche Client</div>
-        <button class="btn btn-ghost btn-xs icon-only" style="border-radius:50%" onclick="this.closest('dialog').close()">✕</button>
-      </div>
-      <div class="p-dlg-body">
-        <div class="sheet-header">
-           <div class="sheet-avatar">${initials}</div>
-           <h2 style="margin:0; font-size:22px">${escapeHtml(r.civ)} ${escapeHtml(r.name)}</h2>
-           <div class="small">${toFR(r.phone)}</div>
-        </div>
-
-        <div class="card" style="padding:15px; margin-bottom:20px; background:var(--input-bg); border:none;">
-           <div class="sheet-info-row"><span class="sheet-label">Véhicule</span> <span class="sheet-val">${escapeHtml(r.model)}</span></div>
-           <div class="sheet-info-row"><span class="sheet-label">Date</span> <span class="sheet-val">${fmtNice(r.dateISO, r.timeText)}</span></div>
-           <div class="sheet-info-row"><span class="sheet-label">Agence</span> <span class="sheet-val">${escapeHtml(r.agency)}</span></div>
-           <div class="sheet-info-row"><span class="sheet-label">Source</span> <span class="sheet-val">${escapeHtml(r.source)}</span></div>
-           <div class="sheet-info-row" style="border:none"><span class="sheet-label">Placé par</span> <span class="sheet-val">${escapeHtml(r.createdByName||'Inconnu')}</span></div>
-        </div>
-
-        <div style="display:flex; gap:10px; margin-bottom:20px">
-           <a href="${telHref(r.phone)}" class="btn btn-primary" style="flex:1; text-align:center; text-decoration:none">📞 Appeler</a>
-           <button class="btn btn-neutral" style="flex:1" id="sht_actions">⚙️ Actions</button>
-        </div>
-        
-        ${(r.noteText||'').trim() ? `<div class="card" style="padding:15px;background:#fffbeb;border-color:#fcd34d;color:#92400e;margin-bottom:20px"><b>Note :</b> ${escapeHtml(r.noteText)}</div>` : ''}
-
-        <div class="label">Historique Actions</div>
-        <div id="history_body" class="small" style="opacity:0.8">Chargement...</div>
-      </div>
-    `;
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-    
-    dlg.querySelector('#sht_actions').onclick = ()=> { dlg.close(); openActionDialog(r); };
-    loadAndRenderHistory(r, dlg.querySelector('#history_body'));
-  };
-
-
-  // ============================================================
-  // 4. MODIFIER & REPORTER (DESIGN PRO)
-  // ============================================================
-  window.openEditDialog = function(id){
-    const r = getRDVById(id);
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='500px'; dlg.style.width='min(95vw, 500px)'; dlg.style.padding='0';
-    dlg.style.background='transparent'; dlg.style.border='none';
-
-    dlg.innerHTML = `
-      <div class="p-dlg-head"><div class="p-dlg-title">Modifier</div><button class="btn btn-ghost btn-xs" onclick="this.closest('dialog').close()">✕</button></div>
-      <div class="p-dlg-body">
-         <div class="label">Client</div>
-         <div class="row" style="gap:10px;margin-bottom:10px">
-            <select id="ed_civ" class="input" style="width:80px"><option ${r.civ==='M.'?'selected':''}>M.</option><option ${r.civ==='Mme'?'selected':''}>Mme</option></select>
-            <input id="ed_name" class="input" value="${r.name}" style="flex:1">
-         </div>
-         <div class="label">Contact</div>
-         <input id="ed_phone" class="input" value="${toFR(r.phone)}" style="margin-bottom:10px">
-         
-         <div class="label">Véhicule</div>
-         <input id="ed_model" class="input" value="${r.model}" style="margin-bottom:10px">
-
-         <div class="label">Rendez-vous</div>
-         <div class="row" style="gap:10px;margin-bottom:20px">
-            <input id="ed_date" class="input" value="${r.dateText}" style="flex:1">
-            <input id="ed_time" class="input" value="${r.timeText}" style="width:100px">
-         </div>
-         
-         <button id="ed_save" class="btn btn-primary" style="width:100%">Enregistrer</button>
-      </div>
-    `;
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-    
-    dlg.querySelector('#ed_save').onclick = async () => {
-       // Logique sauvegarde inchangée
-       const patch = { civ: $('#ed_civ',dlg).value, name:$('#ed_name',dlg).value, phone:"33"+normalizeFR10($('#ed_phone',dlg).value).slice(1), model:$('#ed_model',dlg).value, dateText:$('#ed_date',dlg).value, timeText:$('#ed_time',dlg).value, dateISO:jjmma_to_iso($('#ed_date',dlg).value) };
-       await db.collection('rdv').doc(id).set(patch,{merge:true});
-       dlg.close(); dlg.remove(); loadAll();
-    };
-  };
-
-
-  // ============================================================
-  // 5. ADMIN STATS AVANCÉES (MODIFIER / TRANSFÉRER)
-  // ============================================================
-  window.openAdminDialog = function(){
-    if(!ROLE || ROLE.role !== 'admin') return alert("Accès interdit.");
-    const now = new Date();
-    const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
-    const per = {};
-    (ALL_R || []).forEach(r => {
-       if (!r || r.deleted) return;
-       if (!r.dateISO || !r.dateISO.startsWith(ym)) return;
-       const name = (r.createdByName || 'Inconnu').trim();
-       if (!per[name]) per[name] = { total: 0, honored: 0 };
-       per[name].total++;
-       if (r.status === 'honored') per[name].honored++;
-    });
-
-    const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='800px'; dlg.style.width='min(98vw,800px)'; dlg.style.padding='0';
-    dlg.style.background='transparent'; dlg.style.border='none';
-
-    let rowsHtml = '';
-    for(const [name, st] of Object.entries(per)){
-       rowsHtml += `
-         <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; border-bottom:1px solid var(--border);">
-            <div style="font-weight:700">${name}</div>
-            <div style="display:flex; gap:20px; margin-right:20px">
-               <span>Total: <b>${st.total}</b></span>
-               <span style="color:var(--green)">Honorés: <b>${st.honored}</b></span>
-            </div>
-            <button class="btn btn-neutral btn-xs manage-user" data-name="${name}">Gérer / Modifier</button>
-         </div>
-       `;
-    }
-
-    dlg.innerHTML = `
-       <div class="p-dlg-head">
-          <div class="p-dlg-title">Gestion Stats & Attribution</div>
-          <button class="btn btn-ghost btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-       </div>
-       <div class="p-dlg-body" style="padding:0">
-          <div style="background:var(--input-bg); padding:15px; font-size:13px; color:var(--muted)">
-             Cliquez sur "Gérer" pour renommer une personne, corriger ses stats (en réattribuant les RDV) ou nettoyer.
-          </div>
-          ${rowsHtml || '<div style="padding:20px">Aucune donnée ce mois-ci.</div>'}
-       </div>
-    `;
-    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-
-    dlg.querySelectorAll('.manage-user').forEach(btn => {
-       btn.onclick = () => {
-          const oldName = btn.dataset.name;
-          const newName = prompt(`Modifier le nom de "${oldName}" sur TOUS ses RDV ?\n(Cela corrigera ses stats s'il y a une faute de frappe)\n\nNouveau nom :`, oldName);
-          if(newName && newName !== oldName){
-              changeUserStatsName(oldName, newName);
-              dlg.close(); dlg.remove();
-          }
-       };
-    });
-  };
-
-  async function changeUserStatsName(oldName, newName){
-     if(!confirm(`Confirmer le changement de "${oldName}" vers "${newName}" sur l'historique complet ?`)) return;
-     notify("Mise à jour en cours...", "ok");
-     try {
-        const snap = await db.collection('rdv').where('createdByName', '==', oldName).get();
-        const batch = db.batch();
-        snap.docs.forEach(doc => {
-           batch.update(doc.ref, { createdByName: newName });
-        });
-        await batch.commit();
-        notify(`Succès ! ${snap.size} fiches mises à jour.`, "ok");
-        setTimeout(() => window.openAdminDialog(), 500); // Réouvre pour voir le résultat
-     } catch(e){ alert("Erreur : " + e.message); }
-  }
-
-  // ============================================================
-  // 6. AGENCES MODERNE
-  // ============================================================
-  window.openAgenciesPanel = function(){
-     const keys = mergedAgencyKeys();
-     const dlg = document.createElement('dialog');
-     dlg.style.maxWidth='800px'; dlg.style.width='min(96vw,800px)'; dlg.style.padding='0';
-     dlg.style.background='transparent'; dlg.style.border='none';
-
-     dlg.innerHTML = `
-       <div class="p-dlg-head">
-         <div class="p-dlg-title">Agences</div>
-         <div style="display:flex;gap:10px">
-            <button class="btn btn-primary btn-xs" id="ag_new">+ Ajouter</button>
-            <button class="btn btn-ghost btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
-         </div>
-       </div>
-       <div class="p-dlg-body">
-          ${keys.map(k => {
-             const ag = getAgencyByKey(k);
-             return `
-               <div class="ag-card-pro">
-                  <div>
-                     <div style="font-weight:800;font-size:16px">${k}</div>
-                     <div class="small">${ag.addr || 'Sans adresse'}</div>
-                  </div>
-                  <button class="btn btn-neutral btn-xs" onclick="window.openAgencyModal('${k}')">Modifier</button>
-               </div>
-             `;
-          }).join('')}
-       </div>
-     `;
-     document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
-     dlg.querySelector('#ag_new').onclick = ()=> { dlg.close(); window.openAgencyModal(); };
-  };
-
-})();
 </script>
 </section>
 </body>
