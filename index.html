@@ -2335,16 +2335,25 @@ if (VIEW === 'trash') {
   gear.onclick = () => openTrashActionDialog(r);
   actions.appendChild(gear);
 } else {
-  // (ON) : bouton Rappel visible pour les RDV d'aujourd'hui non rappelés et encore à venir
+ // (ON) : bouton Rappel visible pour les RDV d'aujourd'hui (futur) OU demain
   try {
     const tISO = todayISO();
+    // AJOUT : Calcul de la date de demain
+    const tomorrowISO = isoOf(addDays(new Date(), 1));
+
     const m = (r.timeText||'').match(/(\d{2}):(\d{2})/);
     const mins = m ? (+m[1]*60 + +m[2]) : -1;
     const now = new Date();
     const nowM = now.getHours()*60 + now.getMinutes();
 
-    // Affiche le bouton uniquement si le RDV est pour aujourd'hui, pas encore rappelé, et dans le futur
-    if (r.dateISO === tISO && !r.reminderSent && mins > nowM) {
+    // LOGIQUE MODIFIÉE :
+    // 1. C'est aujourd'hui et l'heure n'est pas passée
+    const isTodayFuture = (r.dateISO === tISO && mins > nowM);
+    // 2. C'est demain (toute la journée est "futur")
+    const isTomorrow = (r.dateISO === tomorrowISO);
+
+    // Affiche le bouton si pas encore rappelé ET (soit aujourd'hui futur, soit demain)
+    if (!r.reminderSent && (isTodayFuture || isTomorrow)) {
       const btnRappel = document.createElement('button');
       btnRappel.className = 'btn btn-primary btn-xs';
       btnRappel.textContent = 'Rappel';
