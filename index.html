@@ -5051,6 +5051,183 @@ L’équipe {{TAGLINE}}`;
   document.head.appendChild(st);
 
 })();
+(function(){
+
+  // 1. DESIGN & CSS (Le look "App Apple")
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Reset du conteneur Login pour le rendre plein écran et centré */
+    #login {
+      position: fixed; inset: 0; width: 100% !important; height: 100% !important;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; margin: 0 !important; border-radius: 0 !important; border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Conteneur principal de la nouvelle interface */
+    .modern-login-wrap {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      width: 100%; max-width: 420px;
+      padding: 40px 30px;
+      border-radius: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    /* Titre */
+    .login-title { font-size: 24px; font-weight: 900; margin-bottom: 30px; color: #0f172a; letter-spacing: -0.5px; }
+    .login-subtitle { font-size: 14px; color: #64748b; margin-top: -25px; margin-bottom: 30px; font-weight: 500; }
+
+    /* Grille de choix (Admin vs Team) */
+    .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    
+    .role-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 20px;
+      padding: 25px 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    }
+    .role-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); border-color: #3b82f6; }
+    .role-card:active { transform: scale(0.96); }
+    
+    .role-icon { font-size: 32px; margin-bottom: 5px; }
+    .role-name { font-weight: 700; font-size: 15px; color: #334155; }
+
+    /* Vues (Étapes) */
+    .login-view { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+    .login-view.active { display: block; }
+
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Inputs stylisés */
+    .modern-input {
+      width: 100%; padding: 16px; background: #f1f5f9; border: 2px solid transparent;
+      border-radius: 16px; font-size: 16px; color: #0f172a; margin-bottom: 12px;
+      transition: 0.2s; font-weight: 500;
+    }
+    .modern-input:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); outline: none; }
+
+    /* Bouton retour */
+    .btn-back {
+      background: transparent; border: none; color: #94a3b8; font-weight: 600; font-size: 14px;
+      cursor: pointer; padding: 10px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-back:hover { color: #334155; }
+
+    /* Récupération des boutons existants (V18) pour les styliser */
+    #btnLoginAdminPasskey, #btnLoginAdminPin, #btnLoginTeam {
+      width: 100%; padding: 16px; border-radius: 16px; font-weight: 700; font-size: 16px;
+      cursor: pointer; margin-bottom: 10px; border: none; transition: 0.2s;
+    }
+    /* Style Admin Bio */
+    #btnLoginAdminPasskey { background: #0f172a; color: #fff; box-shadow: 0 10px 20px rgba(15,23,42,0.2); }
+    #btnLoginAdminPasskey:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(15,23,42,0.3); }
+    /* Style Admin PIN */
+    #btnLoginAdminPin { background: #fff; color: #0f172a; border: 2px solid #e2e8f0; }
+    #btnLoginAdminPin:hover { border-color: #cbd5e1; background: #f8fafc; }
+    /* Style Team Enter */
+    #btnLoginTeam { background: #3b82f6; color: #fff; box-shadow: 0 10px 20px rgba(59,130,246,0.3); margin-top: 5px; }
+    #btnLoginTeam:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(59,130,246,0.4); }
+
+    /* Cacher les éléments originaux qui traînent */
+    #login h2, #login .row, #login .small, #login .label { display: none !important; }
+  `;
+  document.head.appendChild(style);
+
+  // 2. CONSTRUCTION DE L'INTERFACE
+  function initModernLogin(){
+    const loginContainer = document.getElementById('login');
+    if(!loginContainer) return;
+
+    // On crée la structure
+    const wrap = document.createElement('div');
+    wrap.className = 'modern-login-wrap';
+    wrap.innerHTML = `
+      <div class="login-title">C&N Solutions</div>
+      <div class="login-subtitle">Portail d'accès sécurisé</div>
+      
+      <div id="view-choice" class="login-view active">
+        <div class="role-grid">
+           <div class="role-card" onclick="window.switchLogin('admin')">
+              <div class="role-icon">👑</div>
+              <div class="role-name">Admin</div>
+           </div>
+           <div class="role-card" onclick="window.switchLogin('team')">
+              <div class="role-icon">💼</div>
+              <div class="role-name">Équipe</div>
+           </div>
+        </div>
+      </div>
+
+      <div id="view-admin" class="login-view">
+        <button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button>
+        <div style="margin-bottom:20px;font-weight:600">Authentification Admin</div>
+        <div id="admin-btns-area"></div>
+      </div>
+
+      <div id="view-team" class="login-view">
+        <button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button>
+        <div style="margin-bottom:20px;font-weight:600">Connexion Membre</div>
+        <div id="team-inputs-area"></div>
+      </div>
+    `;
+
+    // On injecte la nouvelle structure
+    loginContainer.appendChild(wrap);
+
+    // 3. DÉMÉNAGEMENT DES ÉLÉMENTS EXISTANTS (Pour garder la logique V18)
+    // On déplace physiquement les boutons et inputs du vieux formulaire vers le nouveau
+    
+    // --> Admin
+    const btnBio = document.getElementById('btnLoginAdminPasskey');
+    const btnPin = document.getElementById('btnLoginAdminPin');
+    const adminArea = wrap.querySelector('#admin-btns-area');
+    if(btnBio) { 
+       btnBio.innerHTML = `<i class="fa-solid fa-fingerprint"></i> FaceID / TouchID`; 
+       adminArea.appendChild(btnBio); 
+    }
+    if(btnPin) { 
+       btnPin.innerHTML = `Code PIN`;
+       adminArea.appendChild(btnPin); 
+    }
+
+    // --> Team
+    const inName = document.getElementById('eqName');
+    const inPass = document.getElementById('eqPass');
+    const btnEnter = document.getElementById('btnLoginTeam');
+    const teamArea = wrap.querySelector('#team-inputs-area');
+    
+    if(inName) { inName.className = 'modern-input'; inName.placeholder = "Identifiant"; teamArea.appendChild(inName); }
+    if(inPass) { inPass.className = 'modern-input'; inPass.placeholder = "Mot de passe"; teamArea.appendChild(inPass); }
+    if(btnEnter) { btnEnter.textContent = "Se connecter"; teamArea.appendChild(btnEnter); }
+
+    // --> Enrôlement (Optionnel, on le met dans admin en petit)
+    const btnEnroll = document.getElementById('btnEnroll');
+    if(btnEnroll) {
+       btnEnroll.className = 'btn btn-ghost btn-xs';
+       btnEnroll.style.marginTop = '15px';
+       btnEnroll.innerHTML = '📲 Enregistrer ce téléphone';
+       adminArea.appendChild(btnEnroll);
+    }
+  }
+
+  // 4. FONCTION DE NAVIGATION
+  window.switchLogin = function(viewName){
+     document.querySelectorAll('.login-view').forEach(v => v.classList.remove('active'));
+     document.getElementById('view-'+viewName).classList.add('active');
+  };
+
+  // 5. LANCEMENT
+  // On attend un tout petit peu que le V18 ait fini son setup
+  setTimeout(initModernLogin, 50);
+
+})();
 </script>
 </section>
 </body>
