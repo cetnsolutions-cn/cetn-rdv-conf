@@ -5228,6 +5228,174 @@ L’équipe {{TAGLINE}}`;
   setTimeout(initModernLogin, 50);
 
 })();
+(function(){
+
+  // 1. CSS PREMIUM (STYLE APPLE)
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* FOND ECRAN LOGIN */
+    #login {
+      position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+      background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%) !important;
+      display: flex !important; align-items: center !important; justify-content: center !important;
+      padding: 20px !important; margin: 0 !important; border: none !important; z-index: 9999 !important;
+    }
+
+    /* LA CARTE CENTRALE */
+    .premium-login {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      width: 100%; max-width: 400px; padding: 40px;
+      border-radius: 32px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.5) inset;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+
+    /* TITRES */
+    .pl-title { font-size: 26px; font-weight: 900; color: #0f172a; margin-bottom: 10px; letter-spacing: -0.5px; }
+    .pl-subtitle { font-size: 14px; color: #64748b; margin-bottom: 30px; font-weight: 500; }
+
+    /* GRILLE CHOIX */
+    .pl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .pl-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 20px 10px;
+      cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    }
+    .pl-card:hover { transform: translateY(-3px); border-color: #3b82f6; box-shadow: 0 10px 25px rgba(59,130,246,0.15); }
+    .pl-icon { font-size: 32px; margin-bottom: 8px; }
+    .pl-name { font-weight: 700; font-size: 15px; color: #334155; }
+
+    /* VUES & ANIMATIONS */
+    .pl-view { display: none; animation: plFade 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+    .pl-view.active { display: block; }
+    @keyframes plFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* INPUTS & BOUTONS STYLE */
+    .pl-input {
+      width: 100%; padding: 15px; background: #f8fafc; border: 2px solid transparent;
+      border-radius: 14px; font-size: 16px; color: #0f172a; margin-bottom: 12px; transition: 0.2s;
+      text-align: center; font-weight: 600;
+    }
+    .pl-input:focus { background: #fff; border-color: #3b82f6; outline: none; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+    .pl-back { background: none; border: none; color: #94a3b8; font-weight: 600; cursor: pointer; margin-bottom: 15px; font-size: 13px; }
+    .pl-back:hover { color: #0f172a; }
+
+    /* OVERRIDE DES VIEUX BOUTONS POUR QU'ILS SOIENT BEAUX */
+    #btnLoginAdminPasskey, #btnLoginAdminPin, #btnLoginTeam {
+      width: 100% !important; padding: 16px !important; border-radius: 16px !important;
+      font-weight: 700 !important; font-size: 16px !important; margin-bottom: 10px !important;
+      border: none !important; cursor: pointer !important;
+    }
+    /* Admin Bio */
+    #btnLoginAdminPasskey { background: #0f172a !important; color: #fff !important; }
+    /* Admin Pin */
+    #btnLoginAdminPin { background: #fff !important; color: #0f172a !important; border: 2px solid #e2e8f0 !important; }
+    /* Team */
+    #btnLoginTeam { background: #3b82f6 !important; color: #fff !important; margin-top: 5px !important; }
+
+    /* CACHER LE RESTE */
+    #login > h2, #login > .row, #login > .small, #login > div:not(.premium-login) { display: none !important; }
+    
+    /* Cacher le bouton Enroll sur l'accueil */
+    #btnEnroll { display: none !important; } 
+  `;
+  document.head.appendChild(style);
+
+  // 2. TRANSFORMER LE LOGIN
+  setTimeout(() => {
+    const container = document.getElementById('login');
+    if(!container || container.dataset.patched) return;
+    
+    // Création structure
+    const wrap = document.createElement('div');
+    wrap.className = 'premium-login';
+    wrap.innerHTML = `
+      <div class="pl-title">C&N Solutions</div>
+      <div class="pl-subtitle">Portail d'accès</div>
+      
+      <div id="pv-choice" class="pl-view active">
+         <div class="pl-grid">
+            <div class="pl-card" onclick="window.toLogin('admin')"><div class="pl-icon">👑</div><div class="pl-name">Admin</div></div>
+            <div class="pl-card" onclick="window.toLogin('team')"><div class="pl-icon">👥</div><div class="pl-name">Équipe</div></div>
+         </div>
+      </div>
+
+      <div id="pv-admin" class="pl-view">
+         <button class="pl-back" onclick="window.toLogin('choice')">← Retour</button>
+         <div id="area-admin-btns"></div>
+      </div>
+
+      <div id="pv-team" class="pl-view">
+         <button class="pl-back" onclick="window.toLogin('choice')">← Retour</button>
+         <div id="area-team-inputs"></div>
+      </div>
+    `;
+    
+    container.appendChild(wrap);
+    container.dataset.patched = "true";
+
+    // 3. DÉMÉNAGEMENT DES ÉLÉMENTS (Sans casser les événements)
+    
+    // Admin Buttons
+    const areaAdm = wrap.querySelector('#area-admin-btns');
+    const b1 = document.getElementById('btnLoginAdminPasskey');
+    const b2 = document.getElementById('btnLoginAdminPin');
+    if(b1) { b1.innerHTML = "FaceID / TouchID"; areaAdm.appendChild(b1); }
+    if(b2) { b2.innerHTML = "Code PIN"; areaAdm.appendChild(b2); }
+
+    // Team Inputs
+    const areaTeam = wrap.querySelector('#area-team-inputs');
+    const i1 = document.getElementById('eqName');
+    const i2 = document.getElementById('eqPass');
+    const b3 = document.getElementById('btnLoginTeam');
+    if(i1) { i1.className='pl-input'; i1.placeholder="Identifiant"; areaTeam.appendChild(i1); }
+    if(i2) { i2.className='pl-input'; i2.placeholder="Mot de passe"; areaTeam.appendChild(i2); }
+    if(b3) { b3.innerText="Se connecter"; areaTeam.appendChild(b3); }
+
+  }, 200); // Petit délai pour être sûr que le DOM est prêt
+
+  // Navigation
+  window.toLogin = function(view){
+     document.querySelectorAll('.pl-view').forEach(x => x.classList.remove('active'));
+     document.getElementById('pv-'+view).classList.add('active');
+  };
+
+  // 4. DÉPLACEMENT DU BOUTON "ENREGISTRER CE TÉLÉPHONE" DANS LES RÉGLAGES
+  // On surveille l'ouverture de la modale de réglages
+  const obs = new MutationObserver(() => {
+     const dlg = document.querySelector('dialog[open]');
+     // Si on trouve une modale qui contient "Sécurité" ou "Admin"
+     if(dlg && (dlg.innerHTML.includes('Sécurité') || dlg.innerHTML.includes('Admin'))){
+        // On vérifie qu'on ne l'a pas déjà déplacé
+        if(!dlg.querySelector('#moved-enroll')) {
+           const btnEnroll = document.getElementById('btnEnroll');
+           if(btnEnroll){
+              const div = document.createElement('div');
+              div.id = 'moved-enroll';
+              div.style.marginTop = "20px";
+              div.style.textAlign = "center";
+              div.style.borderTop = "1px solid #eee";
+              div.style.paddingTop = "10px";
+              
+              // On déplace le bouton DANS la modale
+              btnEnroll.style.display = "inline-block !important"; // On force l'affichage ici
+              btnEnroll.className = "btn btn-ghost btn-xs";
+              btnEnroll.innerText = "📲 Enregistrer cet appareil (Passkey)";
+              
+              div.appendChild(btnEnroll);
+              
+              // On l'ajoute dans l'onglet sécurité s'il existe, sinon en bas
+              const tabSecu = dlg.querySelector('#tab_secu') || dlg.querySelector('.dlg-body') || dlg;
+              tabSecu.appendChild(div);
+           }
+        }
+     }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+
+})();
 </script>
 </section>
 </body>
