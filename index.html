@@ -5257,6 +5257,243 @@ L’équipe {{TAGLINE}}`;
   setTimeout(initModernLogin, 50);
 
 })();
+(function(){
+
+  // ============================================================
+  // 1. STYLE MODERNE (Onglets & Date)
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* --- ONGLETS STYLE "SEGMENTED CONTROL" (Apple Style) --- */
+    .tabs {
+      background: #f1f5f9 !important;
+      padding: 5px !important;
+      border-radius: 14px !important;
+      display: flex !important;
+      gap: 0 !important;
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    .tab {
+      flex: 1 !important;
+      border: none !important;
+      background: transparent !important;
+      color: #64748b !important;
+      font-weight: 600 !important;
+      font-size: 13px !important;
+      padding: 10px 4px !important;
+      border-radius: 10px !important;
+      transition: all 0.2s ease !important;
+      text-align: center !important;
+      margin: 0 !important;
+    }
+    
+    .tab:hover:not(.active) {
+      background: rgba(0,0,0,0.03) !important;
+      color: #475569 !important;
+    }
+
+    .tab.active {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02) !important;
+      transform: scale(1) !important;
+    }
+
+    /* Pastilles dans les onglets */
+    .tab .pill {
+      background: #e2e8f0 !important;
+      color: #64748b !important;
+      font-size: 10px !important;
+      padding: 2px 6px !important;
+      border-radius: 99px !important;
+      margin-left: 6px !important;
+      border: none !important;
+    }
+    .tab.active .pill {
+      background: #0f172a !important;
+      color: #fff !important;
+    }
+
+    /* --- MODULE HISTORIQUE DATE (Remplacement de "Placés le") --- */
+    .history-widget {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border: 1px solid #cbd5e1;
+      padding: 4px 4px 4px 12px; border-radius: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      transition: all 0.2s;
+    }
+    .history-widget:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+    .hw-label { font-weight: 600; font-size: 13px; color: #334155; display:flex; align-items:center; gap:6px; }
+    .hw-input {
+      border: none; background: #f8fafc; padding: 8px 10px;
+      border-radius: 8px; font-family: inherit; font-size: 13px;
+      color: #0f172a; font-weight: 600; outline: none; cursor: pointer;
+    }
+    .hw-input:hover { background: #f1f5f9; }
+    
+    .hw-badge {
+      background: #eff6ff; color: #3b82f6;
+      font-size: 12px; font-weight: 700; padding: 4px 10px;
+      border-radius: 8px; display: none; /* Caché par défaut */
+      border: 1px solid #dbeafe;
+    }
+    .hw-badge.visible { display: inline-block; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    @keyframes popIn { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+  `;
+  document.head.appendChild(style);
+
+
+  // ============================================================
+  // 2. REMPLACEMENT DU VIEUX FILTRE PAR LE WIDGET HISTORIQUE
+  // ============================================================
+  
+  let HISTORY_DATE = null;
+
+  setTimeout(() => {
+    // On cible la zone où se trouvait "Placés le"
+    const dateGroup = document.querySelector('.date-group');
+    if(dateGroup){
+       // On vide l'ancien contenu moche
+       dateGroup.innerHTML = '';
+       dateGroup.className = ''; // On retire la classe pour éviter les vieux styles
+       
+       // On injecte le widget moderne
+       const widget = document.createElement('div');
+       widget.className = 'history-widget';
+       widget.innerHTML = `
+         <div class="hw-label"><i class="fa-regular fa-calendar"></i> Consulter :</div>
+         <input type="date" class="hw-input" id="historyDateInput">
+         <div class="hw-badge" id="historyCount">0 RDV</div>
+         <button class="btn btn-ghost btn-xs icon-only" id="clearHistory" style="width:28px;height:28px;margin-left:4px;display:none" title="Fermer l'historique">✕</button>
+       `;
+       dateGroup.appendChild(widget);
+
+       // Logique du Widget
+       const input = widget.querySelector('#historyDateInput');
+       const badge = widget.querySelector('#historyCount');
+       const close = widget.querySelector('#clearHistory');
+
+       input.addEventListener('input', (e) => {
+          const val = e.target.value;
+          if(!val) return;
+
+          HISTORY_DATE = val;
+          
+          // 1. Calculer le nombre de RDV pour cette date
+          const count = (ALL_R||[]).filter(r => !r.deleted && r.dateISO === HISTORY_DATE).length;
+          
+          // 2. Afficher le badge
+          badge.textContent = `${count} RDV`;
+          badge.classList.add('visible');
+          
+          // 3. Afficher bouton fermer
+          close.style.display = 'flex';
+          
+          // 4. Changer la vue (On force le mode Historique)
+          forceHistoryView();
+       });
+
+       close.addEventListener('click', () => {
+          HISTORY_DATE = null;
+          input.value = '';
+          badge.classList.remove('visible');
+          close.style.display = 'none';
+          
+          // Retour à la vue par défaut (Aujourd'hui)
+          document.querySelector('.tab[data-view="today"]').click();
+       });
+    }
+  }, 500); // Petit délai pour être sûr que le DOM est prêt
+
+
+  // ============================================================
+  // 3. LOGIQUE DE FILTRAGE (Surcharge Intelligente)
+  // ============================================================
+
+  function forceHistoryView(){
+     // On désactive visuellement les onglets classiques
+     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+     
+     // On force le filtrage
+     if(typeof renderList === 'function') renderList();
+     
+     notify(`Historique du ${formatDateFr(HISTORY_DATE)} affiché`, "ok");
+  }
+
+  // Helper date FR
+  function formatDateFr(iso){
+     if(!iso) return '';
+     const [y,m,d] = iso.split('-');
+     return `${d}/${m}`;
+  }
+
+  // ON REMPLACE LA FONCTION currFiltered POUR INCLURE L'HISTORIQUE
+  // C'est un "Monkey Patch" pour éviter de modifier le gros code du haut
+  const _origFiltered = window.currFiltered; // On sauvegarde l'originale au cas où (pas utilisé ici car on réécrit la logique pour history)
+
+  window.currFiltered = function(){
+     // 1. Si une date d'historique est active, on est PRIORITAIRE
+     if(HISTORY_DATE){
+        let arr = (ALL_R||[]).filter(r => !r.deleted);
+        // Filtre agence si actif
+        if(FILTER_AGENCY && FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
+        // Filtre date
+        return arr.filter(r => r.dateISO === HISTORY_DATE);
+     }
+
+     // 2. Sinon, on utilise la logique classique du vieux code
+     // Je réimplémente la logique standard ici pour être sûr qu'elle marche avec tes nouveaux onglets
+     
+     const q = (document.getElementById('search')?.value || '').trim();
+     if (q.length > 0) {
+        let arr = ALL_R.filter(r => !r.deleted);
+        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency || '') === FILTER_AGENCY);
+        return arr.filter(r => rowMatchesQuery(r, q));
+     }
+
+     let arr = ALL_R.slice();
+     const tISO = todayISO();
+     
+     if (VIEW === 'trash'){
+        arr = arr.filter(r => r.deleted === true);
+        if (SHOW_ONLY_REQ) arr = arr.filter(r => !!r.deleteRequest);
+     } else if (VIEW === 'todo'){
+        const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
+        arr = arr.filter(r=>{
+           if (r.deleted || r.status) return false;
+           const d=(r.dateISO||''); const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); const mins=m?(+m[1]*60+ +m[2]):-1;
+           return (d && (d<tISO) || (d===tISO && mins>=0 && mins<= nowM));
+        });
+     } else {
+        if (FILTER_AGENCY !== '*') arr = arr.filter(r => (r.agency||'') === FILTER_AGENCY);
+        arr = arr.filter(r => !r.deleted);
+        
+        if (VIEW === 'today'){ arr = arr.filter(r => r.dateISO === tISO && !r.status); }
+        else if (VIEW === 'tomorrow'){ 
+           const iso=isoOf(addDays(new Date(),1)); 
+           arr = arr.filter(r => r.dateISO === iso && !r.status); 
+        }
+        else if (VIEW === 'upcoming'){
+           const now=new Date(); const nowM=now.getHours()*60+now.getMinutes();
+           arr = arr.filter(r=>{
+              if (r.status) return false;
+              if ((r.dateISO||'') > tISO) return true;
+              if ((r.dateISO||'') < tISO) return false;
+              const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false; const minutes=+m[1]*60+ +m[2];
+              return minutes>=nowM;
+           });
+        }
+     }
+     return arr;
+  };
+
+})();
 </script>
 </section>
 </body>
