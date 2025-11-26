@@ -5564,6 +5564,96 @@ L’équipe {{TAGLINE}}`;
   }, 500);
 
 })();
+(function(){
+
+  // ============================================================
+  // CSS : Style propre pour la liste déroulante
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* On cache la grille d'emojis si elle a été créée par un autre script */
+    .wiz-ag-grid { display: none !important; }
+
+    /* Style de la liste déroulante moderne */
+    .modern-select {
+        width: 100%;
+        padding: 16px;
+        font-size: 16px;
+        border: 1px solid var(--line);
+        background-color: var(--surface);
+        border-radius: 12px;
+        color: var(--ink);
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+        background-repeat: no-repeat;
+        background-position: right 15px center;
+        background-size: 12px;
+    }
+    .modern-select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px var(--blue-bg);
+        outline: none;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ============================================================
+  // LOGIQUE : Nettoyage et Comportement
+  // ============================================================
+  setInterval(() => {
+      // 1. S'assurer que le formulaire est TOUJOURS visible
+      const wiz = document.querySelector('.wiz');
+      if(wiz && wiz.classList.contains('hide')) {
+          wiz.classList.remove('hide');
+          wiz.style.opacity = "1";
+          wiz.style.transform = "none";
+      }
+
+      // 2. Gérer l'étape 1 (AGENCE)
+      const step1 = document.querySelector('.step[data-step="1"]');
+      if(step1) {
+          // Cacher le bouton "Retour" (inutile au début)
+          const nav = step1.querySelector('.nav');
+          if(nav) {
+              const btnRetour = nav.querySelector('button');
+              // Si c'est pas le bouton "Suivant", on cache
+              if(btnRetour && !btnRetour.classList.contains('btn-primary')) {
+                  btnRetour.style.display = 'none';
+              }
+          }
+
+          // Gérer le Select (Liste déroulante)
+          const selectBox = document.getElementById('w_agency');
+          if(selectBox) {
+              // On force l'affichage du select (au cas où il serait caché)
+              selectBox.style.display = 'block';
+              selectBox.classList.add('modern-select');
+
+              // AUTO-NEXT : Si on change l'agence, on passe à la suite
+              if(!selectBox.dataset.autoNext) {
+                  selectBox.dataset.autoNext = "true";
+                  selectBox.addEventListener('change', function() {
+                      if(this.value) {
+                          // Petit délai pour voir la sélection, puis clic sur Suivant
+                          setTimeout(() => {
+                              const btnNext = document.getElementById('n1');
+                              if(btnNext) btnNext.click();
+                          }, 150);
+                      }
+                  });
+              }
+          }
+          
+          // On supprime la grille d'emojis si elle a été générée
+          const oldGrid = step1.querySelector('.wiz-ag-grid');
+          if(oldGrid) oldGrid.style.display = 'none';
+      }
+
+  }, 100); 
+})();
+
 
 </script>
 </section>
