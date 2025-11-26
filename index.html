@@ -1477,25 +1477,55 @@ async function loadAll(){
   updateStatusChips();
   renderList();
 }
-/* ====== Rappels du jour — helpers & panel ====== */
-// Liste des RDV à rappeler aujourd’hui (même logique que computeDueToday)
+// Liste intelligente des rappels
 function dueRemindersToday(){
   const now = new Date();
   const tISO = todayISO();
-  const nowM = now.getHours()*60 + now.getMinutes();
+  const tomorrowISO = isoOf(addDays(new Date(), 1));
+  
+  const currentHour = now.getHours();
+  const nowM = currentHour*60 + now.getMinutes();
+  
+  // Règle 1 : On affiche "Demain" seulement s'il est 16h00 ou plus
+  const showTomorrowList = (currentHour >= 16);
+
   return (ALL_R||[])
     .filter(r=>{
-      if(r.deleted || r.reminderSent || r.dateISO!==tISO) return false;
-      // on ne rappelle pas ceux créés aujourd’hui
-      const created = r.createdAt?.toDate ? r.createdAt.toDate() : null;
-      const createdISO = created ? isoOf(created) : null;
-      if(createdISO===tISO) return false;
-      // on rappelle seulement si l’heure est encore à venir
-      const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false;
-      const minutes=+m[1]*60 + +m[2];
-      return minutes>nowM;
+      // Si supprimé ou rappel DÉJÀ envoyé (ou ignoré), on ne le montre pas
+      if(r.deleted || r.reminderSent) return false;
+
+      // --- CAS 1 : C'EST AUJOURD'HUI ---
+      if (r.dateISO === tISO) {
+         // On vérifie juste si l'heure du RDV est future
+         const m=(r.timeText||'').match(/(\d{2}):(\d{2})/); if(!m) return false;
+         const minutes=+m[1]*60 + +m[2];
+         return minutes > nowM;
+      }
+
+      // --- CAS 2 : C'EST DEMAIN ---
+      if (r.dateISO === tomorrowISO) {
+         // Si il n'est pas encore 16h, on cache tout ce qui est pour demain
+         if (!showTomorrowList) return false;
+
+         // Règle 2 : Si le RDV a été créé AUJOURD'HUI, on ne le rappelle pas la veille (trop tôt)
+         // On attendra le jour J (demain) pour le rappeler.
+         if (r.createdAt) {
+             const dCreate = r.createdAt.toDate ? r.createdAt.toDate() : (r.createdAt instanceof Date ? r.createdAt : null);
+             if (dCreate && isoOf(dCreate) === tISO) {
+                 return false; // Créé aujourd'hui pour demain -> Pas de rappel veille
+             }
+         }
+         
+         return true;
+      }
+
+      // Sinon (passé ou après-demain), on cache
+      return false;
     })
-    .sort((a,b)=> (a.timeText||'').localeCompare(b.timeText||''));
+    .sort((a,b)=> {
+       if (a.dateISO !== b.dateISO) return a.dateISO.localeCompare(b.dateISO);
+       return (a.timeText||'').localeCompare(b.timeText||'');
+    });
 }
 
 // Met à jour la pastille du bouton "Rappels"
@@ -1508,7 +1538,7 @@ function updateReminderButton(){
   btn.classList.toggle('blink', n>0);
 }
 
-// Ouvre un panel listant les rappels à faire aujourd’hui (plein écran-ish + live refresh)
+// Ouvre le panel avec boutons "Rappel" ET "Ignorer"
 function openRemindersPanel(){
   const dlg = document.createElement('dialog');
   dlg.style.maxWidth = '980px';
@@ -1517,43 +1547,82 @@ function openRemindersPanel(){
   dlg.style.border = 'none';
   dlg.style.borderRadius = '12px';
   dlg.style.overflow = 'hidden';
+  dlg.id = 'remindersDlg';
+
   dlg.innerHTML = `
     <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--cardBg, #fff);position:sticky;top:0;z-index:2">
-      <div style="font-weight:800">Rappels à faire — Aujourd'hui</div>
+      <div style="font-weight:800">Rappels à faire</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-neutral btn-xs" id="rem_close">Fermer</button>
       </div>
     </div>
     <div style="padding:14px">
-      <div class="small" id="rem_header"></div>
-      <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,680px);overflow:auto"></div>
+      <div class="row" style="margin-bottom:12px;gap:10px">
+        <button id="tab_today" class="btn btn-primary btn-xs" style="flex:1">
+           Aujourd'hui <span id="cnt_today" class="pill" style="background:rgba(255,255,255,0.2)">0</span>
+        </button>
+        <button id="tab_tomorrow" class="btn btn-neutral btn-xs" style="flex:1">
+           Demain <span id="cnt_tomorrow" class="pill">0</span>
+        </button>
+      </div>
+      <div id="info_16h" class="small" style="text-align:center;margin-bottom:8px;font-style:italic;display:none">
+        ℹ️ Les rappels de demain apparaîtront à partir de 16h.
+      </div>
+      <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,600px);overflow:auto"></div>
     </div>`;
-
-  // ID pour le rafraîchissement global (le script 1s la repère via #remindersDlg)
-  dlg.id = 'remindersDlg';
 
   document.body.appendChild(dlg);
   (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
 
   const list = dlg.querySelector('#rem_list');
-  const header = dlg.querySelector('#rem_header');
+  const btnToday = dlg.querySelector('#tab_today');
+  const btnTomorrow = dlg.querySelector('#tab_tomorrow');
+  const info16h = dlg.querySelector('#info_16h');
+  
+  let currentView = 'today'; 
+
   dlg.querySelector('#rem_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
+  btnToday.onclick = () => { currentView = 'today'; renderList(); };
+  btnTomorrow.onclick = () => { currentView = 'tomorrow'; renderList(); };
 
   function renderList(){
-    const items = (typeof dueRemindersToday === 'function') ? dueRemindersToday() : [];
+    const all = (typeof dueRemindersToday === 'function') ? dueRemindersToday() : [];
+    const tISO = todayISO();
+    
+    const itemsToday = all.filter(x => x.dateISO === tISO);
+    const itemsTomorrow = all.filter(x => x.dateISO !== tISO);
+
+    dlg.querySelector('#cnt_today').textContent = itemsToday.length;
+    dlg.querySelector('#cnt_tomorrow').textContent = itemsTomorrow.length;
+
+    // Gestion message 16h
+    const h = new Date().getHours();
+    if (currentView === 'tomorrow' && h < 16) {
+        info16h.style.display = 'block';
+    } else {
+        info16h.style.display = 'none';
+    }
+
+    if(currentView === 'today') {
+        btnToday.className = 'btn btn-primary btn-xs';
+        btnTomorrow.className = 'btn btn-neutral btn-xs';
+    } else {
+        btnToday.className = 'btn btn-neutral btn-xs';
+        btnTomorrow.className = 'btn btn-primary btn-xs';
+    }
+
+    const itemsToShow = (currentView === 'today') ? itemsToday : itemsTomorrow;
     list.innerHTML = '';
-
-    if(header) header.innerHTML = items.length
-      ? `À rappeler : <b id="rem_total">${items.length}</b>`
-      : `Aucun rappel à faire pour aujourd’hui.`;
-
-    if(items.length===0){
-      list.innerHTML = '<div class="small">Tout est à jour ✔️</div>';
+    
+    if(itemsToShow.length === 0){
+      list.innerHTML = `<div class="small" style="text-align:center;padding:20px;opacity:0.6">
+        Rien à afficher pour le moment.
+      </div>`;
       try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
       return;
     }
 
-    for (const r of items){
+    for (const r of itemsToShow){
       const row = document.createElement('div');
       row.className = 'rdv';
       const civName = `${(r.civ||'').trim()} ${(r.name||'').trim()}`.trim();
@@ -1564,44 +1633,60 @@ function openRemindersPanel(){
           <div class="title">${(typeof fmtNice==='function' ? fmtNice(r.dateISO,r.timeText) : `${r.dateISO} ${r.timeText||''}`)} — ${safe(civName)}</div>
           <div class="meta">${(typeof toFR==='function'? toFR(r.phone) : (r.phone||''))} • ${safe(r.model||'')}</div>
           <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            ${r.agency?`<span class="badge">${safe(r.agency)}</span>`:''}
-            ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
-            <span class="bubble gray">Prévu ${(typeof relativeWhen==='function'? relativeWhen(r.dateISO, r.timeText) : '')}</span>
+             <span class="badge">${safe(r.agency||'')}</span>
+             ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
           </div>
         </div>
-        <div class="rdv-actions">
-          <button class="btn btn-primary btn-xs" data-rem="1">Rappel</button>
+        <div class="rdv-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
+          <button class="btn btn-primary btn-xs" style="width:100%" data-action="remind">Envoyer Rappel</button>
+          <button class="btn btn-ghost btn-xs" style="width:100%" data-action="ignore">Ignorer</button>
         </div>`;
 
-      // Action "Rappel" (envoie le message puis rafraîchit la liste)
-      const remBtn = row.querySelector('[data-rem]');
-      remBtn?.addEventListener('click', async ()=>{
-        if (!remBtn) return;
-        const prev = remBtn.textContent;
-        remBtn.disabled = true;
-        remBtn.textContent = '…';
+      // --- BOUTON ENVOYER ---
+      const btnRemind = row.querySelector('[data-action="remind"]');
+      btnRemind.onclick = async () => {
+        btnRemind.disabled = true; btnRemind.textContent = 'Envoi...';
         try {
-          if (typeof sendReminder === 'function') {
+            patchRDV(r.id, { reminderSent: true, reminderAt: new Date(), reminderChannel: (r.firstMsgChannel||r.channel||'wa') });
+            renderList();
             await sendReminder(r);
-          }
         } catch(e) {
-          console.error(e);
+            patchRDV(r.id, { reminderSent: false }); renderList();
+            alert("Erreur envoi.");
         } finally {
-          remBtn.disabled = false;
-          remBtn.textContent = prev;
-          // Re-rendu + pastille
-          renderList();
-          try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
+            try { updateReminderButton?.(); } catch(e){}
         }
-      });
+      };
+
+      // --- BOUTON IGNORER ---
+      const btnIgnore = row.querySelector('[data-action="ignore"]');
+      btnIgnore.onclick = async () => {
+        if(!confirm('Ne pas envoyer de rappel à ce client ?')) return;
+        
+        // On le masque instantanément
+        patchRDV(r.id, { reminderSent: true }); 
+        renderList();
+        
+        // On sauvegarde en base (on note qu'il a été traité/ignoré)
+        try {
+            await db.collection('rdv').doc(r.id).set({
+                reminderSent: true, 
+                reminderIgnored: true, // petit marqueur pour différencier si besoin
+                reminderAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, {merge:true});
+            notify('Rappel ignoré', 'ok');
+        } catch(e) {
+            console.error(e);
+        } finally {
+            try { updateReminderButton?.(); } catch(e){}
+        }
+      };
 
       list.appendChild(row);
     }
   }
 
-  // Hook utilisé par le rafraîchissement global (tick 1s)
   dlg.__rerender = renderList;
-
   renderList();
 }
 /* === Compteurs / filtres === */
