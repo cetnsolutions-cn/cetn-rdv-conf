@@ -1538,7 +1538,7 @@ function updateReminderButton(){
   btn.classList.toggle('blink', n>0);
 }
 
-// Ouvre le panel avec boutons "Rappel" ET "Ignorer"
+// Ouvre un panel listant les rappels (Aujourd'hui vs Demain)
 function openRemindersPanel(){
   const dlg = document.createElement('dialog');
   dlg.style.maxWidth = '980px';
@@ -1547,8 +1547,11 @@ function openRemindersPanel(){
   dlg.style.border = 'none';
   dlg.style.borderRadius = '12px';
   dlg.style.overflow = 'hidden';
+  
+  // ID pour le refresh auto
   dlg.id = 'remindersDlg';
 
+  // HTML : On ajoute deux boutons "Onglets" en haut
   dlg.innerHTML = `
     <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--cardBg, #fff);position:sticky;top:0;z-index:2">
       <div style="font-weight:800">Rappels à faire</div>
@@ -1556,6 +1559,7 @@ function openRemindersPanel(){
         <button class="btn btn-neutral btn-xs" id="rem_close">Fermer</button>
       </div>
     </div>
+    
     <div style="padding:14px">
       <div class="row" style="margin-bottom:12px;gap:10px">
         <button id="tab_today" class="btn btn-primary btn-xs" style="flex:1">
@@ -1565,9 +1569,7 @@ function openRemindersPanel(){
            Demain <span id="cnt_tomorrow" class="pill">0</span>
         </button>
       </div>
-      <div id="info_16h" class="small" style="text-align:center;margin-bottom:8px;font-style:italic;display:none">
-        ℹ️ Les rappels de demain apparaîtront à partir de 16h.
-      </div>
+
       <div id="rem_list" style="margin-top:12px;display:grid;gap:10px;max-height:min(70vh,600px);overflow:auto"></div>
     </div>`;
 
@@ -1577,32 +1579,32 @@ function openRemindersPanel(){
   const list = dlg.querySelector('#rem_list');
   const btnToday = dlg.querySelector('#tab_today');
   const btnTomorrow = dlg.querySelector('#tab_tomorrow');
-  const info16h = dlg.querySelector('#info_16h');
   
+  // État local : on commence par "Aujourd'hui" par défaut
   let currentView = 'today'; 
 
+  // Gestion fermeture
   dlg.querySelector('#rem_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
+
+  // Clic sur les onglets
   btnToday.onclick = () => { currentView = 'today'; renderList(); };
   btnTomorrow.onclick = () => { currentView = 'tomorrow'; renderList(); };
 
   function renderList(){
+    // 1. Récupérer TOUS les rappels à faire (Fonction modifiée à l'étape précédente)
     const all = (typeof dueRemindersToday === 'function') ? dueRemindersToday() : [];
-    const tISO = todayISO();
     
+    // 2. Séparer Aujourd'hui et Demain
+    const tISO = todayISO();
     const itemsToday = all.filter(x => x.dateISO === tISO);
+    // Tout ce qui n'est pas aujourd'hui est forcément demain (vu le filtre de dueRemindersToday)
     const itemsTomorrow = all.filter(x => x.dateISO !== tISO);
 
+    // 3. Mettre à jour les compteurs des boutons
     dlg.querySelector('#cnt_today').textContent = itemsToday.length;
     dlg.querySelector('#cnt_tomorrow').textContent = itemsTomorrow.length;
 
-    // Gestion message 16h
-    const h = new Date().getHours();
-    if (currentView === 'tomorrow' && h < 16) {
-        info16h.style.display = 'block';
-    } else {
-        info16h.style.display = 'none';
-    }
-
+    // 4. Mettre à jour le style des boutons (Actif / Inactif)
     if(currentView === 'today') {
         btnToday.className = 'btn btn-primary btn-xs';
         btnTomorrow.className = 'btn btn-neutral btn-xs';
@@ -1611,13 +1613,17 @@ function openRemindersPanel(){
         btnTomorrow.className = 'btn btn-primary btn-xs';
     }
 
+    // 5. Choisir la liste à afficher
     const itemsToShow = (currentView === 'today') ? itemsToday : itemsTomorrow;
+
+    // 6. Affichage
     list.innerHTML = '';
     
     if(itemsToShow.length === 0){
       list.innerHTML = `<div class="small" style="text-align:center;padding:20px;opacity:0.6">
-        Rien à afficher pour le moment.
+        Aucun rappel à faire pour ${currentView === 'today' ? "aujourd'hui" : "demain"}.
       </div>`;
+      // On met quand même à jour la pastille du menu principal
       try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
       return;
     }
@@ -1633,60 +1639,47 @@ function openRemindersPanel(){
           <div class="title">${(typeof fmtNice==='function' ? fmtNice(r.dateISO,r.timeText) : `${r.dateISO} ${r.timeText||''}`)} — ${safe(civName)}</div>
           <div class="meta">${(typeof toFR==='function'? toFR(r.phone) : (r.phone||''))} • ${safe(r.model||'')}</div>
           <div class="mt8" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-             <span class="badge">${safe(r.agency||'')}</span>
-             ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
+            ${r.agency?`<span class="badge">${safe(r.agency)}</span>`:''}
+            ${typeof iconForChannel==='function'? iconForChannel(r) : ''}
           </div>
         </div>
-        <div class="rdv-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-          <button class="btn btn-primary btn-xs" style="width:100%" data-action="remind">Envoyer Rappel</button>
-          <button class="btn btn-ghost btn-xs" style="width:100%" data-action="ignore">Ignorer</button>
+        <div class="rdv-actions">
+          <button class="btn btn-primary btn-xs" data-rem="1">Rappel</button>
         </div>`;
 
-      // --- BOUTON ENVOYER ---
-      const btnRemind = row.querySelector('[data-action="remind"]');
-      btnRemind.onclick = async () => {
-        btnRemind.disabled = true; btnRemind.textContent = 'Envoi...';
+      // Action "Rappel"
+      const remBtn = row.querySelector('[data-rem]');
+      remBtn?.addEventListener('click', async ()=>{
+        if (!remBtn) return;
+        const prev = remBtn.textContent;
+        remBtn.disabled = true;
+        remBtn.textContent = 'Envoi…';
         try {
+          if (typeof sendReminder === 'function') {
+            // Optimiste local + refresh immédiat (la ligne va disparaître)
             patchRDV(r.id, { reminderSent: true, reminderAt: new Date(), reminderChannel: (r.firstMsgChannel||r.channel||'wa') });
-            renderList();
+            renderList(); // <-- La ligne disparaît ici
+            
             await sendReminder(r);
+          }
         } catch(e) {
-            patchRDV(r.id, { reminderSent: false }); renderList();
-            alert("Erreur envoi.");
+          console.error(e);
+          // Si erreur, on remet le rdv
+          patchRDV(r.id, { reminderSent: false });
+          renderList(); 
+          alert("Erreur lors de l'envoi.");
         } finally {
-            try { updateReminderButton?.(); } catch(e){}
+           try { typeof updateReminderButton === 'function' && updateReminderButton(); } catch(e){}
         }
-      };
-
-      // --- BOUTON IGNORER ---
-      const btnIgnore = row.querySelector('[data-action="ignore"]');
-      btnIgnore.onclick = async () => {
-        if(!confirm('Ne pas envoyer de rappel à ce client ?')) return;
-        
-        // On le masque instantanément
-        patchRDV(r.id, { reminderSent: true }); 
-        renderList();
-        
-        // On sauvegarde en base (on note qu'il a été traité/ignoré)
-        try {
-            await db.collection('rdv').doc(r.id).set({
-                reminderSent: true, 
-                reminderIgnored: true, // petit marqueur pour différencier si besoin
-                reminderAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, {merge:true});
-            notify('Rappel ignoré', 'ok');
-        } catch(e) {
-            console.error(e);
-        } finally {
-            try { updateReminderButton?.(); } catch(e){}
-        }
-      };
+      });
 
       list.appendChild(row);
     }
   }
 
+  // Hook pour le refresh global (1s)
   dlg.__rerender = renderList;
+
   renderList();
 }
 /* === Compteurs / filtres === */
@@ -4479,7 +4472,585 @@ L’équipe {{TAGLINE}}`;
     console.error('Realtime stats error', err);
   });
 })();
+(function(){
 
+  // ============================================================
+  // 1. CONFIGURATION & DONNÉES
+  // ============================================================
+  
+  let GLOBAL_CONFIG = {
+    // SÉCURITÉ ADMIN
+    adminPin: "130724",       
+    admins: ["Nathanaël", "Charlène"], 
+    
+    // ÉQUIPE
+    teamUsers: [], 
+    teamPass: "972", 
+    
+    // FONCTIONNALITÉS
+    enableFaceID: true,
+    maintenanceMode: false,
+    
+    // BUSINESS
+    sources: ["Leboncoin", "Facebook", "MyTrack", "Téléphone", "Instagram"],
+    
+    // APPARENCE
+    appTitle: "RDV — C&N Solutions",
+    loginTitle: "Connexion",
+    
+    // THÈME DÉTAILLÉ
+    theme: {
+      bg_page: "#f8fafc", bg_card: "#ffffff", text_main: "#0b1320", text_muted: "#6b7280",
+      btn_primary: "#3b82f6", btn_text: "#ffffff",
+      tab_active_bg: "#111827", tab_active_text: "#ffffff",
+      
+      // KPI
+      kpi_ca_bg: "#ecfdf5", kpi_ca_text: "#10b981",        
+      kpi_rem_bg: "#eff6ff", kpi_rem_text: "#3b82f6",      
+      kpi_hon_bg: "#f5f3ff", kpi_hon_text: "#8b5cf6",      
+      kpi_noshow_bg: "#fffbeb", kpi_noshow_text: "#f59e0b",
+    }
+  };
+
+  const dbRef = db.collection('config').doc('globalSettings');
+
+  function startRealtimeSync(){
+    dbRef.onSnapshot((doc) => {
+      if(doc.exists){
+        const data = doc.data();
+        GLOBAL_CONFIG = { ...GLOBAL_CONFIG, ...data };
+        if(data.theme) GLOBAL_CONFIG.theme = { ...GLOBAL_CONFIG.theme, ...data.theme };
+        if(!GLOBAL_CONFIG.teamUsers) GLOBAL_CONFIG.teamUsers = [];
+
+        applyAllVisuals();
+        updateWizardSources();
+        if(typeof window.TEAM_PASS !== 'undefined') window.TEAM_PASS = GLOBAL_CONFIG.teamPass;
+
+      } else {
+        dbRef.set(GLOBAL_CONFIG);
+      }
+    });
+  }
+
+  function applyAllVisuals(){
+    const t = GLOBAL_CONFIG.theme;
+    let styleTag = document.getElementById('cn-theme-override');
+    if(!styleTag){ styleTag = document.createElement('style'); styleTag.id='cn-theme-override'; document.head.appendChild(styleTag); }
+    
+    styleTag.innerHTML = `
+      html, body { background-color: ${t.bg_page} !important; color: ${t.text_main} !important; }
+      h1, h2, h3, .rdv .title { color: ${t.text_main} !important; }
+      .label, .small, .rdv .meta { color: ${t.text_muted} !important; }
+      .card, .rdv, .kpi, #login { background-color: ${t.bg_card} !important; border-color: rgba(0,0,0,0.08) !important; }
+      .btn-primary { background-color: ${t.btn_primary} !important; color: ${t.btn_text} !important; border:none !important; }
+      .tab.active { background-color: ${t.tab_active_bg} !important; color: ${t.tab_active_text} !important; border-color: ${t.tab_active_bg} !important; }
+      .tab.active .pill { color: ${t.tab_active_bg} !important; background: ${t.tab_active_text} !important; }
+      
+      /* KPIS */
+      .kpi.green { background-color: ${t.kpi_ca_bg} !important; border-color: ${t.kpi_ca_text} !important; } .kpi.green b { color: ${t.kpi_ca_text} !important; }
+      .kpi.blue { background-color: ${t.kpi_rem_bg} !important; border-color: ${t.kpi_rem_text} !important; } .kpi.blue b { color: ${t.kpi_rem_text} !important; }
+      .kpi.violet { background-color: ${t.kpi_hon_bg} !important; border-color: ${t.kpi_hon_text} !important; } .kpi.violet b { color: ${t.kpi_hon_text} !important; }
+      .kpi.amber { background-color: ${t.kpi_noshow_bg} !important; border-color: ${t.kpi_noshow_text} !important; } .kpi.amber b { color: ${t.kpi_noshow_text} !important; }
+    `;
+
+    document.title = GLOBAL_CONFIG.appTitle;
+    const logH2 = document.querySelector('#login h2'); if(logH2) logH2.textContent = GLOBAL_CONFIG.loginTitle;
+
+    const bioDisplay = GLOBAL_CONFIG.enableFaceID ? '' : 'none';
+    const btnBio = document.getElementById('btnLoginAdminPasskey');
+    const btnEnroll = document.getElementById('btnEnroll');
+    if(btnBio) btnBio.style.display = bioDisplay;
+    if(btnEnroll) {
+        const p = btnEnroll.closest('.mt12') || btnEnroll.parentElement;
+        if(p) p.style.display = bioDisplay; else btnEnroll.style.display = bioDisplay;
+    }
+    
+    const btnOldPass = document.getElementById('btnTeamPass');
+    if(btnOldPass) btnOldPass.style.display = 'none';
+
+    if(GLOBAL_CONFIG.maintenanceMode && ROLE && ROLE.role === 'team'){
+       document.body.classList.add('maintenance-active');
+    } else {
+       document.body.classList.remove('maintenance-active');
+    }
+  }
+
+  function updateWizardSources(){
+     const dl = document.getElementById('sourcesList');
+     if(dl) dl.innerHTML = GLOBAL_CONFIG.sources.map(s => `<option value="${s}"></option>`).join('');
+     const chipsDiv = document.getElementById('dyn_source_chips');
+     if(chipsDiv){
+        chipsDiv.innerHTML = GLOBAL_CONFIG.sources.map(s => `<button class="chip" onclick="$('#w_source').value='${s}'; next()">${s}</button>`).join('');
+     }
+  }
+
+  function refreshAllData(){
+    if(typeof computeTodo === 'function') computeTodo();
+    if(typeof updatePendingConfirms === 'function') updatePendingConfirms();
+  }
+
+  startRealtimeSync();
+
+
+  // ============================================================
+  // 2. ANIMATION BIENVENUE
+  // ============================================================
+  function showWelcomeMessage(name){
+     const ov = document.createElement('div');
+     ov.style.cssText = `
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(255,255,255,0.95);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        animation: fadeOutWelcome 0.8s ease forwards;
+        animation-delay: 1.5s;
+     `;
+     ov.innerHTML = `
+        <div style="font-size:32px; font-weight:800; color:var(--ink); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+           Bonjour, ${escapeHtml(name)} 👋
+        </div>
+     `;
+     document.body.appendChild(ov);
+     setTimeout(() => { ov.remove(); }, 2500);
+  }
+  const stAnim = document.createElement('style');
+  stAnim.innerHTML = `@keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} } @keyframes fadeOutWelcome { to{opacity:0; visibility:hidden;} }`;
+  document.head.appendChild(stAnim);
+
+
+  // ============================================================
+  // 3. WORKFLOW "À CONFIRMER"
+  // ============================================================
+  const wizObserver = new MutationObserver(() => {
+     const step8 = document.querySelector('.step[data-step="8"]');
+     if(step8 && !document.getElementById('btnSendLater')){
+        const nav = step8.querySelector('.nav .row'); 
+        if(nav){
+           const btn = document.createElement('button');
+           btn.id = 'btnSendLater';
+           btn.className = 'btn btn-neutral btn-xs';
+           btn.innerHTML = '🕒 Confirmer + tard';
+           btn.style.marginTop = '6px'; btn.style.width = '100%';
+           btn.onclick = (e) => { e.preventDefault(); submitRDV('later'); };
+           nav.parentElement.appendChild(btn); 
+        }
+     }
+  });
+  const wizEl = document.querySelector('.wiz');
+  if(wizEl) wizObserver.observe(wizEl, { attributes: true, subtree: true, attributeFilter:['class'] });
+
+  const _origSubmit = window.submitRDV;
+  window.submitRDV = async function(channel){
+     if(channel === 'later'){
+        const a=$('#w_agency').value, civ=$('#w_civ').value, name=$('#w_name').value.trim(),
+        dateTxt=$('#w_date').value, timeTxt=$('#w_time').value, model=$('#w_model').value.trim(),
+        source=$('#w_source').value.trim();
+        const phone10 = normalizeFR10($('#w_phone').value);
+        if(!a || !civ || !name || !phone10 || !dateTxt || !timeTxt || !model) return alert('Champs incomplets.');
+
+        const payload={ 
+           agency:a,civ,name,phone:"33"+phone10.slice(1),dateText:dateTxt,timeText:timeTxt,dateISO:jjmma_to_iso(dateTxt),
+           model,source, channel: null, confirmationPending: true,
+           createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+           createdByName:ROLE.name, createdByRole:ROLE.role, deleted:false
+        };
+        try {
+           await db.collection('rdv').add(payload);
+           const idStat=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`;
+           db.collection('stats').doc(idStat).set({created:firebase.firestore.FieldValue.increment(1)},{merge:true});
+           notify("Enregistré dans 'À confirmer' 🔔", "ok");
+           showStep(1); ['w_civ','w_name','w_phone','w_date','w_time','w_model','w_source'].forEach(id=>$('#'+id).value=''); 
+           loadAll(); updatePendingConfirms();
+        } catch(e) { alert("Erreur sauvegarde."); }
+        return;
+     }
+     if(_origSubmit) _origSubmit(channel);
+  };
+
+  function updatePendingConfirms(){
+     const pending = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true);
+     const count = pending.length;
+     let btn = document.getElementById('btnToConfirm');
+     if(!btn){
+        const toolbar = document.querySelector('.toolbar');
+        if(toolbar){
+           btn = document.createElement('button'); btn.id = 'btnToConfirm'; btn.className = 'btn btn-neutral btn-xs';
+           toolbar.insertBefore(btn, document.getElementById('btnReminders'));
+           btn.onclick = openConfirmPanel;
+        }
+     }
+     if(btn){
+        btn.innerHTML = `À confirmer <span class="pill">${count}</span>`;
+        btn.style.display = count > 0 ? '' : 'none';
+        if(count > 0) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#d97706'; btn.style.background = '#fffbeb'; }
+     }
+  }
+  setInterval(updatePendingConfirms, 2000);
+
+  window.openConfirmPanel = function(){
+    const dlg = document.createElement('dialog');
+    dlg.style.maxWidth='800px'; dlg.style.width='min(96vw,800px)'; dlg.style.padding='0';
+    dlg.innerHTML = `
+      <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:#fffbeb">
+        <div style="font-weight:800;color:#92400e">🔔 Rendez-vous à confirmer</div>
+        <button class="btn btn-neutral btn-xs" onclick="this.closest('dialog').close()">Fermer</button>
+      </div>
+      <div style="padding:16px;max-height:70vh;overflow-y:auto" id="conf_list"></div>
+    `;
+    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
+
+    function render(){
+       const list = dlg.querySelector('#conf_list');
+       const items = (ALL_R||[]).filter(r => !r.deleted && r.confirmationPending === true);
+       list.innerHTML = '';
+       if(items.length===0) { list.innerHTML = '<div class="small">Tout est à jour.</div>'; return; }
+       items.forEach(r => {
+          const row = document.createElement('div'); row.className = 'rdv';
+          const who = r.createdByName || 'Inconnu';
+          row.innerHTML = `
+             <div>
+                <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${r.civ} ${r.name}</div>
+                <div class="meta">${toFR(r.phone)} • ${r.model}</div>
+                <div class="mt8"><span class="bubble orange">Placé par : ${who}</span> <span class="badge">${r.agency}</span></div>
+             </div>
+             <div class="rdv-actions" style="flex-direction:column;gap:6px">
+                <button class="btn btn-primary btn-xs" id="send_now_${r.id}">Envoyer SMS</button>
+                <button class="btn btn-warn btn-xs" id="cancel_${r.id}">Annuler RDV</button>
+             </div>
+          `;
+          row.querySelector(`#send_now_${r.id}`).onclick = async () => {
+             const text = msgFromTpl('confirmation', r.agency, r.dateText, r.timeText, r.model);
+             const n = phoneSMS(r.phone);
+             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+             const sep = isIOS ? '&' : '?';
+             window.location.href = `sms:${n}${sep}body=${encodeURIComponent(text)}`;
+             await markConfirmed(r, 'sms'); row.remove(); updatePendingConfirms();
+          };
+          row.querySelector(`#cancel_${r.id}`).onclick = async () => {
+             if(!confirm('Annuler ce RDV ?')) return;
+             await db.collection('rdv').doc(r.id).set({
+                confirmationPending: firebase.firestore.FieldValue.delete(),
+                status: 'cancelled',
+                statusAt: firebase.firestore.FieldValue.serverTimestamp()
+             }, {merge:true});
+             db.collection('messages').add({
+                type: 'cancel_pending', rdvId:r.id, phone:r.phone, agency:r.agency, 
+                sentAt: firebase.firestore.FieldValue.serverTimestamp(), note: "Annulé avant confirmation"
+             });
+             const local = ALL_R.find(x=>x.id===r.id);
+             if(local) { delete local.confirmationPending; local.status='cancelled'; }
+             row.remove(); updatePendingConfirms(); notify("RDV Annulé", "ok");
+          };
+          list.appendChild(row);
+       });
+    }
+    render();
+  };
+
+  async function markConfirmed(r, channel){
+     await db.collection('rdv').doc(r.id).set({
+        confirmationPending: firebase.firestore.FieldValue.delete(),
+        firstMsgAt: firebase.firestore.FieldValue.serverTimestamp(),
+        firstMsgChannel: channel
+     }, {merge:true});
+     const local = ALL_R.find(x=>x.id===r.id);
+     if(local) { delete local.confirmationPending; local.firstMsgAt=new Date(); }
+  }
+
+
+  // ============================================================
+  // 4. PANNEAU DE RÉGLAGES
+  // ============================================================
+
+  window.openGlobalSettings = function(){
+    if(!ROLE || ROLE.role !== 'admin') return alert("Accès interdit.");
+
+    const dlg = document.createElement('dialog');
+    dlg.style.maxWidth='800px'; 
+    dlg.style.width='min(98vw, 800px)';
+    dlg.style.padding='0';
+    
+    dlg.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:#f1f5f9">
+        <div style="font-weight:800;display:flex;align-items:center;gap:8px">🎛️ Centre de Contrôle</div>
+        <button class="btn btn-neutral btn-xs" id="set_close">Fermer</button>
+      </div>
+      
+      <div style="display:flex;border-bottom:1px solid var(--line);background:#fff;overflow-x:auto">
+        <button class="set-tab active" data-target="tab_theme">🎨 Apparence</button>
+        <button class="set-tab" data-target="tab_team">👥 Équipe</button>
+        <button class="set-tab" data-target="tab_secu">🔐 Admin</button>
+        <button class="set-tab" data-target="tab_biz">💼 Sources</button>
+      </div>
+
+      <div style="padding:20px;max-height:70vh;overflow-y:auto;background:#fff">
+        
+        <div id="tab_theme" class="set-content">
+           <div style="background:#f0f9ff;padding:10px;border-radius:8px;border:1px solid #bae6fd;margin-bottom:15px;color:#0369a1;font-size:14px">
+             ℹ️ Les changements sont <b>immédiats</b> après avoir cliqué sur Enregistrer.
+           </div>
+           <div class="color-section-title">Général</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('bg_page', 'Fond de page')} ${colorInput('bg_card', 'Cartes (Blocs)')}
+             ${colorInput('text_main', 'Texte principal')} ${colorInput('btn_primary', 'Boutons (Action)')}
+           </div>
+           <div class="color-section-title">Onglets (Menu)</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('tab_active_bg', 'Fond Onglet Actif')} ${colorInput('tab_active_text', 'Texte Onglet Actif')}
+           </div>
+           <div class="color-section-title">KPI : Chiffre d'affaires & À Venir</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('kpi_ca_bg', 'Fond (Ex: Vert clair)')} ${colorInput('kpi_ca_text', 'Texte (Ex: Vert)')}
+           </div>
+           <div class="color-section-title">KPI : Rappels</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('kpi_rem_bg', 'Fond (Ex: Bleu clair)')} ${colorInput('kpi_rem_text', 'Texte (Ex: Bleu)')}
+           </div>
+           <div class="color-section-title">KPI : Honorés</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('kpi_hon_bg', 'Fond (Ex: Violet clair)')} ${colorInput('kpi_hon_text', 'Texte (Ex: Violet)')}
+           </div>
+           <div class="color-section-title">KPI : Non Honorés</div>
+           <div class="row" style="gap:15px;margin-bottom:15px">
+             ${colorInput('kpi_noshow_bg', 'Fond (Ex: Jaune clair)')} ${colorInput('kpi_noshow_text', 'Texte (Ex: Jaune)')}
+           </div>
+           <div class="color-section-title">Textes de l'appli</div>
+           <div class="row" style="gap:10px">
+             <input id="set_title_app" class="input" value="${GLOBAL_CONFIG.appTitle}" placeholder="Titre Onglet Navigateur">
+             <input id="set_title_login" class="input" value="${GLOBAL_CONFIG.loginTitle}" placeholder="Titre Écran Login">
+           </div>
+        </div>
+
+        <div id="tab_team" class="set-content" style="display:none">
+          <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--line);margin-bottom:15px;background:#fffbeb;cursor:pointer">
+             <div><div style="font-weight:700;color:#92400e">🚧 Mode Maintenance</div><div class="small">Bloque l'écriture pour l'équipe.</div></div>
+             <input type="checkbox" id="set_maint" style="transform:scale(1.3)" ${GLOBAL_CONFIG.maintenanceMode ? 'checked' : ''}>
+          </label>
+          <div class="label">Membres (Compte individuel)</div>
+          <div id="team_users_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px"></div>
+          <div class="row" style="gap:8px">
+             <input id="new_tm_name" class="input" placeholder="Nom" style="flex:1">
+             <input id="new_tm_pass" class="input" placeholder="Mot de passe" style="flex:1">
+             <button id="add_tm_btn" class="btn btn-neutral btn-xs">Ajouter</button>
+          </div>
+        </div>
+
+        <div id="tab_secu" class="set-content" style="display:none">
+           <div class="label">Code PIN Admin</div>
+           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px">
+           <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--line);margin-bottom:20px;cursor:pointer">
+             <div><div style="font-weight:700">Connexion FaceID / TouchID</div></div>
+             <input type="checkbox" id="set_faceid" style="transform:scale(1.3)" ${GLOBAL_CONFIG.enableFaceID ? 'checked' : ''}>
+           </label>
+           <div class="label">Liste des Admins</div>
+           <div id="admin_list" class="chips-container" style="margin-bottom:10px"></div>
+           <div class="row" style="gap:8px"><input id="new_admin" class="input" placeholder="Nouvel admin..."><button id="add_admin" class="btn btn-neutral btn-xs">Ajouter</button></div>
+        </div>
+
+        <div id="tab_biz" class="set-content" style="display:none">
+           <div class="label">Sources RDV</div>
+           <textarea id="set_sources" class="input" rows="3">${GLOBAL_CONFIG.sources.join(', ')}</textarea>
+        </div>
+      </div>
+
+      <div style="padding:16px;border-top:1px solid var(--line);text-align:right;background:#f8fafc;position:sticky;bottom:0">
+        <button id="btn_save_all" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.1)">💾 ENREGISTRER TOUT</button>
+      </div>
+    `;
+
+    function colorInput(key, label){
+       return `
+         <div style="flex:1;min-width:140px">
+           <div class="label" style="font-size:11px;margin-bottom:4px">${label}</div>
+           <div style="display:flex;align-items:center;gap:8px;border:1px solid #e2e8f0;padding:4px;border-radius:8px;background:#fff">
+             <input type="color" id="th_${key}" value="${GLOBAL_CONFIG.theme[key]}" style="border:none;width:25px;height:25px;cursor:pointer;background:none">
+           </div>
+         </div>`;
+    }
+
+    const style = document.createElement('style');
+    style.innerHTML = `.set-tab{flex:1;padding:12px;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;color:#64748b}.set-tab.active{border-color:var(--blue);color:var(--blue);background:#eff6ff}.chips-container{display:flex;flex-wrap:wrap;gap:8px}.color-section-title{font-weight:800;margin:15px 0 8px 0;border-bottom:1px solid #eee;color:#334155}`;
+    dlg.appendChild(style);
+    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))();
+
+    const tabs = dlg.querySelectorAll('.set-tab'); const contents = dlg.querySelectorAll('.set-content');
+    tabs.forEach(t => t.onclick = () => { tabs.forEach(x=>x.classList.remove('active')); contents.forEach(x=>x.style.display='none'); t.classList.add('active'); dlg.querySelector('#'+t.dataset.target).style.display='block'; });
+
+    // Team List (AVEC ÉDITION & MIGRATION)
+    let tUsers = JSON.parse(JSON.stringify(GLOBAL_CONFIG.teamUsers || []));
+    function renderTeam(){
+       const c = dlg.querySelector('#team_users_list'); c.innerHTML='';
+       tUsers.forEach((u,i)=>{
+          const blocked = u.blocked === true;
+          const statusStyle = blocked ? 'opacity:0.6;text-decoration:line-through;background:#fee2e2' : 'background:#f1f5f9';
+          c.innerHTML += `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;margin-bottom:4px;${statusStyle}">
+               <div>
+                  <b>${u.name}</b> <span class="small">(${u.pass})</span>
+                  ${blocked ? '<span style="color:red;font-weight:bold;font-size:11px;margin-left:5px">BLOQUÉ</span>' : ''}
+               </div>
+               <div style="display:flex;gap:5px">
+                  <button class="btn btn-xs btn-neutral icon-only" onclick="window._editTm(${i})" title="Modifier">✏️</button>
+                  <button class="btn btn-xs ${blocked?'btn-primary':'btn-neutral'}" onclick="window._blockTm(${i})" title="${blocked?'Débloquer':'Bloquer'}">${blocked?'✅':'🚫'}</button>
+                  <button class="btn btn-warn btn-xs icon-only" onclick="window._delTm(${i})">🗑️</button>
+               </div>
+            </div>`;
+       });
+    }
+    window._delTm = (i)=>{ tUsers.splice(i,1); renderTeam(); };
+    window._blockTm = (i)=>{ tUsers[i].blocked = !tUsers[i].blocked; renderTeam(); };
+    
+    // --- FONCTION D'ÉDITION INTELLIGENTE ---
+    window._editTm = async (i) => {
+        const u = tUsers[i];
+        const oldName = u.name; // On mémorise l'ancien nom
+
+        const newN = prompt("Modifier le nom (Identifiant) :", u.name);
+        if(newN === null) return;
+        const newP = prompt("Modifier le mot de passe :", u.pass);
+        if(newP === null) return;
+        
+        if(newN && newP){
+            // Si le nom a changé, on propose la migration
+            if(newN !== oldName) {
+                if(confirm(`🚨 ATTENTION : Vous changez l'identifiant "${oldName}" en "${newN}".\n\nLe membre risque de perdre l'accès à ses anciens RDV.\n\nVoulez-vous transférer tout l'historique de ${oldName} vers ${newN} ?`)){
+                    try {
+                        notify("Transfert des données en cours...", "ok");
+                        const snap = await db.collection('rdv').where('createdByName', '==', oldName).get();
+                        const updates = [];
+                        snap.forEach(doc => {
+                            updates.push(db.collection('rdv').doc(doc.id).update({ createdByName: newN }));
+                        });
+                        await Promise.all(updates);
+                        notify(`${updates.length} fiches transférées avec succès !`, "ok");
+                    } catch(e) {
+                        alert("Erreur lors du transfert : " + e.message);
+                    }
+                }
+            }
+
+            tUsers[i].name = newN;
+            tUsers[i].pass = newP;
+            renderTeam();
+        }
+    };
+
+    renderTeam();
+    dlg.querySelector('#add_tm_btn').onclick=()=>{ const n=dlg.querySelector('#new_tm_name').value.trim(), p=dlg.querySelector('#new_tm_pass').value.trim(); if(n&&p){ tUsers.push({name:n,pass:p,blocked:false}); renderTeam(); dlg.querySelector('#new_tm_name').value=''; dlg.querySelector('#new_tm_pass').value=''; }};
+
+    // Admin List
+    let tAdmins = [...GLOBAL_CONFIG.admins];
+    function renderAdmins(){
+       const c = dlg.querySelector('#admin_list'); c.innerHTML='';
+       tAdmins.forEach((a,i)=>{ c.innerHTML += `<span class="bubble gray">${a} <i class="fa-solid fa-xmark" style="cursor:pointer;margin-left:5px" onclick="window._delAdm(${i})"></i></span>`; });
+    }
+    window._delAdm = (i)=>{ tAdmins.splice(i,1); renderAdmins(); }; renderAdmins();
+    dlg.querySelector('#add_admin').onclick=()=>{ const v=dlg.querySelector('#new_admin').value.trim(); if(v){ tAdmins.push(v); renderAdmins(); dlg.querySelector('#new_admin').value=''; }};
+
+    // SAVE ALL
+    dlg.querySelector('#btn_save_all').onclick = async () => {
+       const btn=dlg.querySelector('#btn_save_all'); btn.textContent="Sauvegarde..."; btn.disabled=true;
+       try {
+         const theme = {}; for (const key in GLOBAL_CONFIG.theme) { const input = dlg.querySelector('#th_' + key); if(input) theme[key] = input.value; else theme[key] = GLOBAL_CONFIG.theme[key]; }
+         const srcRaw = dlg.querySelector('#set_sources').value;
+         await dbRef.set({
+            adminPin: dlg.querySelector('#set_adminPin').value,
+            enableFaceID: dlg.querySelector('#set_faceid').checked,
+            maintenanceMode: dlg.querySelector('#set_maint').checked,
+            appTitle: dlg.querySelector('#set_title_app').value,
+            loginTitle: dlg.querySelector('#set_title_login').value,
+            teamUsers: tUsers, admins: tAdmins,
+            sources: srcRaw.split(',').map(s=>s.trim()).filter(s=>s),
+            theme: theme
+         }, {merge:true});
+         notify("Tout est sauvegardé !", "ok"); dlg.close(); dlg.remove();
+       } catch(e){ alert("Erreur: "+e); btn.disabled=false; }
+    };
+    dlg.querySelector('#set_close').onclick = () => { dlg.close(); dlg.remove(); };
+  };
+
+  // ============================================================
+  // 5. INJECTION UI
+  // ============================================================
+  
+  const originalEnter = window.enter;
+  window.enter = async function(){
+    await originalEnter(); applyAllVisuals(); updatePendingConfirms(); 
+    if(ROLE && ROLE.role === 'admin'){
+      const toolbar = document.querySelector('.toolbar');
+      if(toolbar && !document.getElementById('btnGlobalSettings')){
+        const btn = document.createElement('button');
+        btn.id = 'btnGlobalSettings'; btn.className = 'btn btn-neutral btn-xs';
+        btn.innerHTML = '⚙️ Réglages'; btn.onclick = window.openGlobalSettings;
+        toolbar.insertBefore(btn, toolbar.firstChild);
+        const old = document.getElementById('btnTeamUsers'); if(old) old.remove();
+      }
+    }
+    
+    // EFFET BIENVENUE
+    if(ROLE && ROLE.name) showWelcomeMessage(ROLE.name);
+  };
+
+  // OVERRIDES LOGIN
+  const btnTeam = document.getElementById('btnLoginTeam');
+  if(btnTeam){
+      const newBtnTeam = btnTeam.cloneNode(true); btnTeam.parentNode.replaceChild(newBtnTeam, btnTeam);
+      newBtnTeam.onclick = () => {
+          const n = document.getElementById('eqName').value.trim(); const p = document.getElementById('eqPass').value.trim();
+          if(!n || !p) return alert("Remplissez tous les champs.");
+          const users = GLOBAL_CONFIG.teamUsers || [];
+          const found = users.find(u => u.name.toLowerCase() === n.toLowerCase());
+          let authOK = false;
+          
+          if(found) { 
+             if(found.blocked) return alert("Accès temporairement suspendu.");
+             if(found.pass === p) authOK = true; 
+          } else { 
+             // Fallback (Mot de passe global)
+             if(GLOBAL_CONFIG.teamPass && p === GLOBAL_CONFIG.teamPass) authOK = true; 
+          }
+          
+          if(!authOK) return alert("Identifiant ou mot de passe incorrect.");
+          ROLE = {role:'team', name: (found ? found.name : n)}; enter();
+      };
+  }
+  const btnPin = document.getElementById('btnLoginAdminPin');
+  if(btnPin){
+    const n = btnPin.cloneNode(true); btnPin.parentNode.replaceChild(n, btnPin);
+    n.onclick = () => {
+       const pin = prompt("Code administrateur :");
+       if (pin === GLOBAL_CONFIG.adminPin) openIdentity(); else if (pin) alert("Code incorrect.");
+    };
+  }
+  const btnPK = document.getElementById('btnLoginAdminPasskey');
+  if(btnPK){
+    const n = btnPK.cloneNode(true); btnPK.parentNode.replaceChild(n, btnPK);
+    n.onclick = async () => {
+       if(!GLOBAL_CONFIG.enableFaceID) return;
+       try{ await tryPasskey(true); openIdentity(); } catch(e){ alert('Erreur biométrie.'); }
+    };
+  }
+  
+  // --- GROS BOUTONS ADMIN ---
+  function openIdentity(){
+    const dlg = document.createElement('dialog');
+    dlg.style.padding='0'; dlg.style.border='1px solid var(--line)'; dlg.style.borderRadius='12px'; dlg.style.maxWidth='360px';
+    dlg.innerHTML = `<div style="padding:15px;border-bottom:1px solid #eee;font-weight:bold;font-size:16px;text-align:center">Qui se connecte ?</div><div id="lst" style="padding:16px;display:flex;flex-direction:column;gap:10px"></div>`;
+    (GLOBAL_CONFIG.admins||[]).forEach(a=>{
+       const b=document.createElement('button'); 
+       // STYLE GROS BOUTON
+       b.className='btn btn-neutral'; 
+       b.style.cssText="width:100%; padding:14px; font-size:18px; font-weight:700; display:block;";
+       b.textContent=a;
+       b.onclick=()=>{ ROLE={role:'admin',name:a}; enter(); dlg.close(); dlg.remove(); };
+       dlg.querySelector('#lst').appendChild(b);
+    });
+    document.body.appendChild(dlg); (dlg.showModal?.bind(dlg)??dlg.setAttribute.bind(dlg,'open',''))();
+  }
+  const st = document.createElement('style');
+  st.innerHTML = `body.maintenance-active .wiz { pointer-events:none; opacity:0.5; filter:grayscale(1); }`;
+  document.head.appendChild(st);
+
+})();
 </script>
 </section>
 </body>
