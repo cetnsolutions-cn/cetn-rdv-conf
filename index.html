@@ -4485,7 +4485,7 @@ L’équipe {{TAGLINE}}`;
     teamPass: "972",  
     enableFaceID: true, 
     maintenanceMode: false, 
-    sources: ["Leboncoin", "Facebook", "MyTrack", "Téléphone", "Instagram"], 
+   
     appTitle: "RDV — C&N Solutions", 
     loginTitle: "Connexion", 
     
@@ -4734,7 +4734,7 @@ L’équipe {{TAGLINE}}`;
         <button class="set-tab active" data-target="tab_theme">🎨 Apparence</button> 
         <button class="set-tab" data-target="tab_team">👥 Équipe</button> 
         <button class="set-tab" data-target="tab_secu">🔐 Admin</button> 
-        <button class="set-tab" data-target="tab_biz">💼 Sources</button> 
+        
       </div> 
       <div style="padding:20px;max-height:70vh;overflow-y:auto;background:${bg};color:${text}"> 
         <div id="tab_theme" class="set-content"> 
@@ -4774,10 +4774,8 @@ L’équipe {{TAGLINE}}`;
         </div> 
         <div id="tab_secu" class="set-content" style="display:none"> 
            <div class="label" style="color:${text}">Code PIN Admin</div> 
-           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px;background:${inputBg};color:${text};border:1px solid ${border}"> 
-           <label class="rdv" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid ${border};margin-bottom:20px;cursor:pointer;color:${text};background:${bg}"> 
-              <div><div style="font-weight:700">Connexion FaceID / TouchID</div></div> 
-              <input type="checkbox" id="set_faceid" style="transform:scale(1.3)" ${GLOBAL_CONFIG.enableFaceID ? 'checked' : ''}> 
+           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style
+              
            </label> 
            <div class="label" style="color:${text}">Liste des Admins</div> 
            <div id="admin_list" class="chips-container" style="margin-bottom:10px"></div> 
@@ -5653,8 +5651,425 @@ L’équipe {{TAGLINE}}`;
 
   }, 100); 
 })();
+HTML
+<script>
+(function(){
+
+  // ============================================================
+  // 1. CSS : DESIGN HOMOGÈNE & SÉCURISÉ (Taille unique 40px)
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* On force la barre d'outils à être propre */
+    .toolbar {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: center !important;
+        padding: 8px !important;
+    }
+
+    /* CIBLE TOUS LES BOUTONS DE LA BARRE D'OUTILS */
+    .toolbar button,
+    .toolbar .btn,
+    #btnGlobalSettingsClean {
+        height: 40px !important;              /* HAUTEUR IDENTIQUE FORCEE */
+        line-height: 1 !important;
+        padding: 0 16px !important;           /* Espacement interne identique */
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        
+        /* On s'assure qu'ils sont cliquables */
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 10 !important;
+    }
+
+    /* Style spécifique du bouton Réglages (Noir) */
+    #btnGlobalSettingsClean {
+        background: #0f172a !important;
+        color: #ffffff !important;
+        border: 1px solid #0f172a !important;
+        order: -9999 !important; /* LE PLACE EN PREMIER */
+    }
+    #btnGlobalSettingsClean:hover {
+        background: #1e293b !important;
+        transform: translateY(-1px);
+    }
+
+    /* Ajustement des autres boutons pour qu'ils soient gris/blanc */
+    .toolbar button:not(#btnGlobalSettingsClean):not(#btnReminders):not(#btnLogout):not(.btn-warn):not(.btn-primary) {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #475569 !important;
+    }
+  `;
+  document.head.appendChild(style);
 
 
+  // ============================================================
+  // 2. FONCTION D'OUVERTURE DU PANNEAU (NETTOYÉE)
+  // ============================================================
+  window.openGlobalSettings = function(){ 
+    if(!ROLE || ROLE.role !== 'admin') return alert("Accès réservé à l'administrateur.");
+    
+    // Nettoyage de l'ancienne fenêtre si elle est ouverte
+    const old = document.getElementById('settings-dialog-clean');
+    if(old) old.remove();
+
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const dlg = document.createElement('dialog');
+    dlg.id = 'settings-dialog-clean';
+    dlg.style.cssText = `
+        max-width: 600px; width: 95vw; padding: 0; border: none; border-radius: 16px;
+        background: ${isDark ? '#1e293b' : '#ffffff'}; color: ${isDark ? '#fff' : '#0f172a'};
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    `;
+    
+    dlg.innerHTML = ` 
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;"> 
+        <div style="font-weight:800;font-size:18px">🎛️ Réglages Admin</div> 
+        <button class="btn btn-neutral btn-xs" id="set_close_btn">Fermer</button> 
+      </div> 
+      
+      <div style="padding:20px;max-height:70vh;overflow-y:auto;"> 
+        
+        <div style="margin-bottom:20px;">
+            <div class="label" style="font-weight:800;margin-bottom:10px;text-transform:uppercase;font-size:11px;opacity:0.7">Gestion Équipe</div>
+            
+            <label style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--line);margin-bottom:15px;background:var(--tile);border-radius:10px;cursor:pointer"> 
+                <div><div style="font-weight:700;">🚧 Mode Maintenance</div><div class="small">Bloque l'écriture pour l'équipe.</div></div> 
+                <input type="checkbox" id="set_maint" style="transform:scale(1.3)" ${GLOBAL_CONFIG.maintenanceMode ? 'checked' : ''}> 
+            </label> 
+
+            <div id="team_users_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px"></div> 
+            
+            <div class="row" style="gap:8px;padding-top:10px;border-top:1px solid var(--line)"> 
+                <input id="new_tm_name" class="input" placeholder="Nom" style="flex:1"> 
+                <input id="new_tm_pass" class="input" placeholder="Mot de passe" style="flex:1"> 
+                <button id="add_tm_btn" class="btn btn-primary btn-xs">Ajouter</button> 
+            </div> 
+        </div>
+
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--line)">
+           <div class="label" style="font-weight:800;margin-bottom:10px;text-transform:uppercase;font-size:11px;opacity:0.7">Sécurité</div>
+           <div class="label">Code PIN Admin</div> 
+           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px;font-family:monospace;font-weight:bold;letter-spacing:1px"> 
+           
+           <div class="label">Administrateurs</div> 
+           <div id="admin_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div> 
+           <div class="row" style="gap:8px"><input id="new_admin" class="input" placeholder="Nouvel admin..."><button id="add_admin" class="btn btn-neutral btn-xs">Ajouter</button></div> 
+        </div>
+
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--line)">
+           <div class="label" style="font-weight:800;margin-bottom:10px;text-transform:uppercase;font-size:11px;opacity:0.7">Titres</div>
+           <div class="row" style="gap:10px"> 
+             <div style="flex:1"><div class="label">Titre Onglet</div><input id="set_title_app" class="input" value="${GLOBAL_CONFIG.appTitle}"></div>
+             <div style="flex:1"><div class="label">Titre Login</div><input id="set_title_login" class="input" value="${GLOBAL_CONFIG.loginTitle}"></div>
+           </div> 
+           <div class="small mt8" style="font-style:italic;opacity:0.7">Les couleurs sont gérées via l'onglet dédié (masqué pour simplification).</div>
+        </div> 
+      </div> 
+
+      <div style="padding:16px 20px;border-top:1px solid var(--line);text-align:right;background:var(--tile)"> 
+        <button id="btn_save_all" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">💾 Enregistrer</button> 
+      </div> 
+    `; 
+
+    document.body.appendChild(dlg); 
+    dlg.showModal();
+
+    // --- LOGIQUE INTERNE ---
+    dlg.querySelector('#set_close_btn').onclick = () => { dlg.close(); dlg.remove(); };
+
+    let tUsers = JSON.parse(JSON.stringify(GLOBAL_CONFIG.teamUsers || [])); 
+    function renderTeam(){ 
+       const c = dlg.querySelector('#team_users_list'); c.innerHTML=''; 
+       if(tUsers.length === 0) c.innerHTML = '<div class="small">Aucun membre.</div>';
+       tUsers.forEach((u,i)=>{ 
+          const blocked = u.blocked === true; 
+          c.innerHTML += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:var(--bg);border:1px solid ${blocked?'#ef4444':'var(--line)'};opacity:${blocked?0.8:1}">
+            <div>
+                <b style="${blocked?'text-decoration:line-through':''}">${u.name}</b> <span class="small">(${u.pass})</span>
+                ${blocked?' <span style="color:#ef4444;font-weight:bold;font-size:10px;margin-left:5px">BLOQUÉ</span>':''}
+            </div>
+            <div style="display:flex;gap:5px">
+                <button class="btn btn-xs ${blocked?'btn-primary':'btn-neutral'}" onclick="window._blockTm(${i})">${blocked?'Débloquer':'Bloquer'}</button>
+                <button class="btn btn-warn btn-xs icon-only" onclick="window._delTm(${i})">🗑️</button>
+            </div>
+          </div>`; 
+       }); 
+    } 
+    window._delTm = (i)=>{ if(confirm('Supprimer ?')) { tUsers.splice(i,1); renderTeam(); }}; 
+    window._blockTm = (i)=>{ tUsers[i].blocked = !tUsers[i].blocked; renderTeam(); }; 
+    renderTeam(); 
+    
+    dlg.querySelector('#add_tm_btn').onclick=()=>{ const n=dlg.querySelector('#new_tm_name').value.trim(), p=dlg.querySelector('#new_tm_pass').value.trim(); if(n&&p){ tUsers.push({name:n,pass:p,blocked:false}); renderTeam(); dlg.querySelector('#new_tm_name').value=''; dlg.querySelector('#new_tm_pass').value=''; }}; 
+
+    let tAdmins = [...GLOBAL_CONFIG.admins]; 
+    function renderAdmins(){ const c = dlg.querySelector('#admin_list'); c.innerHTML=''; tAdmins.forEach((a,i)=>{ c.innerHTML += `<span class="badge" style="padding:6px 10px">${a} <i class="fa-solid fa-xmark" style="cursor:pointer;margin-left:5px;color:#ef4444" onclick="window._delAdm(${i})"></i></span>`; }); } 
+    window._delAdm = (i)=>{ tAdmins.splice(i,1); renderAdmins(); }; renderAdmins(); 
+    dlg.querySelector('#add_admin').onclick=()=>{ const v=dlg.querySelector('#new_admin').value.trim(); if(v){ tAdmins.push(v); renderAdmins(); dlg.querySelector('#new_admin').value=''; }}; 
+
+    dlg.querySelector('#btn_save_all').onclick = async () => { 
+       const btn=dlg.querySelector('#btn_save_all'); btn.textContent="Sauvegarde..."; btn.disabled=true; 
+       try { 
+         await db.collection('config').doc('globalSettings').set({ 
+             adminPin: dlg.querySelector('#set_adminPin').value, 
+             maintenanceMode: dlg.querySelector('#set_maint').checked, 
+             appTitle: dlg.querySelector('#set_title_app').value, 
+             loginTitle: dlg.querySelector('#set_title_login').value, 
+             teamUsers: tUsers, admins: tAdmins 
+             // On conserve le reste sans toucher (faceID, sources, theme)
+         }, {merge:true}); 
+         notify("Enregistré ✔️", "ok"); dlg.close(); dlg.remove(); 
+       } catch(e){ alert("Erreur: "+e); btn.disabled=false; } 
+    }; 
+  };
+
+
+  // ============================================================
+  // 3. GESTION DU BOUTON "RÉGLAGES" (VÉRIFICATION 1 FOIS/SEC)
+  // ============================================================
+  function fixSettingsButton() {
+      // Si pas admin, on supprime le bouton s'il est là
+      if (!ROLE || ROLE.role !== 'admin') {
+          const btn = document.getElementById('btnGlobalSettingsClean');
+          if(btn) btn.remove();
+          return;
+      }
+
+      const toolbar = document.querySelector('.toolbar');
+      if (!toolbar) return;
+
+      // 1. Nettoyage des doublons ou anciens boutons
+      const oldBtns = document.querySelectorAll('[id^="btnGlobalSettings"]');
+      let exists = false;
+      oldBtns.forEach(b => {
+          if (b.id === 'btnGlobalSettingsClean') exists = true;
+          else b.remove(); // On vire les vieux
+      });
+      const btnTeamUsers = document.getElementById('btnTeamUsers'); if(btnTeamUsers) btnTeamUsers.remove();
+
+      // 2. Si le bouton propre n'existe pas, on le crée
+      if (!exists) {
+          const btn = document.createElement('button');
+          btn.id = 'btnGlobalSettingsClean';
+          btn.className = 'btn'; // Classe de base
+          btn.innerHTML = '⚙️ Réglages';
+          
+          // L'événement CLIC direct (le plus fiable)
+          btn.onclick = function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              window.openGlobalSettings();
+          };
+
+          // Insertion en premier
+          toolbar.insertBefore(btn, toolbar.firstChild);
+      }
+  }
+
+  // Lance la vérification toutes les 500ms pour s'assurer qu'il reste là
+  // et que personne ne l'écrase.
+  setInterval(fixSettingsButton, 500);
+
+})();
+(function(){
+
+  // ============================================================
+  // 1. CSS : FORCER L'UNIFORMITÉ DES BOUTONS (RAPPEL / À CONFIRMER)
+  // ============================================================
+  const styleFix = document.createElement('style');
+  styleFix.innerHTML = `
+    /* On cible spécifiquement TOUS les boutons de la barre pour les égaliser */
+    .toolbar {
+        align-items: center !important;
+    }
+    
+    .toolbar button, 
+    .toolbar .btn,
+    #btnReminders,      /* Ciblage précis du bouton Rappel */
+    #btnToConfirm,      /* Ciblage précis du bouton À confirmer */
+    #btnGlobalSettingsClean {
+        height: 40px !important;            /* Hauteur fixe pour tout le monde */
+        min-height: 40px !important;
+        line-height: 1 !important;
+        padding: 0 16px !important;
+        font-size: 13px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Petite marge pour l'icône à l'intérieur */
+    .toolbar button i, .toolbar .btn i {
+        margin-right: 6px !important;
+    }
+  `;
+  document.head.appendChild(styleFix);
+
+
+  // ============================================================
+  // 2. MISE À JOUR FONCTION RÉGLAGES (SANS FACE ID / SANS SOURCES)
+  // ============================================================
+  // On écrase l'ancienne fonction pour retirer les éléments indésirables
+  window.openGlobalSettings = function(){ 
+    if(!ROLE || ROLE.role !== 'admin') return alert("Accès réservé à l'administrateur.");
+    
+    // Nettoyage
+    const old = document.getElementById('settings-dialog-clean');
+    if(old) old.remove();
+
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const dlg = document.createElement('dialog');
+    dlg.id = 'settings-dialog-clean';
+    dlg.style.cssText = `
+        max-width: 600px; width: 95vw; padding: 0; border: none; border-radius: 16px;
+        background: ${isDark ? '#1e293b' : '#ffffff'}; color: ${isDark ? '#fff' : '#0f172a'};
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        z-index: 99999;
+    `;
+    
+    dlg.innerHTML = ` 
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;"> 
+        <div style="font-weight:800;font-size:18px">🎛️ Réglages Admin</div> 
+        <button class="btn btn-neutral btn-xs" id="set_close_btn">Fermer</button> 
+      </div> 
+      
+      <div style="display:flex;border-bottom:1px solid var(--line);padding:0 10px;gap:5px;background:var(--tile)"> 
+        <button class="set-tab active" data-target="tab_team">👥 Équipe</button> 
+        <button class="set-tab" data-target="tab_theme">🎨 Apparence</button> 
+        <button class="set-tab" data-target="tab_secu">🔐 Sécurité</button> 
+      </div> 
+
+      <div style="padding:20px;max-height:60vh;overflow-y:auto;"> 
+        
+        <div id="tab_team" class="set-content"> 
+            <div class="label" style="font-weight:800;margin-bottom:10px">Gestion de l'équipe</div>
+            
+            <label style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--line);margin-bottom:15px;background:var(--bg);border-radius:10px;cursor:pointer"> 
+                <div><div style="font-weight:700;">🚧 Mode Maintenance</div><div class="small">Bloque l'écriture pour l'équipe.</div></div> 
+                <input type="checkbox" id="set_maint" style="transform:scale(1.3)" ${GLOBAL_CONFIG.maintenanceMode ? 'checked' : ''}> 
+            </label> 
+
+            <div id="team_users_list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:15px"></div> 
+            
+            <div class="row" style="gap:8px"> 
+                <input id="new_tm_name" class="input" placeholder="Nom" style="flex:1"> 
+                <input id="new_tm_pass" class="input" placeholder="Mot de passe" style="flex:1"> 
+                <button id="add_tm_btn" class="btn btn-primary btn-xs">Ajouter</button> 
+            </div> 
+        </div> 
+
+        <div id="tab_theme" class="set-content" style="display:none"> 
+           <div class="label" style="font-weight:800;margin-bottom:15px">Couleurs & Titres</div>
+           <div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:20px">
+             ${colorInput('bg_page', 'Fond Page')} 
+             ${colorInput('bg_card', 'Fond Cartes')} 
+             ${colorInput('btn_primary', 'Bouton Principal')} 
+           </div>
+           
+           <div class="label" style="font-weight:800;margin:15px 0 10px">Titres</div>
+           <div class="row" style="gap:10px">
+             <input id="set_title_app" class="input" value="${GLOBAL_CONFIG.appTitle}" placeholder="Titre Onglet" style="flex:1">
+             <input id="set_title_login" class="input" value="${GLOBAL_CONFIG.loginTitle}" placeholder="Titre Login" style="flex:1">
+           </div>
+        </div> 
+
+        <div id="tab_secu" class="set-content" style="display:none"> 
+           <div class="label" style="font-weight:800;margin-bottom:10px">Sécurité</div>
+           <div class="label">Code PIN Admin</div> 
+           <input id="set_adminPin" class="input" type="text" value="${GLOBAL_CONFIG.adminPin}" style="margin-bottom:15px;font-family:monospace;font-weight:bold;letter-spacing:1px"> 
+           
+           <div class="label">Administrateurs</div> 
+           <div id="admin_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div> 
+           <div class="row" style="gap:8px"><input id="new_admin" class="input" placeholder="Nouvel admin..."><button id="add_admin" class="btn btn-neutral btn-xs">Ajouter</button></div> 
+        </div>
+      </div> 
+
+      <div style="padding:16px 20px;border-top:1px solid var(--line);text-align:right;background:var(--tile)"> 
+        <button id="btn_save_all" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">💾 Enregistrer</button> 
+      </div> 
+    `; 
+
+    // Styles onglets
+    const styleTab = document.createElement('style'); 
+    styleTab.innerHTML = `.set-tab{flex:1;padding:12px;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;opacity:0.6}.set-tab.active{border-color:var(--blue);color:var(--blue);opacity:1;background:var(--blue-bg)} .color-inp-wrap { flex:1; min-width:130px; display:flex; align-items:center; gap:8px; border:1px solid var(--line); padding:6px; border-radius:8px; background:var(--surface); } .color-inp-wrap input { border:none; width:30px; height:30px; cursor:pointer; padding:0; background:none; border-radius:4px; }`; 
+    dlg.appendChild(styleTab); document.body.appendChild(dlg); dlg.showModal();
+
+    function colorInput(key, label){
+        const val = (GLOBAL_CONFIG.theme && GLOBAL_CONFIG.theme[key]) ? GLOBAL_CONFIG.theme[key] : '#000000';
+        return `<div class="color-inp-wrap"><input type="color" id="th_${key}" value="${val}"><span>${label}</span></div>`;
+    }
+
+    // Navigation Onglets
+    const tabs = dlg.querySelectorAll('.set-tab'); const contents = dlg.querySelectorAll('.set-content'); 
+    tabs.forEach(t => t.onclick = () => { 
+        tabs.forEach(x=>x.classList.remove('active')); contents.forEach(x=>x.style.display='none'); 
+        t.classList.add('active'); dlg.querySelector('#'+t.dataset.target).style.display='block'; 
+    }); 
+
+    dlg.querySelector('#set_close_btn').onclick = () => { dlg.close(); dlg.remove(); };
+
+    // Gestion Equipe (Code identique qu'avant, réinjecté pour être sûr)
+    let tUsers = JSON.parse(JSON.stringify(GLOBAL_CONFIG.teamUsers || [])); 
+    function renderTeam(){ 
+       const c = dlg.querySelector('#team_users_list'); c.innerHTML=''; 
+       if(tUsers.length === 0) c.innerHTML = '<div class="small">Aucun membre.</div>';
+       tUsers.forEach((u,i)=>{ 
+          const blocked = u.blocked === true; 
+          c.innerHTML += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:var(--bg);border:1px solid ${blocked?'#ef4444':'var(--line)'};opacity:${blocked?0.8:1}">
+            <div><b style="${blocked?'text-decoration:line-through':''}">${u.name}</b> <span class="small">(${u.pass})</span>${blocked?' <span style="color:#ef4444;font-weight:bold;font-size:10px">BLOQUÉ</span>':''}</div>
+            <div style="display:flex;gap:5px"><button class="btn btn-xs ${blocked?'btn-primary':'btn-neutral'}" onclick="window._blockTm(${i})">${blocked?'Débloquer':'Bloquer'}</button><button class="btn btn-warn btn-xs icon-only" onclick="window._delTm(${i})">🗑️</button></div></div>`; 
+       }); 
+    } 
+    window._delTm = (i)=>{ if(confirm('Supprimer ?')) { tUsers.splice(i,1); renderTeam(); }}; 
+    window._blockTm = (i)=>{ tUsers[i].blocked = !tUsers[i].blocked; renderTeam(); }; 
+    renderTeam(); 
+    dlg.querySelector('#add_tm_btn').onclick=()=>{ const n=dlg.querySelector('#new_tm_name').value.trim(), p=dlg.querySelector('#new_tm_pass').value.trim(); if(n&&p){ tUsers.push({name:n,pass:p,blocked:false}); renderTeam(); dlg.querySelector('#new_tm_name').value=''; dlg.querySelector('#new_tm_pass').value=''; }}; 
+
+    // Admins
+    let tAdmins = [...GLOBAL_CONFIG.admins]; 
+    function renderAdmins(){ const c = dlg.querySelector('#admin_list'); c.innerHTML=''; tAdmins.forEach((a,i)=>{ c.innerHTML += `<span class="badge" style="padding:6px 10px">${a} <i class="fa-solid fa-xmark" style="cursor:pointer;margin-left:5px" onclick="window._delAdm(${i})"></i></span>`; }); } 
+    window._delAdm = (i)=>{ tAdmins.splice(i,1); renderAdmins(); }; renderAdmins(); 
+    dlg.querySelector('#add_admin').onclick=()=>{ const v=dlg.querySelector('#new_admin').value.trim(); if(v){ tAdmins.push(v); renderAdmins(); dlg.querySelector('#new_admin').value=''; }}; 
+
+    // Sauvegarde
+    dlg.querySelector('#btn_save_all').onclick = async () => { 
+       const btn=dlg.querySelector('#btn_save_all'); btn.textContent="Sauvegarde..."; btn.disabled=true; 
+       try { 
+         const theme = {};
+         const inputs = dlg.querySelectorAll('input[type="color"]');
+         inputs.forEach(inp => { theme[inp.id.replace('th_', '')] = inp.value; });
+         
+         await db.collection('config').doc('globalSettings').set({ 
+             adminPin: dlg.querySelector('#set_adminPin').value, 
+             maintenanceMode: dlg.querySelector('#set_maint').checked, 
+             appTitle: dlg.querySelector('#set_title_app').value, 
+             loginTitle: dlg.querySelector('#set_title_login').value, 
+             teamUsers: tUsers, admins: tAdmins, theme: theme
+         }, {merge:true}); 
+         notify("Enregistré ✔️", "ok"); dlg.close(); dlg.remove(); 
+       } catch(e){ alert("Erreur: "+e); btn.disabled=false; } 
+    }; 
+  };
+})();
 </script>
 </section>
 </body>
