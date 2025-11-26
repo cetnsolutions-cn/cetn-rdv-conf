@@ -5062,7 +5062,7 @@ L’équipe {{TAGLINE}}`;
       background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
       display: flex; align-items: center; justify-content: center;
       padding: 20px; margin: 0 !important; border-radius: 0 !important; border: none !important;
-      box-shadow: none !important;
+      box-shadow: none !important; z-index: 999;
     }
 
     /* Conteneur principal de la nouvelle interface */
@@ -5181,8 +5181,7 @@ L’équipe {{TAGLINE}}`;
     // On injecte la nouvelle structure
     loginContainer.appendChild(wrap);
 
-    // 3. DÉMÉNAGEMENT DES ÉLÉMENTS EXISTANTS (Pour garder la logique V18)
-    // On déplace physiquement les boutons et inputs du vieux formulaire vers le nouveau
+    // 3. DÉMÉNAGEMENT DES ÉLÉMENTS EXISTANTS
     
     // --> Admin
     const btnBio = document.getElementById('btnLoginAdminPasskey');
@@ -5207,13 +5206,44 @@ L’équipe {{TAGLINE}}`;
     if(inPass) { inPass.className = 'modern-input'; inPass.placeholder = "Mot de passe"; teamArea.appendChild(inPass); }
     if(btnEnter) { btnEnter.textContent = "Se connecter"; teamArea.appendChild(btnEnter); }
 
-    // --> Enrôlement (Optionnel, on le met dans admin en petit)
+    // --> Enrôlement SÉCURISÉ
     const btnEnroll = document.getElementById('btnEnroll');
     if(btnEnroll) {
-       btnEnroll.className = 'btn btn-ghost btn-xs';
-       btnEnroll.style.marginTop = '15px';
-       btnEnroll.innerHTML = '📲 Enregistrer ce téléphone';
-       adminArea.appendChild(btnEnroll);
+       // On clone pour retirer les anciens événements et mettre le nôtre
+       const secureEnroll = btnEnroll.cloneNode(true);
+       btnEnroll.parentNode.replaceChild(secureEnroll, btnEnroll);
+
+       secureEnroll.className = 'btn btn-ghost btn-xs';
+       secureEnroll.style.marginTop = '15px';
+       secureEnroll.innerHTML = '📲 Enregistrer ce téléphone';
+       
+       // LA SÉCURITÉ EST ICI :
+       secureEnroll.onclick = async () => {
+           const code = prompt("⛔ SÉCURITÉ ADMIN\nVeuillez entrer le code PIN pour autoriser l'enregistrement de cet appareil :");
+           if(!code) return;
+
+           try {
+               // On vérifie le code dans la base de données en temps réel
+               const doc = await db.collection('config').doc('globalSettings').get();
+               const data = doc.data() || {};
+               const validPin = data.adminPin || "130724"; 
+
+               if(code === validPin){
+                   // Si c'est bon, on lance l'enregistrement (Passkey)
+                   if(typeof tryPasskey === 'function') {
+                       tryPasskey(false); // false = enrôlement
+                   } else {
+                       alert("Erreur : Système biométrique non chargé.");
+                   }
+               } else {
+                   alert("Code incorrect. Enregistrement refusé.");
+               }
+           } catch(e){
+               alert("Erreur de vérification : " + e.message);
+           }
+       };
+
+       adminArea.appendChild(secureEnroll);
     }
   }
 
@@ -5224,11 +5254,9 @@ L’équipe {{TAGLINE}}`;
   };
 
   // 5. LANCEMENT
-  // On attend un tout petit peu que le V18 ait fini son setup
   setTimeout(initModernLogin, 50);
 
 })();
-
 </script>
 </section>
 </body>
