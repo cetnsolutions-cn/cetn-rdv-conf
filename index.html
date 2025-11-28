@@ -1309,8 +1309,9 @@ async function loadAgenciesDB(){
         tagline: v.tagline || k,
         templates: v.templates || null,
         disabled: v.disabled === true,
-        // ⬇️ NOUVEAU : prix TTC par RDV honoré
-        priceHonorTTC: (typeof v.priceHonorTTC === 'number' && !isNaN(v.priceHonorTTC)) ? v.priceHonorTTC : null
+        priceHonorTTC: (typeof v.priceHonorTTC === 'number') ? v.priceHonorTTC : null,
+        // ✅ C'EST ICI QUE CA SE JOUE : On force la lecture du contrat
+        monthlyGoal: (typeof v.monthlyGoal === 'number') ? v.monthlyGoal : null
       };
     });
   }
@@ -4569,209 +4570,193 @@ L’équipe {{TAGLINE}}`;
 
   // 3) Patch de l’éditeur Agences : ajoute l’onglet “Annulation (agence)”
   //    On remplace openAgencyModal par une version enrichie (mêmes IDs + même logique de prix).
-  window.openAgencyModal = function(key=null){
+ window.openAgencyModal = function(key=null){
+    // 1. Récupération des données existantes
     const cur = (typeof getAgencyByKey === 'function' ? getAgencyByKey(key) : {name:'',addr:'',map:'',tagline:''}) || {};
     const tpls = (typeof getAgencyTemplates === 'function' ? (getAgencyTemplates(key)||{}) : {}) || {};
 
-    // État initial des templates (avec défauts)
+    // 2. Initialisation des modèles
     const templates = {
-      confirmation:    tpls.confirmation    || (window.TPL_DEFAULTS?.confirmation    || ''),
-      rappel:          tpls.rappel          || (window.TPL_DEFAULTS?.rappel          || ''),
-      report:          tpls.report          || (window.TPL_DEFAULTS?.report          || ''),
-      annulation:      tpls.annulation      || (window.TPL_DEFAULTS?.annulation      || ''),
+      confirmation: tpls.confirmation || (window.TPL_DEFAULTS?.confirmation || ''),
+      rappel: tpls.rappel || (window.TPL_DEFAULTS?.rappel || ''),
+      report: tpls.report || (window.TPL_DEFAULTS?.report || ''),
+      annulation: tpls.annulation || (window.TPL_DEFAULTS?.annulation || ''),
       annulation_agence: tpls.annulation_agence || (window.TPL_DEFAULTS?.annulation_agence || ''),
-      no_show:         tpls.no_show         || (window.TPL_DEFAULTS?.no_show         || '')
+      no_show: tpls.no_show || (window.TPL_DEFAULTS?.no_show || '')
     };
 
     const dlg = document.createElement('dialog');
-    dlg.style.maxWidth='860px';
-    dlg.style.width='min(98vw,860px)';
-    dlg.style.padding='0';
+    dlg.style.maxWidth='860px'; dlg.style.width='min(98vw,860px)'; dlg.style.padding='0';
+    
+    // 3. Construction HTML
     dlg.innerHTML = `
       <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
         <div style="font-weight:800">${key?'Modifier':'Nouvelle'} agence</div>
         <button class="btn btn-neutral btn-xs" id="ag_close">Fermer</button>
       </div>
       <div class="dlg-body" style="padding:16px;max-width:820px">
+        
         <div class="row" style="gap:10px">
           <div style="flex:1;min-width:220px">
             <div class="label">Nom de l’agence</div>
-            <input id="ag_name" class="input" placeholder="Ex : ID Auto (La Roche sur Yon)" value="${key||''}" ${key?'disabled':''}>
+            <input id="ag_name" class="input" placeholder="Ex : ID Auto" value="${key||''}" ${key?'disabled':''}>
           </div>
           <div style="flex:1;min-width:220px">
             <div class="label">Slogan (tagline)</div>
             <input id="ag_tagline" class="input" placeholder="Ex : L’automobile et vous" value="${cur.tagline||''}">
           </div>
         </div>
-
         <div class="label">Adresse</div>
         <input id="ag_addr" class="input" placeholder="Rue, CP Ville" value="${cur.addr||''}">
-
+        
         <div class="row" style="gap:10px;margin-top:8px">
           <div style="flex:1">
             <div class="label">Lien plan (Google Maps)</div>
             <input id="ag_map" class="input" placeholder="https://..." value="${cur.map||''}">
           </div>
           <div style="flex:1">
-            <div class="label">Prix TTC par RDV honoré (€)</div>
-            <input id="ag_price" class="input" inputmode="decimal" placeholder="Ex : 50"
-                   value="${(typeof cur.priceHonorTTC==='number' && !isNaN(cur.priceHonorTTC)) ? cur.priceHonorTTC : ''}">
+            <div class="label">Prix TTC / RDV honoré (€)</div>
+            <input id="ag_price" class="input" inputmode="decimal" placeholder="Ex : 50" value="${(typeof cur.priceHonorTTC==='number') ? cur.priceHonorTTC : ''}">
           </div>
         </div>
 
-        <div class="label mt12">Jetons disponibles (cliquer pour insérer)</div>
-        <div class="tokenbar" id="ag_tokens">
-          ${['{{AGENCE}}','{{ADRESSE}}','{{PLAN}}','{{TAGLINE}}','{{DATE_LONG}}','{{DATE_TXT}}','{{HEURE}}','{{MODELE}}','{{OLD_DATE_LONG}}','{{OLD_HEURE}}','{{CIV}}','{{PRENOM}}']
-            .map(t=>`<span class="token" data-token="${t}" style="cursor:pointer">${t}</span>`).join('')}
-        </div>
-
+        <div class="label mt16">Configuration des messages & Contrat</div>
         <div class="template-tabs" id="ag_tabs" style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
           <div class="t active" data-tab="confirmation">Confirmation</div>
           <div class="t" data-tab="rappel">Rappel</div>
           <div class="t" data-tab="report">Report</div>
           <div class="t" data-tab="annulation">Annulation</div>
-          <div class="t" data-tab="annulation_agence">Annulation (agence)</div>
+          <div class="t" data-tab="annulation_agence">Annul. Agence</div>
           <div class="t" data-tab="no_show">Pas venu</div>
+          <div class="t" data-tab="contrat" style="border-color:var(--blue);color:var(--blue);font-weight:700">🎯 Contrat</div>
         </div>
 
-        <div id="tpl_wrap">
-          <textarea id="tpl_text" class="input" rows="10" placeholder="Modèle de message..."></textarea>
-          <div class="label mt8">Aperçu</div>
-          <div id="tpl_preview" class="preview"></div>
+        <div id="area_templates">
+            <textarea id="tpl_text" class="input" rows="8"></textarea>
+            <div class="tokenbar" id="ag_tokens" style="margin-top:8px">
+              ${['{{AGENCE}}','{{ADRESSE}}','{{PLAN}}','{{DATE_LONG}}','{{HEURE}}','{{MODELE}}','{{CIV}}','{{PRENOM}}']
+                .map(t=>`<span class="token" data-token="${t}" style="cursor:pointer">${t}</span>`).join('')}
+            </div>
         </div>
 
-        <div class="row mt12" style="justify-content:space-between;gap:8px">
+        <div id="area_contrat" style="display:none; padding:20px; background:var(--tile); border-radius:12px; text-align:center; border:1px solid var(--line)">
+            <h3 style="margin-top:0;color:var(--ink)">🎯 Objectif Mensuel</h3>
+            <p class="small">Définissez le nombre maximum de rendez-vous (contrat) pour cette agence.</p>
+            
+            <div style="display:inline-block; text-align:left; margin-top:10px;">
+                <div class="label">Nombre de RDV max</div>
+                <input id="ag_goal" class="input" type="number" placeholder="Ex : 20" 
+                       value="${(cur.monthlyGoal!==null && cur.monthlyGoal!==undefined) ? cur.monthlyGoal : ''}" 
+                       style="font-size:18px; font-weight:bold; width:140px; text-align:center; border:2px solid var(--blue)">
+            </div>
+            <div class="small mt12" style="opacity:0.8">
+               Une alerte apparaîtra si l'objectif est atteint lors de la prise de RDV.
+            </div>
+        </div>
+
+        <div class="row mt12" style="justify-content:space-between;gap:8px; border-top:1px solid var(--line); padding-top:12px; margin-top:12px">
           <div>${key?'<button class="btn btn-warn btn-xs" id="ag_delete">Supprimer agence</button>':''}</div>
-          <div><button class="btn btn-neutral btn-xs" id="ag_save">Enregistrer</button></div>
+          <div><button class="btn btn-primary btn-xs" id="ag_save">Enregistrer</button></div>
         </div>
       </div>
     `;
+    
     document.body.appendChild(dlg);
     (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg,'open',''))();
 
     const $m = (s)=> dlg.querySelector(s);
     $m('#ag_close').onclick = ()=>{ dlg.close?.(); dlg.remove(); };
 
-    const state = { currentTab: 'confirmation' };
-
-    function buildCtxForPreview(){
-      try{
-        const name = $m('#ag_name')?.value || (cur.name||'Agence');
-        const dateJJ = (typeof iso_to_jjmma === 'function') ? iso_to_jjmma((typeof todayISO==='function'? todayISO():'')) : '01/01/25';
-        return (typeof buildCtx === 'function')
-          ? buildCtx(name, dateJJ, '14:30', 'Peugeot 308', dateJJ, '10:00', {CIV:'M.', PRENOM:'Amine'})
-          : {AGENCE:name, ADRESSE:($m('#ag_addr')?.value||''), PLAN:($m('#ag_map')?.value?('Plan d’accès : '+$m('#ag_map').value):''), TAGLINE:($m('#ag_tagline')?.value||name),
-             DATE_LONG:dateJJ, DATE_TXT:dateJJ, HEURE:'14h30', MODELE:'Peugeot 308', OLD_DATE_LONG:dateJJ, OLD_HEURE:'10h00', CIV:'M.', PRENOM:'Amine'};
-      }catch(_){ return {}; }
+    // --- GESTION DES ONGLETS ---
+    let curTab = 'confirmation';
+    
+    function setTab(t){ 
+        curTab=t; 
+        // Active le style du bouton
+        dlg.querySelectorAll('.t').forEach(x=>x.classList.toggle('active',x.dataset.tab===t)); 
+        
+        if(t === 'contrat'){
+            // Affiche la zone contrat, cache l'éditeur
+            $m('#area_templates').style.display = 'none';
+            $m('#area_contrat').style.display = 'block';
+        } else {
+            // Affiche l'éditeur, cache la zone contrat
+            $m('#area_templates').style.display = 'block';
+            $m('#area_contrat').style.display = 'none';
+            $m('#tpl_text').value = templates[t]||''; 
+        }
     }
-
-    function refreshPreview(){
-      const ctx = buildCtxForPreview();
-      const raw = $m('#tpl_text').value || '';
-      const filled = (typeof fillTokens === 'function') ? fillTokens(raw, ctx) : raw;
-      $m('#tpl_preview').textContent = filled;
-    }
-
-    function setTab(tab){
-      state.currentTab = tab;
-      dlg.querySelectorAll('.template-tabs .t').forEach(x=> x.classList.toggle('active', x.dataset.tab===tab));
-      $m('#tpl_text').value = templates[tab] || '';
-      refreshPreview();
-    }
-
-    // init éditeur
-    setTab('confirmation');
-
-    // handlers
-    $m('#tpl_text').addEventListener('input', ()=>{
-      templates[state.currentTab] = $m('#tpl_text').value;
-      refreshPreview();
+    
+    setTab('confirmation'); // Défaut
+    
+    dlg.querySelectorAll('.t').forEach(b=> b.onclick=()=>setTab(b.dataset.tab));
+    
+    // Sauvegarde auto du texte quand on tape
+    $m('#tpl_text').addEventListener('input', ()=>{ 
+        if(curTab !== 'contrat') templates[curTab] = $m('#tpl_text').value; 
     });
-    dlg.querySelectorAll('#ag_tabs .t').forEach(t=>{
-      t.addEventListener('click', ()=> setTab(t.dataset.tab));
-    });
+    
+    // Tokens
     dlg.querySelectorAll('#ag_tokens .token').forEach(tok=>{
       tok.addEventListener('click', ()=>{
+        if(curTab==='contrat') return;
         const ta = $m('#tpl_text');
         const token = tok.getAttribute('data-token');
         const s = ta.selectionStart || 0, e = ta.selectionEnd || 0;
         const val = ta.value || '';
         ta.value = val.slice(0,s) + token + val.slice(e);
-        templates[state.currentTab] = ta.value;
+        templates[curTab] = ta.value;
         ta.focus(); ta.selectionStart = ta.selectionEnd = s + token.length;
-        refreshPreview();
       });
     });
 
-    // pré-fill des champs si édition
-    if(key){
-      $m('#ag_name').value    = key;
-      $m('#ag_tagline').value = cur.tagline || '';
-      $m('#ag_addr').value    = cur.addr    || '';
-      $m('#ag_map').value     = cur.map     || '';
-    }
-    refreshPreview();
-
-    // Enregistrer
+    // --- SAUVEGARDE UNIFIÉE ---
     $m('#ag_save').onclick = async ()=>{
       const name = ($m('#ag_name').value||'').trim();
-      if(!name){ alert('Nom d’agence obligatoire.'); return; }
+      if(!name) return alert('Nom obligatoire.');
+
+      // Prix
+      let price = null, cents = null;
+      const rawP = $m('#ag_price').value.replace(',','.').trim();
+      if(rawP){ const p=parseFloat(rawP); if(!isNaN(p)){ price=p; cents=Math.round(p*100); }}
+
+      // ✅ Contrat (Objectif) - On lit la valeur du champ
+      let goal = null;
+      const rawG = $m('#ag_goal').value.trim();
+      if(rawG){ const g=parseInt(rawG, 10); if(!isNaN(g) && g>0) goal=g; }
 
       const data = {
-        name,
-        addr: ($m('#ag_addr').value||'').trim(),
-        map: ($m('#ag_map').value||'').trim(),
-        tagline: ($m('#ag_tagline').value||'').trim(),
-        templates: templates,
+        name, 
+        addr: $m('#ag_addr').value.trim(),
+        map: $m('#ag_map').value.trim(),
+        tagline: $m('#ag_tagline').value.trim(),
+        templates,
+        priceHonorTTC: price,
+        priceHonorCents: cents,
+        monthlyGoal: goal, // Sauvegarde en base
         disabled: false
       };
 
-      // Prix TTC parsing (mêmes conventions que ton code)
-      const rawPrix = ($m('#ag_price')?.value ?? '').trim();
-      if (rawPrix !== '') {
-        const cleaned = rawPrix.replace(/[^\d,.\-]/g, '').replace(',', '.');
-        const prix = Number(cleaned);
-        if (!Number.isFinite(prix) || prix < 0) {
-          alert('Prix TTC invalide. Exemple : 50 ou 50,00');
-          return;
-        }
-        const euros  = Math.round(prix * 100) / 100;
-        const cents  = Math.round(prix * 100);
-        data.priceHonorTTC   = euros;
-        data.priceHonorCents = cents;
-      }
-
       try{
-        await db.collection('agencies').doc(name).set(data, { merge:true });
-        notify('Agence enregistrée ✔️','ok');
-        dlg.close?.(); dlg.remove();
-        try{
-          await (typeof loadAgenciesDB==='function' ? loadAgenciesDB() : Promise.resolve());
-          (typeof populateWizardAgencies==='function') && populateWizardAgencies();
-          (typeof populateAgencyFilter==='function')  && populateAgencyFilter();
-          if (typeof renderList==='function' && window.VIEW==='agencies') renderList();
-        }catch(_){}
-      }catch(e){ alert('Erreur enregistrement agence.'); }
+        await db.collection('agencies').doc(name).set(data, {merge:true});
+        notify('Agence sauvegardée !', 'ok');
+        dlg.close(); dlg.remove();
+        await loadAgenciesDB(); // Recharger pour avoir le contrat en mémoire immédiatement
+        if(typeof renderList === 'function') renderList();
+      } catch(e){ alert("Erreur sauvegarde : "+e.message); }
     };
 
-    // Supprimer
-    if(key){
-      $m('#ag_delete')?.addEventListener('click', async()=>{
-        if(!confirm('Supprimer cette agence ?')) return;
-        try{
-          const ref = db.collection('agencies').doc(key);
-          if (window.AGENCIES && window.AGENCIES[key]) {
-            await ref.set({ disabled:true }, { merge:true });
-          } else {
-            await ref.delete();
-          }
-          notify('Agence supprimée ✔️','ok');
-          dlg.close?.(); dlg.remove();
-          try{ await (typeof loadAgenciesDB==='function'? loadAgenciesDB():Promise.resolve()); (typeof renderList==='function') && renderList(); }catch(_){}
-        }catch(e){ alert('Erreur lors de la suppression.'); }
-      });
+    if(key && $m('#ag_delete')){
+        $m('#ag_delete').onclick = async ()=>{
+            if(confirm("Supprimer l'agence ?")){
+                await db.collection('agencies').doc(key).delete();
+                dlg.close(); dlg.remove();
+                await loadAgenciesDB();
+                if(typeof renderList === 'function') renderList();
+            }
+        };
     }
-  };
+};
 
 })();
 // === PATCH GLOBAL : DÉSACTIVER / CACHER WHATSAPP PARTOUT ===
@@ -6368,6 +6353,445 @@ L’équipe {{TAGLINE}}`;
       }
     };
   }
+
+})();
+(function(){
+
+  // 1. INJECTION DU STYLE ET DE LA FENÊTRE D'ALERTE
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* L'effet figé sur l'application */
+    body.is-blocked #app {
+      pointer-events: none !important;
+      opacity: 0.4 !important;
+      filter: grayscale(1) !important;
+      user-select: none !important;
+      overflow: hidden !important;
+    }
+
+    /* Le conteneur de l'alerte (caché par défaut) */
+    #blocked-overlay {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 999999;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+    }
+
+    /* Afficher quand bloqué */
+    body.is-blocked #blocked-overlay { display: flex; }
+
+    /* La boîte du message */
+    .blocked-box {
+      background: #ef4444;
+      color: white;
+      padding: 30px 40px;
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      text-align: center;
+      border: 4px solid rgba(255,255,255,0.2);
+      animation: popAlert 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      max-width: 90%;
+    }
+
+    .blocked-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; text-transform: uppercase; }
+    .blocked-desc { font-size: 15px; opacity: 0.9; margin-bottom: 20px; }
+
+    /* Le bouton spécifique de déconnexion */
+    .btn-blocked-logout {
+      background: white;
+      color: #ef4444;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: transform 0.1s;
+      pointer-events: auto; /* Important pour cliquer même si le body est figé */
+    }
+    .btn-blocked-logout:hover { transform: scale(1.05); }
+    .btn-blocked-logout:active { transform: scale(0.95); }
+
+    @keyframes popAlert {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Création du HTML de l'alerte
+  const overlay = document.createElement('div');
+  overlay.id = 'blocked-overlay';
+  overlay.innerHTML = `
+    <div class="blocked-box">
+      <div class="blocked-title"><i class="fa-solid fa-ban"></i> COMPTE BLOQUÉ</div>
+      <div class="blocked-desc">L'accès à l'application a été suspendu par l'administrateur.</div>
+      <button class="btn-blocked-logout" id="forceLogoutBtn">
+        <i class="fa-solid fa-power-off"></i> Se déconnecter
+      </button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Action du bouton de déconnexion
+  document.getElementById('forceLogoutBtn').onclick = function() {
+    window.ROLE = null; // Reset du rôle
+    window.location.reload(); // Rechargement de la page pour revenir au login
+  };
+
+  // 2. FONCTION DE VÉRIFICATION (Temps réel)
+  function checkBlockStatus() {
+    // Si pas connecté ou Admin, on nettoie
+    if (!window.ROLE || window.ROLE.role !== 'team') {
+      document.body.classList.remove('is-blocked');
+      return;
+    }
+
+    const users = (window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.teamUsers) ? window.GLOBAL_CONFIG.teamUsers : [];
+    const me = users.find(u => u.name.toLowerCase() === (window.ROLE.name || '').toLowerCase());
+
+    if (me && me.blocked) {
+      if (!document.body.classList.contains('is-blocked')) {
+        document.body.classList.add('is-blocked');
+        // Ferme les autres modales pour nettoyer le fond
+        document.querySelectorAll('dialog').forEach(d => d.remove());
+      }
+    } else {
+      document.body.classList.remove('is-blocked');
+    }
+  }
+
+  setInterval(checkBlockStatus, 1000);
+
+  // 3. LOGIN MODIFIÉ (Pour laisser entrer vers l'écran bloqué)
+  setTimeout(() => {
+    const btnTeam = document.getElementById('btnLoginTeam');
+    if(btnTeam) {
+      const newBtn = btnTeam.cloneNode(true);
+      btnTeam.parentNode.replaceChild(newBtn, btnTeam);
+
+      newBtn.onclick = async () => {
+        const n = document.getElementById('eqName').value.trim();
+        const p = document.getElementById('eqPass').value.trim();
+        if(!n || !p) return alert("Remplissez tous les champs.");
+
+        const users = (window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.teamUsers) ? window.GLOBAL_CONFIG.teamUsers : [];
+        const found = users.find(u => u.name.toLowerCase() === n.toLowerCase());
+        
+        let authOK = false;
+        if(found) { if(found.pass === p) authOK = true; } 
+        else { if(window.TEAM_PASS && p === window.TEAM_PASS) authOK = true; }
+
+        if(!authOK) return alert("Mot de passe incorrect.");
+
+        // On connecte, le setInterval détectera le blocage immédiatement après
+        window.ROLE = { role: 'team', name: (found ? found.name : n) };
+        window.enter();
+      };
+    }
+  }, 1500);
+
+})();
+// ====================================================================
+// --- PATCH : AFFICHER LES NOMS DES ADMINS AJOUTÉS DANS LES RÉGLAGES ---
+// Ce code remplace la fenêtre fixe par une liste dynamique
+// ====================================================================
+(function(){
+
+  // 1. STYLE (Design "Nuit" propre pour la fenêtre de choix)
+  const style = document.createElement('style');
+  style.innerHTML = `
+    dialog.admin-overlay::backdrop {
+      background-color: rgba(0, 0, 0, 0.9) !important;
+      backdrop-filter: blur(5px) !important;
+      z-index: 999999 !important;
+      position: fixed; inset: 0;
+    }
+    dialog.admin-overlay {
+      z-index: 1000000 !important;
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0; padding: 0;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      background: #1e293b !important;
+      color: #fff;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      width: min(90%, 360px);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .adm-head { background: #0f172a; padding: 16px; text-align: center; border-bottom: 1px solid #334155; }
+    .adm-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+    
+    .btn-adm {
+      background: #334155; color: white; border: 1px solid #475569;
+      padding: 16px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;
+      transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:10px;
+      width: 100%;
+    }
+    .btn-adm:hover { background: #475569; transform:translateY(-2px); border-color: #94a3b8; }
+    .btn-adm i { color: #60a5fa; }
+  `;
+  document.head.appendChild(style);
+
+  // 2. FONCTION QUI GÉNÈRE LES BOUTONS DYNAMIQUEMENT
+  window.openAdminIdentityDialog = function(onPick){
+    // Nettoyage des anciennes fenêtres pour éviter les doublons
+    document.querySelectorAll('dialog.admin-overlay').forEach(e => e.remove());
+
+    // --- C'EST ICI QUE CA CHANGE ---
+    // On récupère la liste depuis la config globale (celle modifiable dans les réglages)
+    let adminsList = ["Nathanaël", "Charlène"]; // Valeur par défaut de secours
+    
+    if (window.GLOBAL_CONFIG && Array.isArray(window.GLOBAL_CONFIG.admins) && window.GLOBAL_CONFIG.admins.length > 0) {
+      adminsList = window.GLOBAL_CONFIG.admins;
+    }
+
+    // On crée le HTML des boutons en boucle (automatique)
+    const buttonsHTML = adminsList.map(name => `
+      <button class="btn-adm data-user-btn" data-name="${name}">
+        <i class="fa-solid fa-user-shield"></i> ${name}
+      </button>
+    `).join('');
+
+    const dlg = document.createElement('dialog');
+    dlg.className = 'admin-overlay';
+    
+    dlg.innerHTML = `
+      <div class="adm-head">
+        <h3 style="margin:0;font-size:18px;color:#fff">🔐 Qui se connecte ?</h3>
+      </div>
+      <div class="adm-body">
+        ${buttonsHTML} <button class="btn-adm" id="btnClose" style="background:transparent;border-color:transparent;margin-top:5px;font-size:14px;opacity:0.7">
+          Annuler
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    dlg.showModal();
+
+    // 3. LOGIQUE DES CLICS (DYNAMIQUE AUSSI)
+    // On attache l'événement à tous les boutons générés
+    dlg.querySelectorAll('.data-user-btn').forEach(btn => {
+      btn.onclick = () => {
+        const name = btn.getAttribute('data-name');
+        onPick(name);
+        dlg.close();
+      };
+    });
+
+    dlg.querySelector('#btnClose').onclick = () => { dlg.close(); };
+    dlg.addEventListener('close', () => setTimeout(()=>dlg.remove(), 200));
+  };
+
+})();
+(function(){
+
+  // ============================================================
+  // CORRECTIF V2 : SUPPRESSION AGENCES (FORCE LA MISE À JOUR)
+  // ============================================================
+
+  // 1. On force une variable globale unique pour la base de données
+  window.AGENCIES_DB = window.AGENCIES_DB || {};
+
+  // 2. On écrase la fonction de chargement pour remplir CETTE variable globale
+  window.loadAgenciesDB = async function(){
+      try {
+          const snap = await db.collection('agencies').get();
+          window.AGENCIES_DB = {}; // On vide
+          snap.docs.forEach(d => {
+              window.AGENCIES_DB[d.id] = d.data();
+          });
+          // Petit log pour vérifier (visible dans la console F12)
+          console.log("Agences chargées (Correction):", Object.keys(window.AGENCIES_DB).length);
+      } catch(e) { console.error("Erreur chargement agences", e); }
+  };
+
+  // 3. IMPORTANT : On écrase la fonction qui fait la liste (C'était le chaînon manquant)
+  // Elle va maintenant lire obligatoirement la version à jour.
+  window.mergedAgencyKeys = function(){
+      const defs = window.AGENCIES || {}; // Agences par défaut (codées en dur)
+      const dbData = window.AGENCIES_DB || {}; // Agences base de données
+      
+      // On combine toutes les clés
+      const set = new Set([...Object.keys(defs), ...Object.keys(dbData)]);
+      
+      // On filtre : si une agence est marquée "disabled: true" dans la DB, on la vire
+      const filtered = Array.from(set).filter(k => {
+         const dbEntry = dbData[k];
+         if (dbEntry && dbEntry.disabled === true) return false; // C'est ici que la suppression agit
+         return true;
+      });
+      
+      return filtered.sort((a,b)=>a.localeCompare(b));
+  };
+
+  // 4. Fenêtre d'édition (avec la logique de suppression correcte)
+  window.openAgencyModal = function(key=null){
+    // Récupération sécurisée des infos
+    let cur = {name:'', addr:'', map:'', tagline:''};
+    let tpls = {};
+
+    // On cherche d'abord dans la DB, sinon dans les défauts
+    if(key) {
+        if(window.AGENCIES_DB && window.AGENCIES_DB[key]) {
+            cur = window.AGENCIES_DB[key];
+            tpls = cur.templates || {};
+        } else if (window.AGENCIES && window.AGENCIES[key]) {
+            cur = window.AGENCIES[key];
+        }
+        if(!cur.name) cur.name = key;
+    }
+
+    const templates = {
+      confirmation:    tpls.confirmation    || '',
+      rappel:          tpls.rappel          || '',
+      report:          tpls.report          || '',
+      annulation:      tpls.annulation      || '',
+      annulation_agence: tpls.annulation_agence || '',
+      no_show:         tpls.no_show         || ''
+    };
+
+    const dlg = document.createElement('dialog');
+    dlg.style.maxWidth='860px';
+    dlg.style.width='min(98vw,860px)';
+    dlg.style.padding='0';
+    
+    dlg.innerHTML = `
+      <div class="dlg-head" style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">${key?'Modifier':'Nouvelle'} agence</div>
+        <button class="btn btn-neutral btn-xs" id="ag_close">Fermer</button>
+      </div>
+      <div class="dlg-body" style="padding:16px;max-width:820px">
+        <div class="row" style="gap:10px">
+          <div style="flex:1;min-width:220px">
+            <div class="label">Nom de l’agence</div>
+            <input id="ag_name" class="input" placeholder="Ex : ID Auto" value="${key||''}" ${key?'disabled':''}>
+          </div>
+          <div style="flex:1;min-width:220px">
+            <div class="label">Slogan (tagline)</div>
+            <input id="ag_tagline" class="input" placeholder="Ex : L’automobile et vous" value="${cur.tagline||''}">
+          </div>
+        </div>
+
+        <div class="label">Adresse</div>
+        <input id="ag_addr" class="input" placeholder="Rue, CP Ville" value="${cur.addr||''}">
+
+        <div class="row" style="gap:10px;margin-top:8px">
+          <div style="flex:1">
+            <div class="label">Lien plan (Google Maps)</div>
+            <input id="ag_map" class="input" placeholder="https://..." value="${cur.map||''}">
+          </div>
+          <div style="flex:1">
+            <div class="label">Prix TTC par RDV honoré (€)</div>
+            <input id="ag_price" class="input" inputmode="decimal" placeholder="Ex : 50"
+                   value="${(typeof cur.priceHonorTTC==='number' && !isNaN(cur.priceHonorTTC)) ? cur.priceHonorTTC : ''}">
+          </div>
+        </div>
+
+        <div class="label mt12" style="border-top:1px solid var(--line);padding-top:10px">Templates (Optionnel)</div>
+        <div class="small">Modifiez les modèles dans l'onglet principal si besoin.</div>
+
+        <div class="row mt12" style="justify-content:space-between;gap:8px;margin-top:20px">
+          <div>${key ? '<button class="btn btn-warn btn-xs" id="ag_delete">Supprimer définitivement</button>' : ''}</div>
+          <div><button class="btn btn-primary btn-xs" id="ag_save">Enregistrer</button></div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(dlg);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+
+    const $m = (s)=> dlg.querySelector(s);
+    $m('#ag_close').onclick = ()=>{ dlg.close(); dlg.remove(); };
+
+    // --- SAUVEGARDE ---
+    $m('#ag_save').onclick = async ()=>{
+      const name = ($m('#ag_name').value||'').trim();
+      if(!name){ alert('Nom d’agence obligatoire.'); return; }
+
+      const data = {
+        name,
+        addr: ($m('#ag_addr').value||'').trim(),
+        map: ($m('#ag_map').value||'').trim(),
+        tagline: ($m('#ag_tagline').value||'').trim(),
+        templates: templates,
+        disabled: false // Si on enregistre, on la réactive forcément
+      };
+
+      // Prix
+      const rawPrix = ($m('#ag_price')?.value ?? '').trim();
+      if (rawPrix !== '') {
+        const cleaned = rawPrix.replace(/[^\d,.\-]/g, '').replace(',', '.');
+        const prix = Number(cleaned);
+        if (!Number.isFinite(prix) || prix < 0) { alert('Prix invalide'); return; }
+        data.priceHonorTTC = Math.round(prix * 100) / 100;
+      }
+
+      try{
+        await db.collection('agencies').doc(name).set(data, { merge:true });
+        notify('Agence enregistrée ✔️','ok');
+        dlg.close(); dlg.remove();
+        
+        await window.loadAgenciesDB();
+        refreshAllViews();
+      }catch(e){ alert('Erreur : ' + e.message); }
+    };
+
+    // --- SUPPRESSION ---
+    if(key){
+      $m('#ag_delete')?.addEventListener('click', async()=>{
+        if(!confirm('Supprimer cette agence ?\nElle ne sera plus proposée.')) return;
+        
+        try{
+          const btnDel = $m('#ag_delete');
+          btnDel.textContent = "Patientez...";
+          btnDel.disabled = true;
+
+          const ref = db.collection('agencies').doc(key);
+          
+          // Est-ce une agence native (dans le code HTML) ?
+          const isHardcoded = (window.AGENCIES && window.AGENCIES[key]);
+
+          if (isHardcoded) {
+            // Si elle est native, on doit mettre une étiquette "disabled" dans la DB pour la cacher
+            await ref.set({ disabled: true }, { merge: true });
+          } else {
+            // Si c'est une agence perso, on la supprime totalement
+            await ref.delete();
+          }
+
+          notify('Agence supprimée ✔️','ok');
+          dlg.close(); dlg.remove();
+
+          // Rafraîchissement global immédiat
+          await window.loadAgenciesDB();
+          refreshAllViews();
+
+        }catch(e){ 
+            console.error(e);
+            alert('Erreur suppression.'); 
+        }
+      });
+    }
+  };
+
+  // Helper pour tout rafraîchir d'un coup
+  function refreshAllViews() {
+      if(typeof populateWizardAgencies === 'function') populateWizardAgencies();
+      if(typeof populateAgencyFilter === 'function') populateAgencyFilter();
+      // Si on est sur la vue Agences, on recharge la liste
+      if(window.VIEW === 'agencies' && typeof renderList === 'function') renderList();
+  }
+
+  // Lancement initial au chargement du script pour être sûr d'avoir les bonnes données
+  setTimeout(() => {
+      window.loadAgenciesDB().then(() => refreshAllViews());
+  }, 1500);
 
 })();
 
