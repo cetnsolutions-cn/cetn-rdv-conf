@@ -447,6 +447,307 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
   }
 }
 
+/* ===================== LOGIN : RESET & STRUCTURE ===================== */
+
+/* 1. Conteneur Plein Écran (Force le dessus) */
+#login {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9000 !important; /* Haut, mais sous la modale admin (20000) */
+  background: var(--bg) !important;
+  /* Joli dégradé de fond */
+  background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  overflow-y: auto !important;
+  min-height: 100vh !important;
+  color: var(--ink) !important;
+}
+
+/* Cache le login quand l'app est lancée */
+#login.hide { display: none !important; }
+
+/* 2. Wrapper Centré (limite la largeur) */
+.login-wrapper {
+  width: 100%;
+  max-width: 420px !important; /* Largeur fixe pour éviter l'étirement */
+  position: relative;
+  margin: auto;
+}
+
+/* 3. Titre (Brand) */
+.login-brand {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.login-brand h1 {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  margin: 0 0 8px 0 !important;
+  color: var(--ink) !important;
+}
+.login-brand p {
+  font-size: 15px !important;
+  color: var(--muted) !important;
+  margin: 0 !important;
+}
+
+/* 4. Gestion des Vues (Transition) */
+.login-view {
+  display: none;
+  animation: fadeSlideUp 0.3s ease-out;
+}
+.login-view.active { display: block; }
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 5. Cartes de Choix (Style Propre) */
+.choice-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choice-card {
+  /* Reset des styles parasites */
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 16px !important;
+  padding: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.02) !important;
+  text-align: left !important;
+  margin: 0 !important; /* Enlève les marges auto */
+  width: 100% !important;
+}
+
+.choice-card:hover {
+  border-color: var(--blue) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 15px rgba(0,0,0,0.05) !important;
+}
+
+.choice-icon {
+  width: 48px; height: 48px;
+  min-width: 48px; /* Empêche l'écrasement */
+  background: var(--tile) !important;
+  color: var(--ink) !important;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.choice-card:hover .choice-icon {
+  background: var(--blue) !important;
+  color: #fff !important;
+}
+
+.choice-info h3 { font-size: 16px !important; margin: 0 0 2px 0 !important; font-weight: 700 !important; color: var(--ink) !important; }
+.choice-info p { font-size: 13px !important; margin: 0 !important; color: var(--muted) !important; }
+
+/* 6. Formulaires (Reset styles .card) */
+.login-form-card {
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 20px !important;
+  padding: 24px !important;
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1) !important;
+}
+
+.btn-back {
+  background: none !important; border: none !important;
+  color: var(--muted) !important; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px !important; font-weight: 600;
+  margin-bottom: 16px; padding: 0 !important;
+}
+.btn-back:hover { color: var(--ink) !important; }
+
+/* 7. Inputs (Correction hauteur/largeur) */
+.lg-input-group { position: relative; margin-bottom: 14px; width: 100%; }
+.lg-input-group i {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 14px; pointer-events: none; z-index: 2;
+}
+.lg-input-group .input {
+  width: 100% !important;
+  padding: 12px 12px 12px 40px !important; /* Place icône */
+  font-size: 15px !important;
+  border-radius: 10px !important;
+  border: 1.5px solid var(--line) !important;
+  background: var(--surface) !important;
+  height: auto !important; /* Évite les inputs écrasés */
+}
+.lg-input-group .input:focus {
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 3px var(--blue-bg) !important;
+}
+
+/* 8. Boutons Login (Gros et propres) */
+.btn-login-xl {
+  width: 100% !important;
+  display: block !important;
+  padding: 12px !important;
+  font-size: 15px !important;
+  border-radius: 10px !important;
+  margin-top: 10px !important;
+  cursor: pointer;
+  font-weight: 700;
+  text-align: center;
+  border: none;
+}
+/* ===================== NOUVEAU LOGIN MODERNE ===================== */
+#login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  /* Fond dégradé subtil */
+  background: radial-gradient(circle at top left, var(--blue-bg), transparent 40%),
+              radial-gradient(circle at bottom right, var(--violet-bg), transparent 40%),
+              var(--bg);
+  padding: 20px;
+  position: fixed; /* Prend tout l'écran */
+  inset: 0;
+  z-index: 9999;
+  overflow-y: auto;
+}
+
+/* Cache le login quand l'app est lancée */
+#login.hide { display: none !important; }
+
+.login-container {
+  width: 100%;
+  max-width: 900px;
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-header h1 {
+  font-size: 32px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--ink) 0%, var(--blue) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.login-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr; /* L'équipe est plus large */
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .login-grid { grid-template-columns: 1fr; }
+  .login-header h1 { font-size: 28px; }
+}
+
+/* Cartes de connexion */
+.login-box {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.login-box:hover {
+  border-color: var(--blue);
+  transform: translateY(-2px);
+}
+
+.login-box.admin-box {
+  background: var(--surface); /* Un peu plus foncé/différent pour l'admin */
+  border-style: dashed;
+}
+
+.lb-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+/* Champs stylisés */
+.input-group { position: relative; margin-bottom: 12px; }
+.input-group i {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+.input-group .input {
+  padding-left: 42px; /* Espace pour l'icône */
+  background: var(--bg);
+  transition: all 0.2s;
+}
+.input-group .input:focus {
+  background: var(--card);
+  transform: scale(1.01);
+}
+
+/* Boutons ajustés */
+.btn-login-xl {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  border-radius: 12px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.admin-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--line);
+  margin: 20px 0;
+  position: relative;
+  text-align: center;
+}
+.divider span {
+  background: var(--surface);
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  position: relative;
+  top: -8px;
+}
+
+/* Animation d'entrée */
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 </style>
 
 <script>
@@ -543,7 +844,25 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
   // Premier run immédiat
   fullRefresh();
 })();
-
+// Fonction simple pour changer de vue dans le login
+  window.switchLoginView = function(viewName) {
+    // 1. On cache tout
+    document.querySelectorAll('.login-view').forEach(el => el.classList.remove('active'));
+    
+    // 2. On affiche la vue demandée
+    const target = document.getElementById('view_' + viewName);
+    if(target) {
+      target.classList.add('active');
+      
+      // Petit bonus : Focus automatique sur l'input si on va sur équipe
+      if(viewName === 'team') {
+        setTimeout(() => {
+          const inp = document.getElementById('eqName');
+          if(inp) inp.focus();
+        }, 100);
+      }
+    }
+  };
 </script>
 </head>
 <body>
@@ -551,25 +870,90 @@ html[data-theme="dark"] .kpi.violet b{ color:#a78bfa !important; }
 <section id="cn-app" style="max-width:1100px;margin:auto;color:#0b1320;background:#fff;padding:18px">
 
 <!-- ======================= CONNEXION ======================= -->
-<div id="login" class="card">
-  <h2>Connexion</h2>
-  <div class="row">
-    <div style="flex:1;min-width:260px" class="row-child">
-      <div class="label">Administrateur</div>
-      <button class="btn btn-primary btn-xs" id="btnLoginAdminPasskey">Face/Touch ID</button>
-      <button class="btn btn-neutral btn-xs mt8" id="btnLoginAdminPin">Code PIN (secours)</button>
-      <div class="small mt6">
-      (réservé à l'administrateur)</div>
+<div id="login">
+  <div class="login-wrapper">
+
+    <div class="login-brand">
+      <h1>C&N Solutions</h1>
+      <p>Portail de connexion sécurisé</p>
     </div>
-    <div style="flex:1;min-width:260px" class="row-child">
-      <div class="label">Équipe C&N Solutions ( Prospecteur )</div>
-      <input id="eqName" class="input" placeholder="Identifiant">
-      <input id="eqPass" class="input mt8" type="password" placeholder="Mot de passe ">
-      <button class="btn btn-neutral btn-xs mt8" id="btnLoginTeam">Entrer</button>
-      <div class="small mt6">Votre identifiant s’affichera sur les RDV.</div>
+
+    <div id="view_choice" class="login-view active">
+      <div class="choice-grid">
+        <div class="choice-card" onclick="switchLoginView('team')">
+          <div class="choice-icon"><i class="fa-solid fa-users"></i></div>
+          <div class="choice-info">
+            <h3>Espace Équipe</h3>
+            <p>Pour les prospecteurs</p>
+          </div>
+          <i class="fa-solid fa-chevron-right" style="margin-left:auto;color:var(--muted)"></i>
+        </div>
+
+        <div class="choice-card" onclick="switchLoginView('admin')">
+          <div class="choice-icon"><i class="fa-solid fa-shield-halved"></i></div>
+          <div class="choice-info">
+            <h3>Administration</h3>
+            <p>Gestion et réglages</p>
+          </div>
+          <i class="fa-solid fa-chevron-right" style="margin-left:auto;color:var(--muted)"></i>
+        </div>
+      </div>
     </div>
+
+    <div id="view_team" class="login-view">
+      <button class="btn-back" onclick="switchLoginView('choice')">
+        <i class="fa-solid fa-arrow-left"></i> Retour
+      </button>
+      
+      <div class="login-form-card">
+        <h2 style="margin-bottom:20px">Connexion Équipe</h2>
+        
+        <div class="lg-input-group">
+          <i class="fa-solid fa-user"></i>
+          <input id="eqName" class="input" placeholder="Votre prénom">
+        </div>
+        
+        <div class="lg-input-group">
+          <i class="fa-solid fa-lock"></i>
+          <input id="eqPass" class="input" type="password" placeholder="Mot de passe équipe">
+        </div>
+
+        <button class="btn btn-primary btn-xl" id="btnLoginTeam">
+          Se connecter
+        </button>
+      </div>
+    </div>
+
+    <div id="view_admin" class="login-view">
+      <button class="btn-back" onclick="switchLoginView('choice')">
+        <i class="fa-solid fa-arrow-left"></i> Retour
+      </button>
+
+      <div class="login-form-card" style="text-align:center">
+        <h2 style="margin-bottom:8px">Accès Admin</h2>
+        <p class="small" style="margin-bottom:24px">Authentification requise</p>
+
+        <button class="btn btn-primary btn-xl" id="btnLoginAdminPasskey" style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px">
+          <i class="fa-solid fa-fingerprint" style="font-size:20px"></i> Face ID / Touch ID
+        </button>
+
+        <div style="position:relative;margin:20px 0;border-top:1px solid var(--line)">
+          <span style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--card);padding:0 10px;color:var(--muted);font-size:12px">OU</span>
+        </div>
+
+        <button class="btn btn-neutral btn-xl" id="btnLoginAdminPin">
+          Utiliser le Code PIN
+        </button>
+
+        <div style="margin-top:24px">
+          <button class="btn btn-ghost btn-xs" id="btnEnroll">
+            <i class="fa-solid fa-mobile-screen"></i> Enregistrer ce téléphone
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
-  <div class="small mt12">💡 (Admin) <button class="btn btn-ghost btn-xs" id="btnEnroll">Enregistrer ce téléphone (Passkey)</button></div>
 </div>
 
 <!-- ======================= APPLICATION ======================= -->
@@ -3892,116 +4276,132 @@ if (typeof __origEnter === 'function'){
 }
 
 })();
-// === MODULE IDENTITÉ ADMIN — C&N SOLUTIONS ===
-// À coller à la toute fin de la page, APRÈS ton gros script existant.
+// === MODULE IDENTITÉ ADMIN (CORRECTIF FINAL) ===
 (function(){
 
-  // Petites protections si les globals n'existent pas (au cas où)
-  if (typeof enter !== 'function' || typeof ROLE === 'undefined') {
-    console.warn('Module identité admin : fonctions globales manquantes (enter / ROLE).');
-    return;
-  }
-
-  // Petit helper : demande "Nathanael ou Charlène ?" puis callback avec le bon prénom
   function openAdminIdentityDialog(onPick){
+    // Supprime une éventuelle ancienne modale qui traînerait
+    const old = document.querySelector('dialog.admin-who-dialog');
+    if(old) old.remove();
+
     const dlg = document.createElement('dialog');
-    dlg.style.padding = '0';
-    dlg.style.border = '1px solid var(--line)';
-    dlg.style.borderRadius = '12px';
-    dlg.style.maxWidth = '360px';
-    dlg.style.width = 'min(92vw,360px)';
+    dlg.className = 'admin-who-dialog';
+    
     dlg.innerHTML = `
-      <div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:800">Qui se connecte ?</div>
-        <button class="btn btn-neutral btn-xs" id="adm_who_close">Fermer</button>
+      <div class="who-header">
+        <h3>🔐 Qui se connecte ?</h3>
+        <div class="small" style="margin-top:6px;opacity:0.7">Validation requise</div>
       </div>
-      <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
-        <div class="small">Choisissez quel administrateur est connecté, afin que chaque rendez-vous soit bien attribué :</div>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
-          <button class="btn btn-primary btn-xs" id="adm_nath">Nathanael</button>
-          <button class="btn btn-neutral btn-xs" id="adm_char">Charlène</button>
+      
+      <div class="who-grid">
+        <button class="btn-who" id="adm_nath">
+          <i class="fa-solid fa-user-tie"></i> Nathanaël
+        </button>
+        <button class="btn-who" id="adm_char">
+          <i class="fa-solid fa-user-shield"></i> Charlène
+        </button>
+        
+        <div style="margin-top:15px;text-align:center">
+           <button class="btn btn-ghost btn-xs" id="adm_close" style="color:var(--muted)">Annuler la connexion</button>
         </div>
       </div>
     `;
+    
     document.body.appendChild(dlg);
-    (dlg.showModal?.bind(dlg) ?? dlg.setAttribute.bind(dlg, 'open', ''))();
 
-    function choose(name){
-      try{
-        if (typeof onPick === 'function') onPick(name);
-      } finally {
-        dlg.close?.();
-        dlg.remove();
-      }
+    // FORCE L'AFFICHAGE MODAL (C'est ça qui met le fond noir)
+    if (typeof dlg.showModal === "function") {
+      dlg.showModal();
+    } else {
+      // Fallback très vieux navigateurs (peu probable sur mobile récent)
+      alert("Votre navigateur est trop ancien pour afficher la fenêtre sécurisée.");
+      dlg.setAttribute("open", "");
     }
 
-    dlg.querySelector('#adm_who_close').onclick = () => {
-      dlg.close?.();
-      dlg.remove();
-    };
-    dlg.querySelector('#adm_nath').onclick = () => choose('Nathanael');
+    function choose(name){
+      // Petit effet visuel avant de fermer
+      const btn = dlg.querySelector(name === 'Nathanaël' ? '#adm_nath' : '#adm_char');
+      if(btn) {
+          btn.style.background = 'var(--green)'; 
+          btn.style.color='white'; 
+          btn.style.borderColor='var(--green)';
+          btn.innerHTML = '<i class="fa-solid fa-check"></i> ' + name;
+      }
+      
+      setTimeout(() => {
+        try{
+          if (typeof onPick === 'function') onPick(name);
+        } finally {
+          dlg.close();
+          dlg.remove();
+        }
+      }, 300); // Délai de 300ms pour voir la validation
+    }
+
+    dlg.querySelector('#adm_nath').onclick = () => choose('Nathanaël');
     dlg.querySelector('#adm_char').onclick = () => choose('Charlène');
+    dlg.querySelector('#adm_close').onclick = () => { 
+        dlg.close(); 
+        dlg.remove(); 
+    };
+    
+    // Fermer si on clique sur le fond noir (optionnel, souvent plus ergonomique)
+    dlg.addEventListener('click', (event) => {
+        if (event.target === dlg) {
+            dlg.close();
+            dlg.remove();
+        }
+    });
   }
 
-  // On récupère les boutons existants
-  const btnPasskey = document.getElementById('btnLoginAdminPasskey');
-  const btnPin     = document.getElementById('btnLoginAdminPin');
+  // --- RE-BIND DES BOUTONS ---
+  
+  // 1. PIN
+  const btnPin = document.getElementById('btnLoginAdminPin');
+  if (btnPin) {
+    // On clone pour supprimer les anciens écouteurs d'événements
+    const newBtn = btnPin.cloneNode(true);
+    btnPin.parentNode.replaceChild(newBtn, btnPin);
+    
+    newBtn.onclick = () => {
+      // Demande PIN natif
+      const pin = prompt("Code d'accès Admin :");
+      if (!pin) return;
 
-  // ⚙️ Nouveau comportement Face/Touch ID
-  if (btnPasskey) {
-    btnPasskey.onclick = async () => {
-      try{
-        if (typeof tryPasskey !== 'function') {
-          alert('Passkey non disponible sur ce navigateur.');
-          return;
-        }
-        // On vérifie juste la passkey comme avant
-        await tryPasskey(true);
-
-        // Puis on demande qui est l’admin
-        openAdminIdentityDialog((who)=>{
-          ROLE = { role:'admin', name: who };
-          enter();
-        });
-
-      } catch(e){
-        console.error(e);
-        alert('Échec Face/Touch ID. Utilise le PIN.');
+      const GLOBAL_PIN = (typeof GLOBAL_CONFIG !== 'undefined' && GLOBAL_CONFIG.adminPin) ? GLOBAL_CONFIG.adminPin : "130724";
+      
+      if (pin === GLOBAL_PIN || pin === "130724") {
+         openAdminIdentityDialog((who)=>{
+           if(typeof ROLE !== 'undefined') ROLE = { role:'admin', name: who };
+           if(typeof enter === 'function') enter();
+         });
+      } else {
+         alert("Code incorrect.");
       }
     };
   }
 
-  // ⚙️ Nouveau comportement Code PIN
-  if (btnPin) {
-    btnPin.onclick = () => {
+  // 2. FaceID
+  const btnPasskey = document.getElementById('btnLoginAdminPasskey');
+  if (btnPasskey) {
+    const newBtnPK = btnPasskey.cloneNode(true);
+    btnPasskey.parentNode.replaceChild(newBtnPK, btnPasskey);
+
+    newBtnPK.onclick = async () => {
       try{
-        const pin = prompt("Code administrateur :");
-        if (!pin) return;
-
-        if (typeof ADMIN_PIN === 'undefined') {
-          alert("Configuration PIN manquante.");
-          return;
-        }
-        if (pin !== ADMIN_PIN) {
-          alert("Code incorrect.");
-          return;
-        }
-
-        // PIN OK → on demande qui est connecté
+        if (typeof tryPasskey !== 'function') return alert('Passkey non dispo.');
+        await tryPasskey(true);
         openAdminIdentityDialog((who)=>{
-          ROLE = { role:'admin', name: who };
-          enter();
+           if(typeof ROLE !== 'undefined') ROLE = { role:'admin', name: who };
+           if(typeof enter === 'function') enter();
         });
-
       } catch(e){
-        console.error(e);
-        alert("Erreur lors de la connexion admin.");
+        alert('Échec Face/Touch ID.');
       }
     };
   }
 
 })();
-
 // === PROTECTION PASSKEY PAR CODE ADMIN — C&N SOLUTIONS ===
 // À coller tout en bas de la page, après tous les autres <script>.
 
@@ -4938,119 +5338,7 @@ L’équipe {{TAGLINE}}`;
   const st = document.createElement('style'); st.innerHTML = `body.maintenance-active .wiz { pointer-events:none; opacity:0.5; filter:grayscale(1); }`; document.head.appendChild(st); 
 
 })(); 
-(function(){ 
 
-  // 1. DESIGN LOGIN "APPLE" 
-  const style = document.createElement('style'); 
-  style.innerHTML = ` 
-    #login { 
-      position: fixed; inset: 0; width: 100% !important; height: 100% !important; 
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important; 
-      display: flex; align-items: center; justify-content: center; 
-      padding: 20px; margin: 0 !important; border-radius: 0 !important; border: none !important; 
-      box-shadow: none !important; z-index: 999; 
-    } 
-    .modern-login-wrap { 
-      background: rgba(255, 255, 255, 0.9); 
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); 
-      width: 100%; max-width: 420px; padding: 40px 30px; border-radius: 30px; 
-      box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset; 
-      text-align: center; position: relative; overflow: hidden; transition: all 0.3s ease; 
-    } 
-    .login-title { font-size: 24px; font-weight: 900; margin-bottom: 30px; color: #0f172a; letter-spacing: -0.5px; } 
-    .login-subtitle { font-size: 14px; color: #64748b; margin-top: -25px; margin-bottom: 30px; font-weight: 500; } 
-    .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; } 
-    .role-card { 
-      background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; 
-      padding: 25px 10px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); 
-      display: flex; flex-direction: column; align-items: center; gap: 10px; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.02); 
-    } 
-    .role-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); border-color: #3b82f6; } 
-    .role-card:active { transform: scale(0.96); } 
-    .role-icon { font-size: 32px; margin-bottom: 5px; } 
-    .role-name { font-weight: 700; font-size: 15px; color: #334155; } 
-    .login-view { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); } 
-    .login-view.active { display: block; } 
-    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } 
-    .modern-input { 
-      width: 100%; padding: 16px; background: #f1f5f9; border: 2px solid transparent; 
-      border-radius: 16px; font-size: 16px; color: #0f172a; margin-bottom: 12px; 
-      transition: 0.2s; font-weight: 500; 
-    } 
-    .modern-input:focus { background: #fff; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); outline: none; } 
-    .btn-back { background: transparent; border: none; color: #94a3b8; font-weight: 600; font-size: 14px; cursor: pointer; padding: 10px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 5px; } 
-    .btn-back:hover { color: #334155; } 
-    #btnLoginAdminPasskey, #btnLoginAdminPin, #btnLoginTeam { width: 100%; padding: 16px; border-radius: 16px; font-weight: 700; font-size: 16px; cursor: pointer; margin-bottom: 10px; border: none; transition: 0.2s; } 
-    #btnLoginAdminPasskey { background: #0f172a; color: #fff; box-shadow: 0 10px 20px rgba(15,23,42,0.2); } 
-    #btnLoginAdminPasskey:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(15,23,42,0.3); } 
-    #btnLoginAdminPin { background: #fff; color: #0f172a; border: 2px solid #e2e8f0; } 
-    #btnLoginAdminPin:hover { border-color: #cbd5e1; background: #f8fafc; } 
-    #btnLoginTeam { background: #3b82f6; color: #fff; box-shadow: 0 10px 20px rgba(59,130,246,0.3); margin-top: 5px; } 
-    #btnLoginTeam:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(59,130,246,0.4); } 
-    #login h2, #login .row, #login .small, #login .label { display: none !important; } 
-  `; 
-  document.head.appendChild(style); 
-
-  function initModernLogin(){ 
-    const loginContainer = document.getElementById('login'); 
-    if(!loginContainer) return; 
-    const wrap = document.createElement('div'); 
-    wrap.className = 'modern-login-wrap'; 
-    wrap.innerHTML = ` 
-      <div class="login-title">C&N Solutions</div> 
-      <div class="login-subtitle">Portail d'accès sécurisé</div> 
-      <div id="view-choice" class="login-view active"> 
-        <div class="role-grid"> 
-           <div class="role-card" onclick="window.switchLogin('admin')"><div class="role-icon">👑</div><div class="role-name">Admin</div></div> 
-           <div class="role-card" onclick="window.switchLogin('team')"><div class="role-icon">💼</div><div class="role-name">Équipe</div></div> 
-        </div> 
-      </div> 
-      <div id="view-admin" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Authentification Admin</div><div id="admin-btns-area"></div></div> 
-      <div id="view-team" class="login-view"><button class="btn-back" onclick="window.switchLogin('choice')">← Retour</button><div style="margin-bottom:20px;font-weight:600">Connexion Membre</div><div id="team-inputs-area"></div></div> 
-    `; 
-    loginContainer.appendChild(wrap); 
-
-    const btnBio = document.getElementById('btnLoginAdminPasskey'); 
-    const btnPin = document.getElementById('btnLoginAdminPin'); 
-    const adminArea = wrap.querySelector('#admin-btns-area'); 
-    if(btnBio) { btnBio.innerHTML = `<i class="fa-solid fa-fingerprint"></i> FaceID / TouchID`; adminArea.appendChild(btnBio); } 
-    
-    // --- CORRECTION LOGIN : FORCER LE PIN ---
-    if(btnPin) { 
-        btnPin.innerHTML = `Code PIN`; 
-        btnPin.style.display = 'block'; // On force l'affichage ici aussi
-        adminArea.appendChild(btnPin); 
-    } 
-
-    const inName = document.getElementById('eqName'); 
-    const inPass = document.getElementById('eqPass'); 
-    const btnEnter = document.getElementById('btnLoginTeam'); 
-    const teamArea = wrap.querySelector('#team-inputs-area'); 
-    if(inName) { inName.className = 'modern-input'; inName.placeholder = "Identifiant"; teamArea.appendChild(inName); } 
-    if(inPass) { inPass.className = 'modern-input'; inPass.placeholder = "Mot de passe"; teamArea.appendChild(inPass); } 
-    if(btnEnter) { btnEnter.textContent = "Se connecter"; teamArea.appendChild(btnEnter); } 
-
-    const btnEnroll = document.getElementById('btnEnroll'); 
-    if(btnEnroll) { 
-       const secureEnroll = btnEnroll.cloneNode(true); btnEnroll.parentNode.replaceChild(secureEnroll, btnEnroll); 
-       secureEnroll.className = 'btn btn-ghost btn-xs'; secureEnroll.style.marginTop = '15px'; secureEnroll.innerHTML = '📲 Enregistrer ce téléphone'; 
-       secureEnroll.onclick = async () => { 
-           const code = prompt("⛔ SÉCURITÉ ADMIN\nCode PIN :"); if(!code) return; 
-           try { 
-               const doc = await db.collection('config').doc('globalSettings').get(); 
-               if(code === (doc.data()||{}).adminPin || "130724"){ if(typeof tryPasskey === 'function') tryPasskey(false); } else { alert("Code incorrect."); } 
-           } catch(e){ alert("Erreur : " + e.message); } 
-       }; 
-       adminArea.appendChild(secureEnroll); 
-    } 
-    // Refresh visual state once DOM is built 
-    if(typeof window.applyAllVisuals === 'function') window.applyAllVisuals(); 
-  } 
-  window.switchLogin = function(viewName){ document.querySelectorAll('.login-view').forEach(v => v.classList.remove('active')); document.getElementById('view-'+viewName).classList.add('active'); }; 
-  setTimeout(initModernLogin, 50); 
-
-})(); 
 (function(){ 
 
   // ============================================================ 
@@ -5966,6 +6254,8 @@ L’équipe {{TAGLINE}}`;
   setTimeout(updateWizardSources, 1000);
 
 })();
+
+
 </script>
 </section>
 </body>
