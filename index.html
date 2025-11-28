@@ -6640,6 +6640,102 @@ BLOQUER CLIC DROIT CONTEXTUEL
 (function(){
   document.addEventListener('contextmenu', event => event.preventDefault());
 })();
+
+/*
+====================================
+BULLE PAGE D'ACCUEIL
+====================================
+*/
+(function(){
+    // On cible le conteneur login
+    const login = document.getElementById('login');
+    if(!login) return;
+
+    // On s'assure que le login a position relative pour contenir les particules
+    // (Note: ton CSS met login en fixed, donc on ajoute un container interne si besoin,
+    // ou on append direct au body si le login est transparent, mais ici on append au login)
+
+    // Création du canvas
+    const canvas = document.createElement('canvas');
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.zIndex = '-1'; // Derrière le formulaire
+    canvas.style.pointerEvents = 'none';
+    login.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    
+    let particles = [];
+
+    function resize() {
+        canvas.width = login.offsetWidth;
+        canvas.height = login.offsetHeight;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.5;
+            this.vy = (Math.random() - 0.5) * 0.5;
+            this.size = Math.random() * 3 + 1;
+            this.color = `rgba(${Math.random()>0.5 ? '59, 130, 246' : '139, 92, 246'}, ${Math.random() * 0.3})`; // Bleu ou Violet
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if(this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        }
+
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Init particules
+    for(let i=0; i<60; i++) particles.push(new Particle());
+
+    // Connecter les particules proches
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        particles.forEach((p, index) => {
+            p.update();
+            p.draw();
+
+            // Lignes entre particules proches
+            for(let j = index; j < particles.length; j++) {
+                const dx = p.x - particles[j].x;
+                const dy = p.y - particles[j].y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if(dist < 100) {
+                    ctx.strokeStyle = `rgba(100, 116, 139, ${0.1 - dist/1000})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.stroke();
+                }
+            }
+        });
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+})();
 </script>
 </section>
 </body>
