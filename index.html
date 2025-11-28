@@ -4692,17 +4692,57 @@ L’équipe {{TAGLINE}}`;
           const row = document.createElement('div'); row.className = 'rdv'; 
           const who = r.createdByName || 'Inconnu'; 
           row.innerHTML = ` 
-              <div><div class="title">${fmtNice(r.dateISO,r.timeText)} — ${r.civ} ${r.name}</div><div class="meta">${toFR(r.phone)} • ${r.model}</div><div class="mt8"><span class="bubble orange">Placé par : ${who}</span> <span class="badge">${r.agency}</span></div></div> 
-              <div class="rdv-actions" style="flex-direction:column;gap:6px"><button class="btn btn-primary btn-xs" id="send_now_${r.id}">Envoyer SMS</button><button class="btn btn-warn btn-xs" id="cancel_${r.id}">Annuler RDV</button></div> 
+              <div>
+                <div class="title">${fmtNice(r.dateISO,r.timeText)} — ${r.civ} ${r.name}</div>
+                <div class="meta">${toFR(r.phone)} • ${r.model}</div>
+                <div class="mt8"><span class="bubble orange">Placé par : ${who}</span> <span class="badge">${r.agency}</span></div>
+              </div> 
+              <div class="rdv-actions" style="flex-direction:column;gap:6px">
+                <button class="btn btn-primary btn-xs" id="send_now_${r.id}">Envoyer SMS</button>
+                <button class="btn btn-warn btn-xs" id="cancel_${r.id}">Annuler RDV</button>
+              </div> 
           `; 
-          row.querySelector(`#send_now_${r.id}`).onclick = async () => { await markConfirmed(r, 'sms'); row.remove(); updatePendingConfirms(); }; 
-          row.querySelector(`#cancel_${r.id}`).onclick = async () => { if(!confirm('Annuler ?')) return; row.remove(); updatePendingConfirms(); }; 
+          
+          // --- CORRECTION DU BOUTON ENVOYER ---
+          row.querySelector(`#send_now_${r.id}`).onclick = async () => { 
+              await markConfirmed(r, 'sms'); 
+              row.remove(); 
+              updatePendingConfirms(); 
+              // On recharge la liste principale pour voir le changement de statut
+              if(typeof renderList === 'function') renderList();
+          }; 
+
+          // --- CORRECTION DU BOUTON ANNULER (C'est ici que ça bloquait) ---
+          row.querySelector(`#cancel_${r.id}`).onclick = async () => { 
+              if(!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce RDV en attente ?')) return; 
+              
+              try {
+                  // 1. On supprime dans la base de données
+                  await db.collection('rdv').doc(r.id).update({
+                      deleted: true,
+                      deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+                  });
+
+                  // 2. On met à jour la liste locale pour que ça disparaisse tout de suite
+                  const localIndex = ALL_R.findIndex(x => x.id === r.id);
+                  if (localIndex > -1) ALL_R[localIndex].deleted = true;
+
+                  // 3. On supprime la ligne visuelle
+                  row.remove(); 
+                  updatePendingConfirms(); 
+                  
+                  // 4. On rafraîchit la liste principale derrière
+                  if(typeof renderList === 'function') renderList();
+
+              } catch(e) {
+                  alert("Erreur lors de la suppression : " + e.message);
+              }
+          }; 
           list.appendChild(row); 
        }); 
     } 
     render(); 
-  }; 
-
+  };
   async function markConfirmed(r, channel){ 
      await db.collection('rdv').doc(r.id).set({ confirmationPending: firebase.firestore.FieldValue.delete(), firstMsgAt: firebase.firestore.FieldValue.serverTimestamp(), firstMsgChannel: channel }, {merge:true}); 
      const local = ALL_R.find(x=>x.id===r.id); if(local) { delete local.confirmationPending; local.firstMsgAt=new Date(); } 
@@ -5654,7 +5694,278 @@ L’équipe {{TAGLINE}}`;
   }, 100); 
 })();
 
+(function(){
 
+  // ============================================================
+  // 1. STYLE (GRILLE + FENÊTRE MODALE "AUTRE")
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Grille d'icônes compacte */
+    .source-grid-pro {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 15px;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    /* Carte (Bouton) */
+    .source-card-pro {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-height: 70px;
+    }
+
+    /* Effets */
+    .source-card-pro:hover {
+      border-color: var(--blue);
+      background: var(--blue-bg);
+      transform: translateY(-2px);
+    }
+    .source-card-pro:active { transform: scale(0.96); }
+
+    /* Icône */
+    .source-icon-pro {
+      font-size: 22px;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .source-card-pro:hover .source-icon-pro { color: var(--blue); }
+
+    /* Texte en TOUT PETIT */
+    .source-label-pro {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.1;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* --- STYLE DE LA PETITE FENÊTRE (MODALE) --- */
+    dialog.manual-source-dlg {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+      padding: 0;
+      width: min(90vw, 320px); /* Petite taille */
+      max-width: 320px;
+      animation: popIn 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .ms-head {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      font-size: 15px;
+      text-align: center;
+      background: var(--tile);
+      color: var(--ink);
+    }
+    .ms-body { padding: 16px; }
+    .ms-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      justify-content: flex-end;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ============================================================
+  // 2. INTELLIGENCE LOGOS
+  // ============================================================
+  function getIcon(name) {
+      const n = (name || '').toLowerCase();
+      if(n.includes('leboncoin')) return 'fa-solid fa-cube';
+      if(n.includes('facebook')) return 'fa-brands fa-facebook-f';
+      if(n.includes('instagram')) return 'fa-brands fa-instagram';
+      if(n.includes('snap')) return 'fa-brands fa-snapchat';
+      if(n.includes('tiktok')) return 'fa-brands fa-tiktok';
+      if(n.includes('youtube')) return 'fa-brands fa-youtube';
+      if(n.includes('google')) return 'fa-brands fa-google';
+      if(n.includes('linkedin')) return 'fa-brands fa-linkedin-in';
+      if(n.includes('pinterest')) return 'fa-brands fa-pinterest';
+      if(n.includes('whatsapp')) return 'fa-brands fa-whatsapp';
+      if(n.includes('telegram')) return 'fa-brands fa-telegram';
+      if(n.includes('téléphone') || n.includes('tel')) return 'fa-solid fa-phone';
+      if(n.includes('sms')) return 'fa-solid fa-comment-sms';
+      if(n.includes('mail')) return 'fa-solid fa-envelope';
+      if(n.includes('site') || n.includes('web')) return 'fa-solid fa-globe';
+      if(n.includes('track')) return 'fa-solid fa-chart-line';
+      if(n.includes('passage')) return 'fa-solid fa-person-walking';
+      return 'fa-solid fa-bullhorn'; 
+  }
+
+  // ============================================================
+  // 3. LOGIQUE PRINCIPALE
+  // ============================================================
+
+  window.updateWizardSources = function(){
+      const sources = (window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.sources && window.GLOBAL_CONFIG.sources.length) 
+                      ? window.GLOBAL_CONFIG.sources 
+                      : ["Leboncoin", "Facebook", "Instagram", "Google", "Téléphone"];
+
+      // 1. Mise à jour de la liste cachée (pour compatibilité)
+      const dl = document.getElementById('sourcesList');
+      if(dl) dl.innerHTML = sources.map(s => `<option value="${s}"></option>`).join('');
+
+      // 2. Gestion du conteneur Grid
+      let container = document.getElementById('dyn_source_chips');
+      
+      if(!container){
+          const step7 = document.querySelector('.step[data-step="7"]');
+          if(step7) {
+              container = document.createElement('div');
+              container.id = 'dyn_source_chips';
+              container.className = 'source-grid-pro';
+              
+              const input = step7.querySelector('input'); // #w_source
+              if(input) {
+                  // On cache COMPLÈTEMENT l'input d'origine
+                  input.style.display = 'none'; 
+                  input.id = "w_source"; // On garde l'ID pour le submit
+                  if(input.parentNode) input.parentNode.insertBefore(container, input);
+              } else {
+                  step7.appendChild(container);
+              }
+          }
+      }
+
+      // 3. Génération du HTML
+      if(container){
+          container.className = 'source-grid-pro'; 
+          
+          let html = sources.map(s => `
+              <div class="source-card-pro" onclick="selectSourceAndNext('${s}')">
+                  <div class="source-icon-pro"><i class="${getIcon(s)}"></i></div>
+                  <div class="source-label-pro">${s}</div>
+              </div>
+          `).join('');
+
+          // Bouton "+" qui ouvre la fenêtre
+          html += `
+              <div class="source-card-pro" onclick="openManualSourceDialog()">
+                  <div class="source-icon-pro"><i class="fa-solid fa-plus"></i></div>
+                  <div class="source-label-pro">Autre</div>
+              </div>
+          `;
+
+          container.innerHTML = html;
+      }
+  };
+
+  // ✅ ACTION : CLIC SUR UNE SOURCE (FACEBOOK, ETC.)
+  window.selectSourceAndNext = function(val){
+      const inp = document.getElementById('w_source');
+      if(inp) {
+          inp.value = val;
+          const err = document.getElementById('e7'); if(err) err.style.display = 'none';
+          if(typeof buildRecap === 'function') buildRecap();
+          if(typeof next === 'function') setTimeout(next, 50);
+      }
+  };
+
+  // ✅ NOUVEAU : OUVRIR LA PETITE FENÊTRE
+  window.openManualSourceDialog = function(){
+      // Création dynamique de la fenêtre
+      const dlg = document.createElement('dialog');
+      dlg.className = 'manual-source-dlg';
+      dlg.innerHTML = `
+        <div class="ms-head">Autre Source</div>
+        <div class="ms-body">
+           <div class="label">Précisez la source :</div>
+           <input class="input" id="custom_source_input" placeholder="Ex: Ami, Garage, Site web..." style="margin-bottom:0">
+           <div class="ms-actions">
+              <button class="btn btn-neutral btn-xs" id="ms_cancel">Annuler</button>
+              <button class="btn btn-primary btn-xs" id="ms_valid">Valider</button>
+           </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      
+      // Afficher
+      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+
+      const input = dlg.querySelector('#custom_source_input');
+      const btnCancel = dlg.querySelector('#ms_cancel');
+      const btnValid = dlg.querySelector('#ms_valid');
+
+      // Focus direct pour écrire
+      setTimeout(() => input.focus(), 50);
+
+      // Action Annuler
+      btnCancel.onclick = () => {
+          dlg.close();
+          dlg.remove();
+      };
+
+      // Action Valider
+      const doValidate = () => {
+          const val = input.value.trim();
+          if(val) {
+              selectSourceAndNext(val); // On valide et on passe à la suite
+              dlg.close();
+              dlg.remove();
+          } else {
+              input.style.borderColor = "red";
+          }
+      };
+
+      btnValid.onclick = doValidate;
+      
+      // Touche Entrée pour valider direct
+      input.addEventListener('keydown', (e) => {
+          if(e.key === 'Enter') doValidate();
+      });
+  };
+
+  // 4. Ecouteur Config Firebase
+  if(typeof db !== 'undefined'){
+      db.collection('config').doc('globalSettings').onSnapshot((doc) => {
+          if(doc.exists){
+              window.GLOBAL_CONFIG = { ...window.GLOBAL_CONFIG, ...doc.data() };
+              updateWizardSources();
+          }
+      });
+  }
+
+  // 5. Fix fenêtre Réglages
+  const _oldOpenSettings = window.openGlobalSettings;
+  window.openGlobalSettings = function(){
+      if(_oldOpenSettings) _oldOpenSettings();
+      setTimeout(() => {
+         const txtArea = document.getElementById('set_sources');
+         if(txtArea && window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.sources){
+             txtArea.value = window.GLOBAL_CONFIG.sources.join(', ');
+         }
+      }, 100);
+  };
+
+  // Lancement
+  setTimeout(updateWizardSources, 1000);
+
+})();
 </script>
 </section>
 </body>
