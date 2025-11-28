@@ -6757,6 +6757,383 @@ BULLE PAGE D'ACCUEIL
 
     animate();
 })();
+(function(){
+  // ============================================================
+  // REMPLACEMENT MODERNE : STATUT DU RDV
+  // ============================================================
+
+  // 1. On injecte le style CSS spécifique pour cette fenêtre
+  const style = document.createElement('style');
+  style.innerHTML = `
+    .stat-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      margin-bottom: 8px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .stat-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .stat-btn:active { transform: scale(0.98); }
+    
+    .stat-btn.green { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .stat-btn.green:hover { background: #d1fae5; }
+    
+    .stat-btn.orange { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .stat-btn.orange:hover { background: #fef3c7; }
+
+    .stat-btn.red { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .stat-btn.red:hover { background: #fee2e2; }
+
+    .stat-btn.ghost { background: transparent; border: 1px dashed var(--line); color: var(--muted); justify-content: center; }
+    .stat-btn.ghost:hover { border-color: var(--ink); color: var(--ink); background: var(--tile); }
+
+    .stat-icon { font-size: 18px; width: 24px; text-align: center; }
+  `;
+  document.head.appendChild(style);
+
+  // 2. On écrase la fonction openStatusDialog existante
+  window.openStatusDialog = async function(id){
+    // Récupération sécurisée du RDV
+    let r = (window.ALL_R || []).find(x => x.id === id);
+    // Si pas trouvé dans la liste locale, on tente un fetch direct (sécurité)
+    if(!r) {
+       try {
+         const snap = await db.collection('rdv').doc(id).get();
+         if(snap.exists) r = {id:snap.id, ...snap.data()};
+       } catch(e){}
+    }
+    if(!r) return alert("RDV introuvable");
+
+    const dlg = document.createElement('dialog');
+    dlg.style.cssText = "padding:0; border-radius:16px; border:none; width:min(90vw, 420px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow:hidden;";
+
+    dlg.innerHTML = `
+      <div style="padding:16px; border-bottom:1px solid var(--line); background:var(--surface); display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:800; font-size:16px;">Statut du rendez-vous</div>
+          <button class="btn btn-neutral btn-xs icon-only" id="st_close" style="border-radius:50%">✕</button>
+      </div>
+      
+      <div style="padding:16px; background:var(--bg);">
+          <div class="small" style="margin-bottom:12px; text-align:center;">Choisissez le résultat du RDV :</div>
+
+          <button class="stat-btn green" id="st_honor_fact">
+             <i class="fa-solid fa-euro-sign stat-icon"></i>
+             <span>Honoré • Facturé</span>
+          </button>
+
+          <button class="stat-btn green" id="st_honor_nf">
+             <i class="fa-solid fa-check stat-icon"></i>
+             <span>Honoré • Non facturable</span>
+          </button>
+
+          <button class="stat-btn orange" id="st_noshow">
+             <i class="fa-solid fa-user-slash stat-icon"></i>
+             <span>Non honoré (Pas venu)</span>
+          </button>
+
+          <button class="stat-btn red" id="st_cancel">
+             <i class="fa-solid fa-ban stat-icon"></i>
+             <span>Annulé</span>
+          </button>
+
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+             <button class="stat-btn ghost" id="st_clear" style="margin-bottom:0">
+                <i class="fa-solid fa-rotate-left stat-icon"></i>
+                <span>Retirer le statut (Remettre en "Prévu")</span>
+             </button>
+          </div>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+
+    // --- ACTIONS ---
+    
+    // Fermer
+    const close = () => { dlg.close(); setTimeout(()=>dlg.remove(), 200); };
+    dlg.querySelector('#st_close').onclick = close;
+
+    // Honoré Facturé
+    dlg.querySelector('#st_honor_fact').onclick = async () => { 
+        await setHonor(r, 'honored', 'facturé'); 
+        close(); 
+    };
+
+    // Honoré Non Facturable
+    dlg.querySelector('#st_honor_nf').onclick = async () => { 
+        await setHonor(r, 'honored', 'non_facturable'); 
+        close(); 
+    };
+
+    // Non honoré
+    dlg.querySelector('#st_noshow').onclick = async () => { 
+        await setHonor(r, 'no_show', null); 
+        close(); 
+    };
+
+    // Annulé
+    dlg.querySelector('#st_cancel').onclick = async () => { 
+        // On utilise setHonor pour uniformiser la mise à jour BDD + Stats
+        await setHonor(r, 'cancelled', null); 
+        close(); 
+    };
+
+    // Retirer statut
+    dlg.querySelector('#st_clear').onclick = async () => { 
+        await clearHonor(r); 
+        close(); 
+    };
+  };
+
+})();
+(function(){
+
+  // 1. INJECTION CSS SPÉCIFIQUE
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Grille d'actions principales */
+    .sheet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 10px;
+      margin: 15px 0;
+    }
+
+    /* Bouton d'action carré style "App iOS" */
+    .sheet-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 5px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      color: var(--ink);
+      text-align: center;
+      min-height: 85px;
+    }
+    .sheet-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    .sheet-btn:active { transform: scale(0.96); }
+    
+    .sheet-btn i { font-size: 24px; margin-bottom: 2px; }
+    .sheet-btn span { font-size: 11px; font-weight: 600; line-height: 1.1; }
+
+    /* Hero Header */
+    .sheet-hero {
+      background: linear-gradient(135deg, var(--surface) 0%, var(--tile) 100%);
+      padding: 20px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    .sheet-hero .big-time { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: -1px; margin-bottom: 4px; }
+    .sheet-hero .big-date { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .sheet-hero .client-name { font-size: 18px; font-weight: 700; margin-top: 10px; color: var(--ink); }
+    
+    /* Section info */
+    .sheet-info-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--line); align-items: center; }
+    .sheet-info-label { font-size: 13px; color: var(--muted); }
+    .sheet-info-val { font-size: 14px; font-weight: 600; color: var(--ink); text-align: right; }
+  `;
+  document.head.appendChild(style);
+
+  // 2. REMPLACEMENT DE LA FONCTION
+  window.openRDVSheet = function(r){
+    const ag = (typeof getAgencyByKey === 'function') ? getAgencyByKey(r.agency||'') : {name:r.agency||''};
+    
+    // Formatage Date
+    const dateLong = (typeof dateLongueFR === 'function') ? dateLongueFR(r.dateText) : r.dateText;
+    
+    const dlg = document.createElement('dialog');
+    dlg.style.cssText = "padding:0; border-radius:24px; border:none; width:min(96vw, 650px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; background:var(--bg);";
+
+    dlg.innerHTML = `
+      <div style="padding:14px 20px; background:var(--surface); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10;">
+         <div style="font-weight:700; font-size:15px; color:var(--muted)">Détails du Rendez-vous</div>
+         <button class="btn btn-ghost btn-xs icon-only" id="sh_close" style="border-radius:50%">✕</button>
+      </div>
+
+      <div class="dlg-body" style="padding:20px; max-height:80vh; overflow-y:auto;">
+         
+         <div class="sheet-hero">
+            <div class="big-date">${dateLong}</div>
+            <div class="big-time">${r.timeText}</div>
+            <div class="client-name">${r.civ} ${r.name}</div>
+            <div class="mt8">
+               <span class="badge" style="background:var(--tile)">${r.model || 'Véhicule inconnu'}</span>
+               ${r.status === 'honored' ? '<span class="badge" style="background:#ecfdf5; color:#047857">Honoré</span>' : ''}
+               ${r.status === 'no_show' ? '<span class="badge" style="background:#fffbeb; color:#b45309">Pas venu</span>' : ''}
+               ${r.status === 'cancelled' ? '<span class="badge" style="background:#fef2f2; color:#b91c1c">Annulé</span>' : ''}
+            </div>
+         </div>
+
+         <div class="label">Actions rapides</div>
+         <div class="sheet-grid">
+            <a href="${telHref(r.phone)}" class="sheet-btn" style="border-color:#bfdbfe; background:#eff6ff;">
+               <i class="fa-solid fa-phone" style="color:#2563eb"></i>
+               <span style="color:#1e40af">Appeler</span>
+            </a>
+            
+            <div class="sheet-btn" id="sh_note">
+               <i class="fa-solid fa-note-sticky" style="color:#f59e0b"></i>
+               <span>Note</span>
+            </div>
+
+            <div class="sheet-btn" id="sh_edit">
+               <i class="fa-solid fa-pen" style="color:#64748b"></i>
+               <span>Modifier</span>
+            </div>
+
+            <div class="sheet-btn" id="sh_status">
+               <i class="fa-solid fa-check-to-slot" style="color:#10b981"></i>
+               <span>Statut</span>
+            </div>
+         </div>
+
+         <div class="sheet-grid" style="margin-top:-5px">
+            <div class="sheet-btn" id="sh_resend">
+               <i class="fa-regular fa-paper-plane"></i>
+               <span>Confirmer</span>
+            </div>
+
+            ${!r.reminderSent ? `
+            <div class="sheet-btn" id="sh_remind">
+               <i class="fa-regular fa-bell"></i>
+               <span>Rappel</span>
+            </div>` : `
+            <div class="sheet-btn" id="sh_unremind" style="opacity:0.6">
+               <i class="fa-solid fa-bell-slash"></i>
+               <span>Annuler Rap.</span>
+            </div>`}
+
+            ${r.status !== 'honored' ? `
+            <div class="sheet-btn" id="sh_resched">
+               <i class="fa-regular fa-calendar-days"></i>
+               <span>Reporter</span>
+            </div>` : ''}
+
+            <div class="sheet-btn" id="sh_geste">
+               <i class="fa-solid fa-gift" style="color:#8b5cf6"></i>
+               <span>Geste</span>
+            </div>
+         </div>
+
+         <div class="card" style="margin:20px 0; padding:0; overflow:hidden;">
+            <div class="sheet-info-row">
+               <span class="sheet-info-label">Téléphone</span>
+               <span class="sheet-info-val"><a href="${telHref(r.phone)}">${toFR(r.phone)}</a></span>
+            </div>
+            <div class="sheet-info-row">
+               <span class="sheet-info-label">Agence</span>
+               <span class="sheet-info-val">${r.agency}</span>
+            </div>
+            <div class="sheet-info-row">
+               <span class="sheet-info-label">Source</span>
+               <span class="sheet-info-val">${r.source}</span>
+            </div>
+            ${r.createdByName ? `
+            <div class="sheet-info-row">
+               <span class="sheet-info-label">Créé par</span>
+               <span class="sheet-info-val">${r.createdByName}</span>
+            </div>` : ''}
+         </div>
+
+         <div style="margin-bottom:20px;">
+             <div class="label">Progression</div>
+             <div id="cn_progress_full" style="padding:10px; background:var(--surface); border-radius:12px; border:1px solid var(--line)">
+                ${renderStepperHTML(progressFromRDV(r), false)}
+             </div>
+         </div>
+
+         <div style="text-align:center; margin-top:20px;">
+            ${r.status !== 'honored' && r.status !== 'cancelled' ? 
+              `<button class="btn btn-ghost btn-xs" id="sh_cancel" style="color:#ef4444; border-color:#fecaca; background:#fef2f2">🚫 Annuler le RDV</button>` : ''}
+         </div>
+
+         <div id="history_wrap" style="margin-top:20px; border-top:1px solid var(--line); padding-top:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div class="label" style="margin:0">Historique Client</div>
+                <button class="btn btn-ghost btn-xs" id="btnWipeHistory" title="Effacer">🗑️</button>
+            </div>
+            <div id="history_body" style="background:var(--tile); padding:10px; border-radius:12px;">Chargement...</div>
+         </div>
+
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+
+    // === BRANCHEMENT DES ACTIONS ===
+    
+    // Fermeture
+    dlg.querySelector('#sh_close').onclick = () => { dlg.close(); setTimeout(()=>dlg.remove(),200); };
+
+    // Note
+    dlg.querySelector('#sh_note').onclick = () => openNoteDialog(r.id);
+    
+    // Modifier
+    dlg.querySelector('#sh_edit').onclick = () => openEditDialog(r.id);
+    
+    // Statut
+    dlg.querySelector('#sh_status').onclick = () => openStatusDialog(r.id);
+    
+    // Renvoyer Confirm
+    dlg.querySelector('#sh_resend').onclick = () => resendConfirmation(r);
+    
+    // Rappel (Si présent)
+    const btnRemind = dlg.querySelector('#sh_remind');
+    if(btnRemind) btnRemind.onclick = () => sendReminder(r);
+    
+    const btnUnremind = dlg.querySelector('#sh_unremind');
+    if(btnUnremind) btnUnremind.onclick = () => undoReminder(r);
+
+    // Reporter (Si présent)
+    const btnResched = dlg.querySelector('#sh_resched');
+    if(btnResched) btnResched.onclick = () => openReschedDialog(r.id);
+
+    // Geste
+    dlg.querySelector('#sh_geste').onclick = () => openGesteDialog(r);
+
+    // Annuler RDV (Danger)
+    const btnCancel = dlg.querySelector('#sh_cancel');
+    if(btnCancel) btnCancel.onclick = () => cancelRDV(r);
+
+    // Historique
+    dlg.querySelector('#btnWipeHistory').onclick = () => openWipeHistoryDialog(r);
+    
+    // Chargement de l'historique
+    if(typeof loadAndRenderHistory === 'function'){
+        loadAndRenderHistory(r, dlg.querySelector('#history_body'));
+    }
+
+    // Gestion variable globale pour refresh auto
+    window.CURRENT_SHEET = { id: r.id, dlg: dlg };
+    dlg.addEventListener('close', () => { if(window.CURRENT_SHEET?.dlg === dlg) window.CURRENT_SHEET = null; });
+  };
+
+})();
 
 </script>
 </section>
