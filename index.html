@@ -6254,7 +6254,122 @@ L’équipe {{TAGLINE}}`;
   setTimeout(updateWizardSources, 1000);
 
 })();
+(function(){
 
+  // 1. ON INJECTE LE STYLE SPÉCIFIQUE (Fond noir garanti)
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Le fond noir derrière la fenêtre (passe devant tout) */
+    dialog.admin-overlay::backdrop {
+      background-color: rgba(0, 0, 0, 0.9) !important; /* Noir profond */
+      backdrop-filter: blur(5px) !important;
+      z-index: 999999 !important;
+      position: fixed; inset: 0;
+    }
+
+    /* La fenêtre elle-même */
+    dialog.admin-overlay {
+      z-index: 1000000 !important;
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0; padding: 0;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      background: #1e293b !important; /* Fond bleu nuit solide */
+      color: #fff;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      width: min(90%, 360px);
+      overflow: hidden;
+    }
+    
+    .adm-head { background: #0f172a; padding: 16px; text-align: center; border-bottom: 1px solid #334155; }
+    .adm-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    
+    .btn-adm {
+      background: #334155; color: white; border: 1px solid #475569;
+      padding: 16px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;
+      transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:10px;
+    }
+    .btn-adm:hover { background: #475569; transform:translateY(-2px); }
+  `;
+  document.head.appendChild(style);
+
+  // 2. LA FONCTION QUI OUVRE LA FENÊTRE
+  window.openAdminIdentityDialog = function(onPick){
+    // Nettoyage
+    document.querySelectorAll('dialog.admin-overlay').forEach(e => e.remove());
+
+    const dlg = document.createElement('dialog');
+    dlg.className = 'admin-overlay';
+    
+    dlg.innerHTML = `
+      <div class="adm-head">
+        <h3 style="margin:0;font-size:18px;color:#fff">🔐 Qui se connecte ?</h3>
+      </div>
+      <div class="adm-body">
+        <button class="btn-adm" id="btnNath"><i class="fa-solid fa-user-tie"></i> Nathanaël</button>
+        <button class="btn-adm" id="btnChar"><i class="fa-solid fa-user-shield"></i> Charlène</button>
+        <button class="btn-adm" id="btnClose" style="background:transparent;border-color:transparent;margin-top:5px;font-size:14px;opacity:0.7">Annuler</button>
+      </div>
+    `;
+
+    // IMPORTANT : On l'attache au BODY pour être sûr d'être au dessus
+    document.body.appendChild(dlg);
+    dlg.showModal(); // Active le fond noir
+
+    // Clics
+    dlg.querySelector('#btnNath').onclick = () => { onPick('Nathanaël'); dlg.close(); };
+    dlg.querySelector('#btnChar').onclick = () => { onPick('Charlène'); dlg.close(); };
+    dlg.querySelector('#btnClose').onclick = () => { dlg.close(); };
+    
+    dlg.addEventListener('close', () => setTimeout(()=>dlg.remove(), 200));
+  };
+
+  // 3. ON BRANCHE ÇA SUR TES BOUTONS EXISTANTS
+  
+  // Code PIN
+  const btnPin = document.getElementById('btnLoginAdminPin');
+  if (btnPin) {
+    // Clone pour retirer les anciens événements
+    const newBtn = btnPin.cloneNode(true);
+    btnPin.parentNode.replaceChild(newBtn, btnPin);
+    
+    newBtn.onclick = () => {
+      const pin = prompt("Code administrateur :");
+      // (Mets ici ton code PIN réel si différent de 130724)
+      if (pin === "130724") {
+         openAdminIdentityDialog((who)=>{
+           ROLE = { role:'admin', name: who };
+           enter();
+         });
+      } else if(pin) {
+         alert("Code incorrect.");
+      }
+    };
+  }
+
+  // Face ID (Si activé/présent)
+  const btnPasskey = document.getElementById('btnLoginAdminPasskey');
+  if (btnPasskey) {
+    const newBtnPK = btnPasskey.cloneNode(true);
+    btnPasskey.parentNode.replaceChild(newBtnPK, btnPasskey);
+
+    newBtnPK.onclick = async () => {
+      try{
+        if (typeof tryPasskey !== 'function') return alert('Passkey non dispo.');
+        await tryPasskey(true); // Vérif biométrique
+        // Si succès -> on demande qui c'est
+        openAdminIdentityDialog((who)=>{
+           ROLE = { role:'admin', name: who };
+           enter();
+        });
+      } catch(e){
+        alert('Échec Face/Touch ID.');
+      }
+    };
+  }
+
+})();
 
 </script>
 </section>
