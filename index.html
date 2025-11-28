@@ -6406,7 +6406,240 @@ L’équipe {{TAGLINE}}`;
   }
 
 })();
+/*
+====================================
+WIDGET METEO LOCALE
+====================================
+*/
+(function(){
+    // Supprime l'ancien widget s'il existe pour éviter les doublons
+    const old = document.getElementById('cn-weather-widget');
+    if(old) old.remove();
 
+    async function getCityName(lat, lon) {
+        try {
+            // Service gratuit OpenStreetMap pour trouver le nom de la ville
+            const rep = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await rep.json();
+            // On cherche la ville, le village ou la municipalité
+            return data.address.city || data.address.town || data.address.village || "Ma Position";
+        } catch(e) {
+            return "Ma Position";
+        }
+    }
+
+    async function initWeather() {
+        const kpis = document.querySelector('.kpis');
+        if(!kpis) return;
+
+        // Création du container du widget
+        const w = document.createElement('div');
+        w.id = 'cn-weather-widget';
+        w.className = 'kpi';
+        w.style.background = 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)';
+        w.style.color = '#fff';
+        w.style.border = 'none';
+        w.style.display = 'flex';
+        w.style.alignItems = 'center';
+        w.style.justifyContent = 'space-between';
+        w.style.position = 'relative';
+        w.style.overflow = 'hidden';
+        w.innerHTML = `<div style="font-size:14px;font-weight:bold"><i class="fa-solid fa-spinner fa-spin"></i> Localisation...</div>`;
+        
+        // Insérer le widget en premier dans la liste des KPIs
+        kpis.insertBefore(w, kpis.firstChild);
+
+        if(!navigator.geolocation) {
+            w.innerHTML = '<div>GPS indisponible</div>';
+            return;
+        }
+
+        // Demande la position géographique de l'utilisateur
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+
+            // 1. Récupérer le vrai nom de la ville
+            const cityName = await getCityName(lat, lon);
+
+            // 2. Récupérer la météo
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+            const req = await fetch(url);
+            const d = await req.json();
+            
+            const t = Math.round(d.current.temperature_2m);
+            const c = d.current.weather_code;
+            
+            // Logique pour les icônes et le texte en fonction du code météo (Weather Code WMO)
+            let icon='☀️', txt='Beau';
+            if(c>1) { icon='⛅'; txt='Nuageux'; }
+            if(c>45) { icon='🌫️'; txt='Brouillard'; }
+            if(c>50) { icon='🌧️'; txt='Pluie'; }
+            if(c>80) { icon='🌦️'; txt='Averses'; }
+            if(c>95) { icon='⛈️'; txt='Orage'; }
+
+            // Mise à jour de l'affichage du widget
+            w.innerHTML = `
+                <div style="z-index:2">
+                    <div style="font-size:12px;opacity:0.9"><i class="fa-solid fa-location-dot"></i> ${cityName}</div>
+                    <div style="font-size:16px;font-weight:800;margin-top:2px">${txt}</div>
+                </div>
+                <div style="z-index:2;text-align:right">
+                    <div style="font-size:28px;line-height:1">${icon}</div>
+                    <div style="font-size:16px;font-weight:bold">${t}°C</div>
+                </div>
+                <i class="fa-solid fa-cloud" style="position:absolute;right:-10px;bottom:-10px;font-size:80px;opacity:0.15;z-index:1"></i>
+            `;
+
+        }, (err) => {
+            // Si l'utilisateur refuse la géolocalisation ou s'il y a une erreur
+            w.innerHTML = `<div style="font-size:13px">⚠️ Activez le GPS<br>pour la météo locale</div>`;
+        });
+    }
+
+    initWeather();
+})();
+/* ====================================
+WIDGET METEO LOCALE (COMPATIBLE EQUIPE)
+====================================
+*/
+(function(){
+    // 1. Nettoyage préventif
+    const old = document.getElementById('cn-weather-widget');
+    if(old) old.remove();
+    // Nettoyage du conteneur spécial équipe s'il existe
+    const oldTeam = document.getElementById('cn-team-weather-row');
+    if(oldTeam) oldTeam.remove();
+
+    // 2. Fonction pour trouver le nom de la ville
+    async function getCityName(lat, lon) {
+        try {
+            const rep = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await rep.json();
+            return data.address.city || data.address.town || data.address.village || "Ma Position";
+        } catch(e) {
+            return "Ma Position";
+        }
+    }
+
+    // 3. Fonction principale
+    async function initWeather() {
+        // On cible la zone des KPIs
+        const kpisMain = document.querySelector('.kpis');
+        if(!kpisMain) return;
+
+        // Création du widget
+        const w = document.createElement('div');
+        w.id = 'cn-weather-widget';
+        w.className = 'kpi';
+        w.style.background = 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)';
+        w.style.color = '#fff';
+        w.style.border = 'none';
+        w.style.display = 'flex';
+        w.style.alignItems = 'center';
+        w.style.justifyContent = 'space-between';
+        w.style.position = 'relative';
+        w.style.overflow = 'hidden';
+        w.style.minHeight = '90px'; // Hauteur confortable
+        w.innerHTML = `<div style="font-size:14px;font-weight:bold"><i class="fa-solid fa-spinner fa-spin"></i> Localisation...</div>`;
+
+        // --- INTELLIGENCE D'AFFICHAGE ---
+        // On vérifie si la barre KPI est cachée (cas de l'Équipe)
+        const isHidden = window.getComputedStyle(kpisMain).display === 'none';
+
+        if(isHidden) {
+            // Cas ÉQUIPE : On crée un conteneur dédié visible juste avant les KPIs cachés
+            const teamRow = document.createElement('div');
+            teamRow.id = 'cn-team-weather-row';
+            teamRow.className = 'kpis mt12'; // On reprend les mêmes classes pour le style
+            teamRow.style.display = 'grid';  // On force l'affichage
+            teamRow.style.marginBottom = '15px';
+            
+            // On l'insère avant la zone masquée
+            kpisMain.parentNode.insertBefore(teamRow, kpisMain);
+            teamRow.appendChild(w);
+        } else {
+            // Cas ADMIN : On l'insère normalement en premier dans la liste
+            kpisMain.insertBefore(w, kpisMain.firstChild);
+        }
+
+        // --- LOGIQUE GPS ---
+        if(!navigator.geolocation) {
+            w.innerHTML = '<div>GPS indisponible</div>';
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+
+            // Récupération Ville & Météo
+            const cityName = await getCityName(lat, lon);
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+            
+            try {
+                const req = await fetch(url);
+                const d = await req.json();
+                
+                const t = Math.round(d.current.temperature_2m);
+                const c = d.current.weather_code;
+                
+                let icon='☀️', txt='Beau';
+                if(c>1) { icon='⛅'; txt='Nuageux'; }
+                if(c>45) { icon='🌫️'; txt='Brouillard'; }
+                if(c>50) { icon='🌧️'; txt='Pluie'; }
+                if(c>70) { icon='❄️'; txt='Neige'; }
+                if(c>80) { icon='🌦️'; txt='Averses'; }
+                if(c>95) { icon='⛈️'; txt='Orage'; }
+
+                w.innerHTML = `
+                    <div style="z-index:2">
+                        <div style="font-size:12px;opacity:0.9"><i class="fa-solid fa-location-dot"></i> ${cityName}</div>
+                        <div style="font-size:16px;font-weight:800;margin-top:2px">${txt}</div>
+                    </div>
+                    <div style="z-index:2;text-align:right">
+                        <div style="font-size:28px;line-height:1">${icon}</div>
+                        <div style="font-size:16px;font-weight:bold">${t}°C</div>
+                    </div>
+                    <i class="fa-solid fa-cloud" style="position:absolute;right:-10px;bottom:-10px;font-size:80px;opacity:0.15;z-index:1"></i>
+                `;
+            } catch(err) {
+                w.innerHTML = '<div>Météo indisponible</div>';
+            }
+
+        }, (err) => {
+            w.innerHTML = `<div style="font-size:13px">⚠️ Activez le GPS<br>pour la météo</div>`;
+        });
+    }
+
+    // Petit délai pour s'assurer que l'interface est chargée
+    setTimeout(initWeather, 500);
+})();
+/*
+====================================
+AUTO CAPITALISATION NOM
+====================================
+*/
+(function(){
+document.addEventListener('input', e => {
+if(e.target.id === 'w_name' || e.target.id === 'ed_name') {
+// Met en majuscule la première lettre de chaque mot (sauf si l'utilisateur efface tout)
+e.target.value = e.target.value.replace(/\b\w/g, l => l.toUpperCase());
+}
+});
+})();
+
+(function(){
+  document.addEventListener('contextmenu', event => event.preventDefault());
+})();
+/*
+====================================
+BLOQUER CLIC DROIT CONTEXTUEL
+====================================
+*/
+(function(){
+  document.addEventListener('contextmenu', event => event.preventDefault());
+})();
 </script>
 </section>
 </body>
