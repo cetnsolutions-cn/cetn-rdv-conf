@@ -6370,7 +6370,240 @@ L’équipe {{TAGLINE}}`;
   }
 
 })();
+(function(){
 
+  // 1. INJECTION DU STYLE ET DE LA FENÊTRE D'ALERTE
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* L'effet figé sur l'application */
+    body.is-blocked #app {
+      pointer-events: none !important;
+      opacity: 0.4 !important;
+      filter: grayscale(1) !important;
+      user-select: none !important;
+      overflow: hidden !important;
+    }
+
+    /* Le conteneur de l'alerte (caché par défaut) */
+    #blocked-overlay {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 999999;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+    }
+
+    /* Afficher quand bloqué */
+    body.is-blocked #blocked-overlay { display: flex; }
+
+    /* La boîte du message */
+    .blocked-box {
+      background: #ef4444;
+      color: white;
+      padding: 30px 40px;
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      text-align: center;
+      border: 4px solid rgba(255,255,255,0.2);
+      animation: popAlert 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      max-width: 90%;
+    }
+
+    .blocked-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; text-transform: uppercase; }
+    .blocked-desc { font-size: 15px; opacity: 0.9; margin-bottom: 20px; }
+
+    /* Le bouton spécifique de déconnexion */
+    .btn-blocked-logout {
+      background: white;
+      color: #ef4444;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: transform 0.1s;
+      pointer-events: auto; /* Important pour cliquer même si le body est figé */
+    }
+    .btn-blocked-logout:hover { transform: scale(1.05); }
+    .btn-blocked-logout:active { transform: scale(0.95); }
+
+    @keyframes popAlert {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Création du HTML de l'alerte
+  const overlay = document.createElement('div');
+  overlay.id = 'blocked-overlay';
+  overlay.innerHTML = `
+    <div class="blocked-box">
+      <div class="blocked-title"><i class="fa-solid fa-ban"></i> COMPTE BLOQUÉ</div>
+      <div class="blocked-desc">L'accès à l'application a été suspendu par l'administrateur.</div>
+      <button class="btn-blocked-logout" id="forceLogoutBtn">
+        <i class="fa-solid fa-power-off"></i> Se déconnecter
+      </button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Action du bouton de déconnexion
+  document.getElementById('forceLogoutBtn').onclick = function() {
+    window.ROLE = null; // Reset du rôle
+    window.location.reload(); // Rechargement de la page pour revenir au login
+  };
+
+  // 2. FONCTION DE VÉRIFICATION (Temps réel)
+  function checkBlockStatus() {
+    // Si pas connecté ou Admin, on nettoie
+    if (!window.ROLE || window.ROLE.role !== 'team') {
+      document.body.classList.remove('is-blocked');
+      return;
+    }
+
+    const users = (window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.teamUsers) ? window.GLOBAL_CONFIG.teamUsers : [];
+    const me = users.find(u => u.name.toLowerCase() === (window.ROLE.name || '').toLowerCase());
+
+    if (me && me.blocked) {
+      if (!document.body.classList.contains('is-blocked')) {
+        document.body.classList.add('is-blocked');
+        // Ferme les autres modales pour nettoyer le fond
+        document.querySelectorAll('dialog').forEach(d => d.remove());
+      }
+    } else {
+      document.body.classList.remove('is-blocked');
+    }
+  }
+
+  setInterval(checkBlockStatus, 1000);
+
+  // 3. LOGIN MODIFIÉ (Pour laisser entrer vers l'écran bloqué)
+  setTimeout(() => {
+    const btnTeam = document.getElementById('btnLoginTeam');
+    if(btnTeam) {
+      const newBtn = btnTeam.cloneNode(true);
+      btnTeam.parentNode.replaceChild(newBtn, btnTeam);
+
+      newBtn.onclick = async () => {
+        const n = document.getElementById('eqName').value.trim();
+        const p = document.getElementById('eqPass').value.trim();
+        if(!n || !p) return alert("Remplissez tous les champs.");
+
+        const users = (window.GLOBAL_CONFIG && window.GLOBAL_CONFIG.teamUsers) ? window.GLOBAL_CONFIG.teamUsers : [];
+        const found = users.find(u => u.name.toLowerCase() === n.toLowerCase());
+        
+        let authOK = false;
+        if(found) { if(found.pass === p) authOK = true; } 
+        else { if(window.TEAM_PASS && p === window.TEAM_PASS) authOK = true; }
+
+        if(!authOK) return alert("Mot de passe incorrect.");
+
+        // On connecte, le setInterval détectera le blocage immédiatement après
+        window.ROLE = { role: 'team', name: (found ? found.name : n) };
+        window.enter();
+      };
+    }
+  }, 1500);
+
+})();
+// ====================================================================
+// --- PATCH : AFFICHER LES NOMS DES ADMINS AJOUTÉS DANS LES RÉGLAGES ---
+// Ce code remplace la fenêtre fixe par une liste dynamique
+// ====================================================================
+(function(){
+
+  // 1. STYLE (Design "Nuit" propre pour la fenêtre de choix)
+  const style = document.createElement('style');
+  style.innerHTML = `
+    dialog.admin-overlay::backdrop {
+      background-color: rgba(0, 0, 0, 0.9) !important;
+      backdrop-filter: blur(5px) !important;
+      z-index: 999999 !important;
+      position: fixed; inset: 0;
+    }
+    dialog.admin-overlay {
+      z-index: 1000000 !important;
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0; padding: 0;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      background: #1e293b !important;
+      color: #fff;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      width: min(90%, 360px);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .adm-head { background: #0f172a; padding: 16px; text-align: center; border-bottom: 1px solid #334155; }
+    .adm-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+    
+    .btn-adm {
+      background: #334155; color: white; border: 1px solid #475569;
+      padding: 16px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;
+      transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:10px;
+      width: 100%;
+    }
+    .btn-adm:hover { background: #475569; transform:translateY(-2px); border-color: #94a3b8; }
+    .btn-adm i { color: #60a5fa; }
+  `;
+  document.head.appendChild(style);
+
+  // 2. FONCTION QUI GÉNÈRE LES BOUTONS DYNAMIQUEMENT
+  window.openAdminIdentityDialog = function(onPick){
+    // Nettoyage des anciennes fenêtres pour éviter les doublons
+    document.querySelectorAll('dialog.admin-overlay').forEach(e => e.remove());
+
+    // --- C'EST ICI QUE CA CHANGE ---
+    // On récupère la liste depuis la config globale (celle modifiable dans les réglages)
+    let adminsList = ["Nathanaël", "Charlène"]; // Valeur par défaut de secours
+    
+    if (window.GLOBAL_CONFIG && Array.isArray(window.GLOBAL_CONFIG.admins) && window.GLOBAL_CONFIG.admins.length > 0) {
+      adminsList = window.GLOBAL_CONFIG.admins;
+    }
+
+    // On crée le HTML des boutons en boucle (automatique)
+    const buttonsHTML = adminsList.map(name => `
+      <button class="btn-adm data-user-btn" data-name="${name}">
+        <i class="fa-solid fa-user-shield"></i> ${name}
+      </button>
+    `).join('');
+
+    const dlg = document.createElement('dialog');
+    dlg.className = 'admin-overlay';
+    
+    dlg.innerHTML = `
+      <div class="adm-head">
+        <h3 style="margin:0;font-size:18px;color:#fff">🔐 Qui se connecte ?</h3>
+      </div>
+      <div class="adm-body">
+        ${buttonsHTML} <button class="btn-adm" id="btnClose" style="background:transparent;border-color:transparent;margin-top:5px;font-size:14px;opacity:0.7">
+          Annuler
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    dlg.showModal();
+
+    // 3. LOGIQUE DES CLICS (DYNAMIQUE AUSSI)
+    // On attache l'événement à tous les boutons générés
+    dlg.querySelectorAll('.data-user-btn').forEach(btn => {
+      btn.onclick = () => {
+        const name = btn.getAttribute('data-name');
+        onPick(name);
+        dlg.close();
+      };
+    });
+
+    dlg.querySelector('#btnClose').onclick = () => { dlg.close(); };
+    dlg.addEventListener('close', () => setTimeout(()=>dlg.remove(), 200));
+  };
+
+})();
 </script>
 </section>
 </body>
