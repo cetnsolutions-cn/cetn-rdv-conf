@@ -7134,6 +7134,245 @@ BULLE PAGE D'ACCUEIL
   };
 
 })();
+(function(){
+
+  // ============================================================
+  // 1. STYLE CSS (Boutons & Tableau)
+  // ============================================================
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Bouton spécifique pour facturation mois prochain (Cyan) */
+    .stat-btn.cyan { background: #ecfeff; color: #0891b2; border-color: #a5f3fc; }
+    .stat-btn.cyan:hover { background: #cffafe; }
+    
+    /* Tableau Admin */
+    .bill-dlg { width: min(95vw, 700px); padding: 0; border-radius: 16px; border: none; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+    .bill-header { background: #0891b2; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 16px; }
+    .bill-table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--bg); }
+    .bill-table th { text-align: left; padding: 12px; border-bottom: 2px solid var(--line); color: var(--muted); font-size: 12px; text-transform: uppercase; background: var(--surface); }
+    .bill-table td { padding: 12px; border-bottom: 1px solid var(--line); color: var(--ink); }
+    .bill-total-row { background: var(--tile); font-weight: 800; font-size: 18px; color: #0891b2; }
+  `;
+  document.head.appendChild(style);
+
+  // ============================================================
+  // 2. CORRECTION : TEXTE ET BULLES (VISUEL)
+  // ============================================================
+  
+  // Met à jour le texte du statut
+  window.sheetStatusLabel = function(r){
+    if(r.status==='honored') {
+        if(r.honorBilling === 'facturé') return 'Honoré • Facturé';
+        if(r.honorBilling === 'facturé_next_month') return 'Honoré • Facturé M+1'; // <--- LE NOUVEAU
+        if(r.honorBilling === 'non_facturable') return 'Honoré • Non facturable';
+        return 'Honoré';
+    }
+    if(r.status==='no_show') return 'Non honoré';
+    if(r.status==='cancelled') return 'Annulé';
+    return 'Prévu';
+  };
+
+  // Met à jour les bulles de couleur dans la fiche
+  window.renderSheetBubblesHTML = function(r){
+    // Sécurité si les helpers n'existent pas encore
+    const ag = (typeof getAgencyByKey === 'function') ? getAgencyByKey(r.agency||'') : {};
+    
+    let statusHtml = '';
+    if(r.status==='honored'){
+        // Par défaut vert
+        let bg='#ecfdf5', col='#166534', brd='#86efac', txt='Honoré';
+        
+        if(r.honorBilling === 'facturé') txt += ' • Facturé';
+        else if(r.honorBilling === 'non_facturable') txt += ' • Non facturable';
+        else if(r.honorBilling === 'facturé_next_month') {
+            // CYAN pour le mois prochain
+            bg='#ecfeff'; col='#0891b2'; brd='#a5f3fc'; txt += ' • Mois Prochain';
+        }
+        statusHtml = `<span class="bubble" style="background:${bg}; border-color:${brd}; color:${col}">${txt}</span>`;
+    }
+    else if(r.status==='no_show') statusHtml = `<span class="bubble orange">Non honoré</span>`;
+    else if(r.status==='cancelled') statusHtml = `<span class="bubble gray">Annulé</span>`;
+
+    const reminderSent = r.reminderSent === true; 
+    const remindB = reminderSent ? `<span class="bubble green">Rappel envoyé</span>` : '';
+    const gesteB = r.gesteCommercial ? `<span class="bubble blue">🎁 Geste</span>` : '';
+    
+    return `${r.agency?`<span class="badge">${r.agency}</span>`:''} ${statusHtml} ${remindB} ${gesteB}`;
+  };
+
+  // ============================================================
+  // 3. CORRECTION : FENÊTRE DE STATUT (Le Bug "Introuvable")
+  // ============================================================
+  window.openStatusDialog = async function(id){
+    // 1. Recherche sécurisée dans la liste locale
+    let r = (window.ALL_R || []).find(x => x.id === id);
+    
+    // 2. Si pas trouvé localement, on force une récupération DB (C'est ça qui corrige le bug)
+    if(!r) {
+       try {
+         const snap = await db.collection('rdv').doc(id).get();
+         if(snap.exists) r = {id: snap.id, ...snap.data()};
+       } catch(e) { console.error(e); }
+    }
+
+    if(!r) return alert("Erreur : Impossible de trouver le RDV (ID: "+id+")");
+
+    const dlg = document.createElement('dialog');
+    dlg.style.cssText = "padding:0; border-radius:16px; border:none; width:min(90vw, 450px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow:hidden;";
+
+    dlg.innerHTML = `
+      <div style="padding:16px; border-bottom:1px solid var(--line); background:var(--surface); display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:800; font-size:16px;">Statut : ${r.civ} ${r.name}</div>
+          <button class="btn btn-neutral btn-xs icon-only" id="st_close" style="border-radius:50%">✕</button>
+      </div>
+      
+      <div style="padding:16px; background:var(--bg);">
+          <div class="small" style="margin-bottom:12px; text-align:center;">Choisissez le résultat :</div>
+
+          <button class="stat-btn green" id="st_honor_fact">
+             <i class="fa-solid fa-euro-sign stat-icon"></i>
+             <span>Honoré • Facturé (Ce mois)</span>
+          </button>
+
+          <button class="stat-btn cyan" id="st_honor_next">
+             <i class="fa-solid fa-calendar-plus stat-icon"></i>
+             <span>Honoré • Facturé mois prochain</span>
+          </button>
+
+          <button class="stat-btn green" id="st_honor_nf">
+             <i class="fa-solid fa-check stat-icon"></i>
+             <span>Honoré • Non facturable</span>
+          </button>
+
+          <button class="stat-btn orange" id="st_noshow">
+             <i class="fa-solid fa-user-slash stat-icon"></i>
+             <span>Non honoré (Pas venu)</span>
+          </button>
+
+          <button class="stat-btn red" id="st_cancel">
+             <i class="fa-solid fa-ban stat-icon"></i>
+             <span>Annulé</span>
+          </button>
+
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+             <button class="stat-btn ghost" id="st_clear" style="margin-bottom:0">
+                <i class="fa-solid fa-rotate-left stat-icon"></i>
+                <span>Retirer le statut</span>
+             </button>
+          </div>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+
+    const close = () => { dlg.close(); setTimeout(()=>dlg.remove(), 200); };
+    dlg.querySelector('#st_close').onclick = close;
+
+    // --- ACTIONS ---
+    dlg.querySelector('#st_honor_fact').onclick = async () => { await setHonor(r, 'honored', 'facturé'); close(); };
+    
+    // ACTION SPÉCIALE MOIS PROCHAIN
+    dlg.querySelector('#st_honor_next').onclick = async () => { await setHonor(r, 'honored', 'facturé_next_month'); close(); };
+
+    dlg.querySelector('#st_honor_nf').onclick = async () => { await setHonor(r, 'honored', 'non_facturable'); close(); };
+    dlg.querySelector('#st_noshow').onclick = async () => { await setHonor(r, 'no_show', null); close(); };
+    dlg.querySelector('#st_cancel').onclick = async () => { await setHonor(r, 'cancelled', null); close(); };
+    dlg.querySelector('#st_clear').onclick = async () => { await clearHonor(r); close(); };
+  };
+
+  // ============================================================
+  // 4. TABLEAU FACTURATION M+1 (ADMIN UNIQUEMENT)
+  // ============================================================
+  window.openNextMonthBilling = function(){
+    // 1. Filtrer
+    const list = (window.ALL_R || []).filter(r => 
+        !r.deleted && 
+        r.status === 'honored' && 
+        r.honorBilling === 'facturé_next_month'
+    );
+
+    // 2. Calcul
+    let total = 0;
+    const rows = list.map(r => {
+        // On récupère le prix de l'agence (défini dans les réglages agence)
+        const agInfo = (typeof getAgencyByKey === 'function') ? getAgencyByKey(r.agency) : {};
+        const price = (agInfo && typeof agInfo.priceHonorTTC === 'number') ? agInfo.priceHonorTTC : 0;
+        
+        total += price;
+        
+        return `
+            <tr>
+                <td>
+                    <div style="font-weight:700">${r.civ} ${r.name}</div>
+                    <div class="small">${r.dateText} • ${r.model}</div>
+                </td>
+                <td>${r.agency}</td>
+                <td style="text-align:right; font-weight:600">${price} €</td>
+                <td style="text-align:right">
+                    <button class="btn btn-neutral btn-xs icon-only" onclick="openRDVSheet(window.ALL_R.find(x=>x.id=='${r.id}'))">👁️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    const dlg = document.createElement('dialog');
+    dlg.className = 'bill-dlg';
+    dlg.innerHTML = `
+        <div class="bill-header">
+            <div><i class="fa-solid fa-calendar-plus"></i> Facturation M+1</div>
+            <button class="btn btn-ghost btn-xs" style="color:white" onclick="this.closest('dialog').close()">Fermer</button>
+        </div>
+        <div style="max-height:70vh; overflow-y:auto; background:var(--bg)">
+            ${list.length === 0 ? 
+                `<div style="padding:40px; text-align:center; color:var(--muted)">Aucun RDV à facturer pour le mois prochain.</div>` :
+                `<table class="bill-table">
+                    <thead>
+                        <tr><th>Client</th><th>Agence</th><th style="text-align:right">Prix</th><th style="text-align:right">Voir</th></tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                        <tr class="bill-total-row">
+                            <td colspan="2" style="text-align:right">TOTAL M+1 :</td>
+                            <td style="text-align:right">${total} €</td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>`
+            }
+        </div>
+    `;
+    document.body.appendChild(dlg);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+  };
+
+  // ============================================================
+  // 5. INJECTION DU BOUTON DANS LA BARRE (ADMIN SEULEMENT)
+  // ============================================================
+  setInterval(() => {
+    // Vérifier si Admin
+    if(window.ROLE && window.ROLE.role === 'admin') {
+        const toolbar = document.querySelector('.toolbar');
+        // Vérifier si le bouton existe déjà pour pas le dupliquer
+        if(toolbar && !document.getElementById('btnFactuNext')) {
+            const btn = document.createElement('button');
+            btn.id = 'btnFactuNext';
+            btn.className = 'btn btn-neutral btn-xs';
+            btn.style.borderColor = '#0891b2';
+            btn.style.color = '#0891b2';
+            btn.style.fontWeight = '700';
+            btn.innerHTML = '<i class="fa-solid fa-sack-dollar"></i> Facturation M+1';
+            btn.style.marginLeft = '8px';
+            
+            btn.onclick = window.openNextMonthBilling;
+            
+            // On l'insère au début de la toolbar
+            toolbar.insertBefore(btn, toolbar.firstChild);
+        }
+    }
+  }, 1000);
+
+})();
 
 </script>
 </section>
