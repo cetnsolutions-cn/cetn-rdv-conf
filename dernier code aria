@@ -3194,7 +3194,7 @@
                             <div>
                                 <div class="text-[9px] font-bold text-slate-500 uppercase mb-0.5">Source</div>
                                 <div class="flex items-center gap-1.5">
-                                    <img v-if="clientModal.rdv.source && clientModal.rdv.source.trim()" :src="getLogo(clientModal.rdv.source)" class="w-3 h-3 rounded" @error="$event.target.style.display='none'">
+                                    <img v-if="clientModal.rdv.source && clientModal.rdv.source.trim() && getLogo(clientModal.rdv.source)" :src="getLogo(clientModal.rdv.source)" class="w-3 h-3 rounded" @error="$event.target.style.display='none'" @load="$event.target.style.display='block'">
                                     <span class="text-xs font-bold text-slate-800">{{ clientModal.rdv.source || 'N/A' }}</span>
                                     <button v-if="clientModal.rdv.rappelSent" @click.stop class="ml-1 text-green-600 hover:text-green-700 transition cursor-default" :title="'Rappel envoyé le ' + formatDateFr(clientModal.rdv.rappelSent.date) + ' à ' + clientModal.rdv.rappelSent.heure + ' par ' + (clientModal.rdv.rappelSent.par || 'N/A')">
                                         <i class="fa-solid fa-bell text-xs"></i>
@@ -3229,7 +3229,7 @@
                         <div class="text-left">
                             <div class="text-sm font-bold text-slate-800">Historique & Notes</div>
                             <div class="text-xs text-slate-500 font-medium">
-                                {{ (clientModal.rdv.notes || []).length }} note{{ (clientModal.rdv.notes || []).length > 1 ? 's' : '' }}
+                                {{ ((clientModal.rdv.notes || []).length + (clientModal.rdv.note && clientModal.rdv.note.trim() ? 1 : 0)) }} note{{ ((clientModal.rdv.notes || []).length + (clientModal.rdv.note && clientModal.rdv.note.trim() ? 1 : 0)) > 1 ? 's' : '' }}
                             </div>
                         </div>
                     </div>
@@ -3312,7 +3312,21 @@
 
                 <div class="flex-1 space-y-3 mb-4 overflow-y-auto">
                     <div v-if="clientModal.rdv.note && clientModal.rdv.note.trim()" class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-lg">
-                        <div class="text-xs font-semibold text-amber-700 mb-1">Note</div>
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-note-sticky text-amber-600 text-xs"></i>
+                                <span class="text-amber-800 font-bold text-xs">{{ clientModal.rdv.createdBy || 'Système' }}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">{{ getCreatedDate(clientModal.rdv.created) }} {{ getCreatedTime(clientModal.rdv.created) }}</span>
+                                <button v-if="user.role === 'admin'" @click="editMainNote(clientModal.rdv)" class="text-blue-400 hover:text-blue-600 transition" title="Modifier">
+                                    <i class="fa-solid fa-pencil text-xs"></i>
+                                </button>
+                                <button v-if="user.role === 'admin'" @click="deleteMainNote(clientModal.rdv)" class="text-red-400 hover:text-red-600 transition" title="Supprimer">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div class="text-sm text-amber-900">{{ clientModal.rdv.note }}</div>
                     </div>
                     <div v-if="(!clientModal.rdv.notes || clientModal.rdv.notes.length === 0) && (!clientModal.rdv.note || !clientModal.rdv.note.trim())" class="text-center text-slate-400 py-8">
@@ -3624,16 +3638,16 @@
                 
                 <div>
                     <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Agence *</label>
-                    <select v-model="quickRdvModal.agenceId" @change="quickRdvModal.commercialId = ''" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
+                    <select v-model="quickRdvModal.agenceId" @change="quickRdvModal.commercialId = ''; if (!quickRdvHasCommerciaux) quickRdvModal.commercialId = ''" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
                         <option value="">Sélectionner une agence</option>
                         <option v-for="ag in visibleAgencies" :key="ag.id" :value="ag.id">{{ ag.nom }}</option>
                     </select>
                 </div>
                 
-                <div v-if="quickRdvModal.agenceId && quickRdvCommerciaux.length > 0">
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Commercial (facultatif)</label>
+                <div v-if="quickRdvModal.agenceId && quickRdvHasCommerciaux">
+                    <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Commercial *</label>
                     <select v-model="quickRdvModal.commercialId" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
-                        <option value="">Aucun commercial</option>
+                        <option value="">Je ne sais pas</option>
                         <option v-for="u in quickRdvCommerciaux" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
                 </div>
@@ -4180,6 +4194,28 @@
             <div class="grid grid-cols-2 gap-4">
                 <button @click="customConfirmModal.open=false" class="bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm">Non</button>
                 <button @click="customConfirmModal.onConfirm" class="bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-900 transition shadow-lg text-sm">Oui</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MODIFIER NOTE -->
+    <div v-if="editNoteModal.open" class="fixed inset-0 bg-slate-900/80 z-[400] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md pop-in border border-slate-200">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
+                    <i class="fa-solid fa-pencil text-xl"></i>
+                </div>
+                <h3 class="font-bold text-xl text-slate-800">Modifier la note</h3>
+            </div>
+            <textarea v-model="editNoteModal.note" rows="4" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-amber-500 focus:bg-white transition resize-none" placeholder="Saisissez votre note..."></textarea>
+            <div class="flex gap-3 mt-6">
+                <button @click="editNoteModal.open = false; editNoteModal.rdv = null; editNoteModal.note = ''" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm">
+                    Annuler
+                </button>
+                <button @click="saveNoteEdit" class="flex-1 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition shadow-lg text-sm">
+                    <i class="fa-solid fa-check mr-2"></i>
+                    Enregistrer
+                </button>
             </div>
         </div>
     </div>
@@ -7057,6 +7093,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 dayOfMonth: 1 // 1er du mois par défaut
             });
             const customConfirmModal = reactive({ open: false, title: '', message: '', onConfirm: null });
+            const editNoteModal = reactive({ open: false, rdv: null, note: '' });
             const statsModal = reactive({ open: false, activeTab: 'overview', selectedMonth: 'current' });
             const tipModal = reactive({ open: false, operation: 'add', amount: null, reason: '', customReason: '', note: '', error: '' });
             const googleCalendarDisconnectedModal = reactive({ open: false, fromWizard: false });
@@ -9808,6 +9845,34 @@ setInterval(() => {
                     customConfirmModal.open = false;
                 });
             };
+            
+            const editMainNote = async (rdv) => {
+                editNoteModal.rdv = rdv;
+                editNoteModal.note = rdv.note || '';
+                editNoteModal.open = true;
+            };
+            
+            const saveNoteEdit = async () => {
+                if (!editNoteModal.rdv) return;
+                const newNote = editNoteModal.note.trim();
+                if (newNote !== (editNoteModal.rdv.note || '')) {
+                    await db.collection('rendezvous').doc(editNoteModal.rdv.id).update({ note: newNote });
+                    editNoteModal.rdv.note = newNote;
+                    showNotification('Note modifiée avec succès', 'success');
+                }
+                editNoteModal.open = false;
+                editNoteModal.rdv = null;
+                editNoteModal.note = '';
+            };
+            
+            const deleteMainNote = async (rdv) => {
+                openCustomConfirm("Supprimer la note", "Voulez-vous supprimer cette note ?", async () => {
+                    await db.collection('rendezvous').doc(rdv.id).update({ note: '' });
+                    rdv.note = '';
+                    customConfirmModal.open = false;
+                    showNotification('Note supprimée avec succès', 'success');
+                });
+            };
 
             const formatName = (name) => {
                 if (!name) return '';
@@ -11232,6 +11297,12 @@ setInterval(() => {
                     return;
                 }
                 
+                // Vérifier si l'agence a des commerciaux
+                // Une valeur vide (chaîne vide '') signifie "Je ne sais pas", ce qui est valide
+                // On accepte donc une chaîne vide comme valeur valide
+                // La validation est donc toujours passée car commercialId est initialisé à '' et peut rester vide pour "Je ne sais pas"
+                // Pas besoin de validation supplémentaire ici
+                
                 try {
                     const agence = agences.value.find(a => a.id === quickRdvModal.agenceId);
                     if (!agence) {
@@ -11275,13 +11346,38 @@ setInterval(() => {
                         try {
                             // Récupérer le nom du commercial si un commercialId est fourni
                             let commercialName = '';
-                            if (quickRdvModal.commercialId) {
-                                const commercial = teamList.value.find(u => u.id === quickRdvModal.commercialId);
-                                if (commercial) {
+                            if (quickRdvModal.commercialId && quickRdvModal.commercialId !== '') {
+                                // Chercher dans teamList d'abord
+                                let commercial = teamList.value.find(u => u.id === quickRdvModal.commercialId);
+                                if (!commercial) {
+                                    // Si pas trouvé dans teamList, chercher dans les commerciaux des réglages
+                                    const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                                    if (ag) {
+                                        if (ag.commerciauxDetails && ag.commerciauxDetails.length > 0) {
+                                            const settingCommercial = ag.commerciauxDetails.find(c => {
+                                                const name = typeof c === 'string' ? c : c.name;
+                                                return `setting_${name.replace(/\s+/g, '_')}` === quickRdvModal.commercialId;
+                                            });
+                                            if (settingCommercial) {
+                                                commercialName = typeof settingCommercial === 'string' ? settingCommercial : settingCommercial.name;
+                                            }
+                                        } else if (ag.commerciaux && ag.commerciaux.length > 0) {
+                                            const settingCommercial = ag.commerciaux.find(name => 
+                                                `setting_${name.replace(/\s+/g, '_')}` === quickRdvModal.commercialId
+                                            );
+                                            if (settingCommercial) {
+                                                commercialName = settingCommercial;
+                                            }
+                                        }
+                                    }
+                                } else {
                                     commercialName = commercial.name;
                                 }
+                            } else if (quickRdvHasCommerciaux.value) {
+                                // Si "Je ne sais pas" est sélectionné (valeur vide) ou si l'agence a des commerciaux mais aucun n'est sélectionné
+                                commercialName = 'À traiter';
                             }
-                            await syncRdvToBilan(newRdv, commercialName);
+                            await syncRdvToBilan(newRdv, commercialName, quickRdvHasCommerciaux.value && !quickRdvModal.commercialId);
                         } catch (syncError) {
                             console.error('Erreur lors de la synchronisation au bilan:', syncError);
                             // Ne pas bloquer la création du RDV si la sync échoue
@@ -12686,11 +12782,56 @@ setInterval(() => {
             // Computed pour les commerciaux d'une agence dans le modal RDV rapide
             const quickRdvCommerciaux = computed(() => {
                 if (!quickRdvModal.agenceId) return [];
-                return teamList.value.filter(u => 
+                const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                if (!ag) return [];
+                
+                // Récupérer les commerciaux depuis teamList
+                const teamCommerciaux = teamList.value.filter(u => 
                     u.role === 'commercial' && 
                     (u.agenceId === quickRdvModal.agenceId || 
                      (u.assignedAgencies && u.assignedAgencies.includes(quickRdvModal.agenceId)))
                 );
+                
+                // Récupérer les commerciaux depuis les réglages de l'agence
+                const settingsCommerciaux = [];
+                if (ag.commerciauxDetails && ag.commerciauxDetails.length > 0) {
+                    // Si commerciauxDetails existe, utiliser les noms
+                    ag.commerciauxDetails.forEach(c => {
+                        const commercialName = typeof c === 'string' ? c : c.name;
+                        // Vérifier si ce commercial n'est pas déjà dans teamCommerciaux
+                        if (!teamCommerciaux.find(tc => tc.name === commercialName)) {
+                            settingsCommerciaux.push({
+                                id: `setting_${commercialName.replace(/\s+/g, '_')}`,
+                                name: commercialName
+                            });
+                        }
+                    });
+                } else if (ag.commerciaux && ag.commerciaux.length > 0) {
+                    // Si commerciaux existe (tableau de strings)
+                    ag.commerciaux.forEach(commercialName => {
+                        // Vérifier si ce commercial n'est pas déjà dans teamCommerciaux
+                        if (!teamCommerciaux.find(tc => tc.name === commercialName)) {
+                            settingsCommerciaux.push({
+                                id: `setting_${commercialName.replace(/\s+/g, '_')}`,
+                                name: commercialName
+                            });
+                        }
+                    });
+                }
+                
+                // Combiner les deux listes
+                return [...teamCommerciaux, ...settingsCommerciaux];
+            });
+            
+            const quickRdvHasCommerciaux = computed(() => {
+                if (!quickRdvModal.agenceId) return false;
+                const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                if (!ag) return false;
+                // Vérifier si l'agence a des commerciaux dans ses settings
+                const hasCommerciauxInSettings = (ag.commerciaux && ag.commerciaux.length > 0) || (ag.commerciauxDetails && ag.commerciauxDetails.length > 0);
+                // Vérifier aussi dans teamList
+                const hasCommerciauxInTeam = quickRdvCommerciaux.value.length > 0;
+                return hasCommerciauxInSettings || hasCommerciauxInTeam;
             });
             const selectAll = (e) => { const list = view.value === 'trash' ? trashList.value : filteredList.value; if(e.target.checked) { selectedIds.value = list.map(r => r.id); } else { selectedIds.value = []; } };
             const toggleSelection = (id) => { if(selectedIds.value.includes(id)) { selectedIds.value = selectedIds.value.filter(i => i !== id); } else { selectedIds.value.push(id); } };
@@ -13573,7 +13714,7 @@ setInterval(() => {
             const addCancelMotif = async () => { if(!newCancelMotif.value) return; const updated = [...cancelMotifsList.value, newCancelMotif.value]; await db.collection('settings').doc('global').set({cancelMotifs:updated}, {merge:true}); newCancelMotif.value = ''; };
             const removeCancelMotif = async (motif) => { const updated = cancelMotifsList.value.filter(m => m !== motif); await db.collection('settings').doc('global').set({cancelMotifs:updated}, {merge:true}); };
             const changeSourceLogo = async (src) => { const url = prompt("Entrez l'URL de l'image pour " + src + " :"); if(url) { const newLogos = { ...sourceLogos.value, [src]: url }; await db.collection('settings').doc('global').set({ logos: newLogos }, { merge: true }); } };
-            const getLogo = (src) => { if(!src) return ''; if(sourceLogos.value && sourceLogos.value[src]) return sourceLogos.value[src]; const s = (src||'').toLowerCase().trim(); if(s.includes('coin') || s === 'leboncoin') return 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Leboncoin_Logo_2016.svg'; if(s.includes('centrale')) return 'https://play-lh.googleusercontent.com/y3t-tGfqK_uJ0XQYV9xLqXoXwzX_zXwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_Xw'; if(s.includes('facebook')) return 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg'; if(s.includes('google')) return 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg'; return `https://www.google.com/s2/favicons?domain=${s.replace(/\s+/g,'')}.com&sz=64`; };
+            const getLogo = (src) => { if(!src) return ''; if(sourceLogos.value && sourceLogos.value[src]) return sourceLogos.value[src]; const s = (src||'').toLowerCase().trim().replace(/\s+/g, ''); if(s.includes('coin') || s === 'leboncoin' || s === 'leboncoin') return 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Leboncoin_Logo_2016.svg'; if(s.includes('centrale')) return 'https://play-lh.googleusercontent.com/y3t-tGfqK_uJ0XQYV9xLqXoXwzX_zXwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_Xw'; if(s.includes('facebook')) return 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg'; if(s.includes('google')) return 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg'; return `https://www.google.com/s2/favicons?domain=${s.replace(/\s+/g,'')}.com&sz=64`; };
             const insertTag = (tag) => { if(!editingMsgAgence.value) return; const area = document.querySelector('textarea'); if(area) { area.setRangeText(tag, area.selectionStart, area.selectionEnd, 'end'); editingMsgAgence.value.templates[editingMsgType.value] = area.value; } };
             
             const dateOptions = computed(() => { const arr = []; const today = new Date(); const days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']; const months = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc']; for(let i=0; i<14; i++) { const d = new Date(); d.setDate(today.getDate()+i); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); const localDateString = `${year}-${month}-${day}`; arr.push({ val: localDateString, dayName: days[d.getDay()], dayNum: d.getDate(), month: months[d.getMonth()], isToday: i === 0 }); } return arr; });
@@ -19462,7 +19603,7 @@ let prefixTitre = '';
                 agencySearch, filteredAgences,
                 calculateTTC, conversionRate, conversionRateColor, conversionEmoji, activeRdvCount,
                 // NEW VARS
-                teamList, newMember, addTeamMember, toggleBlockTeamMember, deleteTeamMember, mobileMenuOpen, welcomeModal, tutorialModal, tutorialVideoModal, forcedLogoutModal, blockedLoginMessage, loginErrorModal, quickRdvCommerciaux,
+                teamList, newMember, addTeamMember, toggleBlockTeamMember, deleteTeamMember, mobileMenuOpen, welcomeModal, tutorialModal, tutorialVideoModal, forcedLogoutModal, blockedLoginMessage, loginErrorModal, quickRdvCommerciaux, quickRdvHasCommerciaux,
                 adminNamesList, newAdminName, addAdminName, removeAdminName,
                 newNoteText, addNote,showDiscountInput, allProspectors, dashboardFilters, dashboardLimit, filteredDaily,rdvTodayCount, nextRdvLabel, currentTheme, isTimelineTomorrow, showTimelineTomorrow,
                 googleCalendarConnected, googleCalendarUserEmail, isGoogleCalendarConnected, googleCalendarTokenValid, checkingToken, checkAndUpdateTokenStatus, tokenTimeRemaining, connectGoogleCalendar, disconnectGoogleCalendar, manualSyncGoogleCalendar,
@@ -19475,7 +19616,7 @@ let prefixTitre = '';
                 isClosedSlot, getClosedMessage, getOpeningTime, getOpeningLineStyle, getDayHoursInfo, isDayClosed,
                 applyHorairesToAllDays,
                 honorModal, openHonorCheck, finalizeHonor, syncRdvToBilan, removeRdvFromBilan, getHonorCommerciaux, getAgencyCommerciaux,
-                editModal, openEdit, saveEdit, deleteNote,
+                editModal, openEdit, saveEdit, deleteNote, editMainNote, deleteMainNote, editNoteModal, saveNoteEdit,
                 
                 discountModal, openDiscountModal, saveDiscount, removeDiscount,
                 reminderAlertModal, rappelsVeilleCount, rappelsJourCount,
@@ -22682,7 +22823,7 @@ let prefixTitre = '';
                             <div>
                                 <div class="text-[9px] font-bold text-slate-500 uppercase mb-0.5">Source</div>
                                 <div class="flex items-center gap-1.5">
-                                    <img v-if="clientModal.rdv.source && clientModal.rdv.source.trim()" :src="getLogo(clientModal.rdv.source)" class="w-3 h-3 rounded" @error="$event.target.style.display='none'">
+                                    <img v-if="clientModal.rdv.source && clientModal.rdv.source.trim() && getLogo(clientModal.rdv.source)" :src="getLogo(clientModal.rdv.source)" class="w-3 h-3 rounded" @error="$event.target.style.display='none'" @load="$event.target.style.display='block'">
                                     <span class="text-xs font-bold text-slate-800">{{ clientModal.rdv.source || 'N/A' }}</span>
                                     <button v-if="clientModal.rdv.rappelSent" @click.stop class="ml-1 text-green-600 hover:text-green-700 transition cursor-default" :title="'Rappel envoyé le ' + formatDateFr(clientModal.rdv.rappelSent.date) + ' à ' + clientModal.rdv.rappelSent.heure + ' par ' + (clientModal.rdv.rappelSent.par || 'N/A')">
                                         <i class="fa-solid fa-bell text-xs"></i>
@@ -22717,7 +22858,7 @@ let prefixTitre = '';
                         <div class="text-left">
                             <div class="text-sm font-bold text-slate-800">Historique & Notes</div>
                             <div class="text-xs text-slate-500 font-medium">
-                                {{ (clientModal.rdv.notes || []).length }} note{{ (clientModal.rdv.notes || []).length > 1 ? 's' : '' }}
+                                {{ ((clientModal.rdv.notes || []).length + (clientModal.rdv.note && clientModal.rdv.note.trim() ? 1 : 0)) }} note{{ ((clientModal.rdv.notes || []).length + (clientModal.rdv.note && clientModal.rdv.note.trim() ? 1 : 0)) > 1 ? 's' : '' }}
                             </div>
                         </div>
                     </div>
@@ -22800,7 +22941,21 @@ let prefixTitre = '';
 
                 <div class="flex-1 space-y-3 mb-4 overflow-y-auto">
                     <div v-if="clientModal.rdv.note && clientModal.rdv.note.trim()" class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-lg">
-                        <div class="text-xs font-semibold text-amber-700 mb-1">Note</div>
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-note-sticky text-amber-600 text-xs"></i>
+                                <span class="text-amber-800 font-bold text-xs">{{ clientModal.rdv.createdBy || 'Système' }}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500">{{ getCreatedDate(clientModal.rdv.created) }} {{ getCreatedTime(clientModal.rdv.created) }}</span>
+                                <button v-if="user.role === 'admin'" @click="editMainNote(clientModal.rdv)" class="text-blue-400 hover:text-blue-600 transition" title="Modifier">
+                                    <i class="fa-solid fa-pencil text-xs"></i>
+                                </button>
+                                <button v-if="user.role === 'admin'" @click="deleteMainNote(clientModal.rdv)" class="text-red-400 hover:text-red-600 transition" title="Supprimer">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div class="text-sm text-amber-900">{{ clientModal.rdv.note }}</div>
                     </div>
                     <div v-if="(!clientModal.rdv.notes || clientModal.rdv.notes.length === 0) && (!clientModal.rdv.note || !clientModal.rdv.note.trim())" class="text-center text-slate-400 py-8">
@@ -23112,16 +23267,16 @@ let prefixTitre = '';
                 
                 <div>
                     <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Agence *</label>
-                    <select v-model="quickRdvModal.agenceId" @change="quickRdvModal.commercialId = ''" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
+                    <select v-model="quickRdvModal.agenceId" @change="quickRdvModal.commercialId = ''; if (!quickRdvHasCommerciaux) quickRdvModal.commercialId = ''" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
                         <option value="">Sélectionner une agence</option>
                         <option v-for="ag in visibleAgencies" :key="ag.id" :value="ag.id">{{ ag.nom }}</option>
                     </select>
                 </div>
                 
-                <div v-if="quickRdvModal.agenceId && quickRdvCommerciaux.length > 0">
-                    <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Commercial (facultatif)</label>
+                <div v-if="quickRdvModal.agenceId && quickRdvHasCommerciaux">
+                    <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Commercial *</label>
                     <select v-model="quickRdvModal.commercialId" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition appearance-none">
-                        <option value="">Aucun commercial</option>
+                        <option value="">Je ne sais pas</option>
                         <option v-for="u in quickRdvCommerciaux" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
                 </div>
@@ -23668,6 +23823,28 @@ let prefixTitre = '';
             <div class="grid grid-cols-2 gap-4">
                 <button @click="customConfirmModal.open=false" class="bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm">Non</button>
                 <button @click="customConfirmModal.onConfirm" class="bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-900 transition shadow-lg text-sm">Oui</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MODIFIER NOTE -->
+    <div v-if="editNoteModal.open" class="fixed inset-0 bg-slate-900/80 z-[400] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md pop-in border border-slate-200">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
+                    <i class="fa-solid fa-pencil text-xl"></i>
+                </div>
+                <h3 class="font-bold text-xl text-slate-800">Modifier la note</h3>
+            </div>
+            <textarea v-model="editNoteModal.note" rows="4" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-amber-500 focus:bg-white transition resize-none" placeholder="Saisissez votre note..."></textarea>
+            <div class="flex gap-3 mt-6">
+                <button @click="editNoteModal.open = false; editNoteModal.rdv = null; editNoteModal.note = ''" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition text-sm">
+                    Annuler
+                </button>
+                <button @click="saveNoteEdit" class="flex-1 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition shadow-lg text-sm">
+                    <i class="fa-solid fa-check mr-2"></i>
+                    Enregistrer
+                </button>
             </div>
         </div>
     </div>
@@ -26523,6 +26700,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 dayOfMonth: 1 // 1er du mois par défaut
             });
             const customConfirmModal = reactive({ open: false, title: '', message: '', onConfirm: null });
+            const editNoteModal = reactive({ open: false, rdv: null, note: '' });
             const statsModal = reactive({ open: false, activeTab: 'overview', selectedMonth: 'current' });
             const tipModal = reactive({ open: false, operation: 'add', amount: null, reason: '', customReason: '', note: '', error: '' });
             const googleCalendarDisconnectedModal = reactive({ open: false, fromWizard: false });
@@ -29274,6 +29452,34 @@ setInterval(() => {
                     customConfirmModal.open = false;
                 });
             };
+            
+            const editMainNote = async (rdv) => {
+                editNoteModal.rdv = rdv;
+                editNoteModal.note = rdv.note || '';
+                editNoteModal.open = true;
+            };
+            
+            const saveNoteEdit = async () => {
+                if (!editNoteModal.rdv) return;
+                const newNote = editNoteModal.note.trim();
+                if (newNote !== (editNoteModal.rdv.note || '')) {
+                    await db.collection('rendezvous').doc(editNoteModal.rdv.id).update({ note: newNote });
+                    editNoteModal.rdv.note = newNote;
+                    showNotification('Note modifiée avec succès', 'success');
+                }
+                editNoteModal.open = false;
+                editNoteModal.rdv = null;
+                editNoteModal.note = '';
+            };
+            
+            const deleteMainNote = async (rdv) => {
+                openCustomConfirm("Supprimer la note", "Voulez-vous supprimer cette note ?", async () => {
+                    await db.collection('rendezvous').doc(rdv.id).update({ note: '' });
+                    rdv.note = '';
+                    customConfirmModal.open = false;
+                    showNotification('Note supprimée avec succès', 'success');
+                });
+            };
 
             const formatName = (name) => {
                 if (!name) return '';
@@ -30574,6 +30780,12 @@ setInterval(() => {
                     return;
                 }
                 
+                // Vérifier si l'agence a des commerciaux
+                // Une valeur vide (chaîne vide '') signifie "Je ne sais pas", ce qui est valide
+                // On accepte donc une chaîne vide comme valeur valide
+                // La validation est donc toujours passée car commercialId est initialisé à '' et peut rester vide pour "Je ne sais pas"
+                // Pas besoin de validation supplémentaire ici
+                
                 try {
                     const agence = agences.value.find(a => a.id === quickRdvModal.agenceId);
                     if (!agence) {
@@ -30617,13 +30829,38 @@ setInterval(() => {
                         try {
                             // Récupérer le nom du commercial si un commercialId est fourni
                             let commercialName = '';
-                            if (quickRdvModal.commercialId) {
-                                const commercial = teamList.value.find(u => u.id === quickRdvModal.commercialId);
-                                if (commercial) {
+                            if (quickRdvModal.commercialId && quickRdvModal.commercialId !== '') {
+                                // Chercher dans teamList d'abord
+                                let commercial = teamList.value.find(u => u.id === quickRdvModal.commercialId);
+                                if (!commercial) {
+                                    // Si pas trouvé dans teamList, chercher dans les commerciaux des réglages
+                                    const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                                    if (ag) {
+                                        if (ag.commerciauxDetails && ag.commerciauxDetails.length > 0) {
+                                            const settingCommercial = ag.commerciauxDetails.find(c => {
+                                                const name = typeof c === 'string' ? c : c.name;
+                                                return `setting_${name.replace(/\s+/g, '_')}` === quickRdvModal.commercialId;
+                                            });
+                                            if (settingCommercial) {
+                                                commercialName = typeof settingCommercial === 'string' ? settingCommercial : settingCommercial.name;
+                                            }
+                                        } else if (ag.commerciaux && ag.commerciaux.length > 0) {
+                                            const settingCommercial = ag.commerciaux.find(name => 
+                                                `setting_${name.replace(/\s+/g, '_')}` === quickRdvModal.commercialId
+                                            );
+                                            if (settingCommercial) {
+                                                commercialName = settingCommercial;
+                                            }
+                                        }
+                                    }
+                                } else {
                                     commercialName = commercial.name;
                                 }
+                            } else if (quickRdvHasCommerciaux.value) {
+                                // Si "Je ne sais pas" est sélectionné (valeur vide) ou si l'agence a des commerciaux mais aucun n'est sélectionné
+                                commercialName = 'À traiter';
                             }
-                            await syncRdvToBilan(newRdv, commercialName);
+                            await syncRdvToBilan(newRdv, commercialName, quickRdvHasCommerciaux.value && !quickRdvModal.commercialId);
                         } catch (syncError) {
                             console.error('Erreur lors de la synchronisation au bilan:', syncError);
                             // Ne pas bloquer la création du RDV si la sync échoue
@@ -32028,11 +32265,56 @@ setInterval(() => {
             // Computed pour les commerciaux d'une agence dans le modal RDV rapide
             const quickRdvCommerciaux = computed(() => {
                 if (!quickRdvModal.agenceId) return [];
-                return teamList.value.filter(u => 
+                const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                if (!ag) return [];
+                
+                // Récupérer les commerciaux depuis teamList
+                const teamCommerciaux = teamList.value.filter(u => 
                     u.role === 'commercial' && 
                     (u.agenceId === quickRdvModal.agenceId || 
                      (u.assignedAgencies && u.assignedAgencies.includes(quickRdvModal.agenceId)))
                 );
+                
+                // Récupérer les commerciaux depuis les réglages de l'agence
+                const settingsCommerciaux = [];
+                if (ag.commerciauxDetails && ag.commerciauxDetails.length > 0) {
+                    // Si commerciauxDetails existe, utiliser les noms
+                    ag.commerciauxDetails.forEach(c => {
+                        const commercialName = typeof c === 'string' ? c : c.name;
+                        // Vérifier si ce commercial n'est pas déjà dans teamCommerciaux
+                        if (!teamCommerciaux.find(tc => tc.name === commercialName)) {
+                            settingsCommerciaux.push({
+                                id: `setting_${commercialName.replace(/\s+/g, '_')}`,
+                                name: commercialName
+                            });
+                        }
+                    });
+                } else if (ag.commerciaux && ag.commerciaux.length > 0) {
+                    // Si commerciaux existe (tableau de strings)
+                    ag.commerciaux.forEach(commercialName => {
+                        // Vérifier si ce commercial n'est pas déjà dans teamCommerciaux
+                        if (!teamCommerciaux.find(tc => tc.name === commercialName)) {
+                            settingsCommerciaux.push({
+                                id: `setting_${commercialName.replace(/\s+/g, '_')}`,
+                                name: commercialName
+                            });
+                        }
+                    });
+                }
+                
+                // Combiner les deux listes
+                return [...teamCommerciaux, ...settingsCommerciaux];
+            });
+            
+            const quickRdvHasCommerciaux = computed(() => {
+                if (!quickRdvModal.agenceId) return false;
+                const ag = agences.value.find(a => a.id === quickRdvModal.agenceId);
+                if (!ag) return false;
+                // Vérifier si l'agence a des commerciaux dans ses settings
+                const hasCommerciauxInSettings = (ag.commerciaux && ag.commerciaux.length > 0) || (ag.commerciauxDetails && ag.commerciauxDetails.length > 0);
+                // Vérifier aussi dans teamList
+                const hasCommerciauxInTeam = quickRdvCommerciaux.value.length > 0;
+                return hasCommerciauxInSettings || hasCommerciauxInTeam;
             });
             const selectAll = (e) => { const list = view.value === 'trash' ? trashList.value : filteredList.value; if(e.target.checked) { selectedIds.value = list.map(r => r.id); } else { selectedIds.value = []; } };
             const toggleSelection = (id) => { if(selectedIds.value.includes(id)) { selectedIds.value = selectedIds.value.filter(i => i !== id); } else { selectedIds.value.push(id); } };
@@ -32915,7 +33197,7 @@ setInterval(() => {
             const addCancelMotif = async () => { if(!newCancelMotif.value) return; const updated = [...cancelMotifsList.value, newCancelMotif.value]; await db.collection('settings').doc('global').set({cancelMotifs:updated}, {merge:true}); newCancelMotif.value = ''; };
             const removeCancelMotif = async (motif) => { const updated = cancelMotifsList.value.filter(m => m !== motif); await db.collection('settings').doc('global').set({cancelMotifs:updated}, {merge:true}); };
             const changeSourceLogo = async (src) => { const url = prompt("Entrez l'URL de l'image pour " + src + " :"); if(url) { const newLogos = { ...sourceLogos.value, [src]: url }; await db.collection('settings').doc('global').set({ logos: newLogos }, { merge: true }); } };
-            const getLogo = (src) => { if(!src) return ''; if(sourceLogos.value && sourceLogos.value[src]) return sourceLogos.value[src]; const s = (src||'').toLowerCase().trim(); if(s.includes('coin') || s === 'leboncoin') return 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Leboncoin_Logo_2016.svg'; if(s.includes('centrale')) return 'https://play-lh.googleusercontent.com/y3t-tGfqK_uJ0XQYV9xLqXoXwzX_zXwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_Xw'; if(s.includes('facebook')) return 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg'; if(s.includes('google')) return 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg'; return `https://www.google.com/s2/favicons?domain=${s.replace(/\s+/g,'')}.com&sz=64`; };
+            const getLogo = (src) => { if(!src) return ''; if(sourceLogos.value && sourceLogos.value[src]) return sourceLogos.value[src]; const s = (src||'').toLowerCase().trim().replace(/\s+/g, ''); if(s.includes('coin') || s === 'leboncoin' || s === 'leboncoin') return 'https://upload.wikimedia.org/wikipedia/commons/e/e1/Leboncoin_Logo_2016.svg'; if(s.includes('centrale')) return 'https://play-lh.googleusercontent.com/y3t-tGfqK_uJ0XQYV9xLqXoXwzX_zXwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_XwX_Xw'; if(s.includes('facebook')) return 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg'; if(s.includes('google')) return 'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg'; return `https://www.google.com/s2/favicons?domain=${s.replace(/\s+/g,'')}.com&sz=64`; };
             const insertTag = (tag) => { if(!editingMsgAgence.value) return; const area = document.querySelector('textarea'); if(area) { area.setRangeText(tag, area.selectionStart, area.selectionEnd, 'end'); editingMsgAgence.value.templates[editingMsgType.value] = area.value; } };
             
             const dateOptions = computed(() => { const arr = []; const today = new Date(); const days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']; const months = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc']; for(let i=0; i<14; i++) { const d = new Date(); d.setDate(today.getDate()+i); const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); const localDateString = `${year}-${month}-${day}`; arr.push({ val: localDateString, dayName: days[d.getDay()], dayNum: d.getDate(), month: months[d.getMonth()], isToday: i === 0 }); } return arr; });
@@ -38804,7 +39086,7 @@ let prefixTitre = '';
                 agencySearch, filteredAgences,
                 calculateTTC, conversionRate, conversionRateColor, conversionEmoji, activeRdvCount,
                 // NEW VARS
-                teamList, newMember, addTeamMember, toggleBlockTeamMember, deleteTeamMember, mobileMenuOpen, welcomeModal, tutorialModal, tutorialVideoModal, forcedLogoutModal, blockedLoginMessage, loginErrorModal, quickRdvCommerciaux,
+                teamList, newMember, addTeamMember, toggleBlockTeamMember, deleteTeamMember, mobileMenuOpen, welcomeModal, tutorialModal, tutorialVideoModal, forcedLogoutModal, blockedLoginMessage, loginErrorModal, quickRdvCommerciaux, quickRdvHasCommerciaux,
                 adminNamesList, newAdminName, addAdminName, removeAdminName,
                 newNoteText, addNote,showDiscountInput, allProspectors, dashboardFilters, dashboardLimit, filteredDaily,rdvTodayCount, nextRdvLabel, currentTheme, isTimelineTomorrow, showTimelineTomorrow,
                 googleCalendarConnected, googleCalendarUserEmail, isGoogleCalendarConnected, googleCalendarTokenValid, checkingToken, checkAndUpdateTokenStatus, tokenTimeRemaining, connectGoogleCalendar, disconnectGoogleCalendar, manualSyncGoogleCalendar,
@@ -38817,7 +39099,7 @@ let prefixTitre = '';
                 isClosedSlot, getClosedMessage, getOpeningTime, getOpeningLineStyle, getDayHoursInfo, isDayClosed,
                 applyHorairesToAllDays,
                 honorModal, openHonorCheck, finalizeHonor, syncRdvToBilan, removeRdvFromBilan, getHonorCommerciaux, getAgencyCommerciaux,
-                editModal, openEdit, saveEdit, deleteNote,
+                editModal, openEdit, saveEdit, deleteNote, editMainNote, deleteMainNote, editNoteModal, saveNoteEdit,
                 
                 discountModal, openDiscountModal, saveDiscount, removeDiscount,
                 reminderAlertModal, rappelsVeilleCount, rappelsJourCount,
