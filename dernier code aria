@@ -2544,7 +2544,7 @@
                                             <div v-if="r.commercial" class="text-xs text-slate-500">{{ r.commercial }}</div>
                                         </td>
                                         <td class="px-4 py-3 text-right font-bold">{{ r.rdv }}</td>
-                                        <td class="px-4 py-3 text-right">{{ formatBilanPrice(r.tarif) }}€</td>
+                                        <td class="px-4 py-3 text-right">{{ formatBilanPrice(getBilanLineVals(r).prixUnitaire) }}€</td>
                                         <td v-if="bilanConfig.tvaActive" class="px-4 py-3 text-right">{{ formatBilanPrice(getBilanLineVals(r).ht) }}€</td>
                                         <td v-if="bilanConfig.tvaActive" class="px-4 py-3 text-right text-slate-500">{{ formatBilanPrice(getBilanLineVals(r).tva) }}€</td>
                                         <td class="px-4 py-3 text-right font-bold">
@@ -17554,15 +17554,22 @@ let prefixTitre = '';
                     }
                 }
                 // Fallback sur r.tarif seulement si vraiment pas d'agence trouvée
+                // Si r.tarif semble être un total (trop élevé), le diviser par r.rdv pour obtenir le prix unitaire
                 if (prixUnitaire === 0 && r.tarif) {
-                    prixUnitaire = parseFloat(r.tarif) || 0;
+                    const tarifValue = parseFloat(r.tarif) || 0;
+                    // Si le tarif est supérieur à 1000 et qu'on a des RDV, c'est probablement un total à diviser
+                    if (tarifValue > 1000 && r.rdv && r.rdv > 0) {
+                        prixUnitaire = tarifValue / r.rdv;
+                    } else {
+                        prixUnitaire = tarifValue;
+                    }
                 }
                 // Recalculer TOUJOURS avec le prix réel de l'agence (ignorer r.total et r.netTotal)
                 const totalHT = r.rdv * prixUnitaire;
                 // Si il y a un geste commercial, le soustraire
                 const ht = totalHT - (r.geste ? (r.gesteMontant || 0) : 0);
                 const tva = applicable ? (ht * bilanConfig.tvaRate / 100) : 0; 
-                return { ht: Math.max(0, ht), tva, ttc: Math.max(0, ht) + tva, applicable }; 
+                return { ht: Math.max(0, ht), tva, ttc: Math.max(0, ht) + tva, applicable, prixUnitaire }; 
             };
 
             const loadBilanConfig = async () => {
@@ -18003,7 +18010,8 @@ let prefixTitre = '';
 
             const openBilanEdit = (r) => {
                 bilanEditModal.rdv = r;
-                bilanEditModal.form = { date: r.date, agence: r.agence, commercial: r.commercial || '', rdv: r.rdv, tarif: r.tarif, reporte: r.reporte || false };
+                const vals = getBilanLineVals(r);
+                bilanEditModal.form = { date: r.date, agence: r.agence, commercial: r.commercial || '', rdv: r.rdv, tarif: vals.prixUnitaire, reporte: r.reporte || false };
                 bilanEditModal.open = true;
             };
 
@@ -18221,7 +18229,7 @@ let prefixTitre = '';
                 cols.push('Note');
                 let body = data.map(r => {
                     const v = getBilanLineVals(r);
-                    let row = [formatBilanDate(r.periodDate || r.date), r.agence, r.commercial||'', r.rdv, formatBilanPrice(r.tarif)];
+                    let row = [formatBilanDate(r.periodDate || r.date), r.agence, r.commercial||'', r.rdv, formatBilanPrice(getBilanLineVals(r).prixUnitaire)];
                     if(bilanConfig.tvaActive) {
                         if(v.applicable) row.push(formatBilanPrice(v.ht), formatBilanPrice(v.tva), formatBilanPrice(v.ttc));
                         else row.push(formatBilanPrice(v.ht), "-", formatBilanPrice(v.ht));
@@ -18465,7 +18473,7 @@ let prefixTitre = '';
                             formatBilanDate(r.periodDate || r.date),
                             comm.length > 18 ? comm.substring(0, 16) + '..' : comm,
                             String(r.rdv),
-                            formatBilanPrice(r.tarif) + ' €'
+                            formatBilanPrice(v.prixUnitaire) + ' €'
                         ];
                         if(bilanConfig.tvaActive) {
                             row.push(formatBilanPrice(v.ht) + ' €', formatBilanPrice(v.tva) + ' €', formatBilanPrice(v.ttc) + ' €');
@@ -22172,7 +22180,7 @@ let prefixTitre = '';
                                             <div v-if="r.commercial" class="text-xs text-slate-500">{{ r.commercial }}</div>
                                         </td>
                                         <td class="px-4 py-3 text-right font-bold">{{ r.rdv }}</td>
-                                        <td class="px-4 py-3 text-right">{{ formatBilanPrice(r.tarif) }}€</td>
+                                        <td class="px-4 py-3 text-right">{{ formatBilanPrice(getBilanLineVals(r).prixUnitaire) }}€</td>
                                         <td v-if="bilanConfig.tvaActive" class="px-4 py-3 text-right">{{ formatBilanPrice(getBilanLineVals(r).ht) }}€</td>
                                         <td v-if="bilanConfig.tvaActive" class="px-4 py-3 text-right text-slate-500">{{ formatBilanPrice(getBilanLineVals(r).tva) }}€</td>
                                         <td class="px-4 py-3 text-right font-bold">
@@ -37037,15 +37045,22 @@ let prefixTitre = '';
                     }
                 }
                 // Fallback sur r.tarif seulement si vraiment pas d'agence trouvée
+                // Si r.tarif semble être un total (trop élevé), le diviser par r.rdv pour obtenir le prix unitaire
                 if (prixUnitaire === 0 && r.tarif) {
-                    prixUnitaire = parseFloat(r.tarif) || 0;
+                    const tarifValue = parseFloat(r.tarif) || 0;
+                    // Si le tarif est supérieur à 1000 et qu'on a des RDV, c'est probablement un total à diviser
+                    if (tarifValue > 1000 && r.rdv && r.rdv > 0) {
+                        prixUnitaire = tarifValue / r.rdv;
+                    } else {
+                        prixUnitaire = tarifValue;
+                    }
                 }
                 // Recalculer TOUJOURS avec le prix réel de l'agence (ignorer r.total et r.netTotal)
                 const totalHT = r.rdv * prixUnitaire;
                 // Si il y a un geste commercial, le soustraire
                 const ht = totalHT - (r.geste ? (r.gesteMontant || 0) : 0);
                 const tva = applicable ? (ht * bilanConfig.tvaRate / 100) : 0; 
-                return { ht: Math.max(0, ht), tva, ttc: Math.max(0, ht) + tva, applicable }; 
+                return { ht: Math.max(0, ht), tva, ttc: Math.max(0, ht) + tva, applicable, prixUnitaire }; 
             };
 
             const loadBilanConfig = async () => {
@@ -37486,7 +37501,8 @@ let prefixTitre = '';
 
             const openBilanEdit = (r) => {
                 bilanEditModal.rdv = r;
-                bilanEditModal.form = { date: r.date, agence: r.agence, commercial: r.commercial || '', rdv: r.rdv, tarif: r.tarif, reporte: r.reporte || false };
+                const vals = getBilanLineVals(r);
+                bilanEditModal.form = { date: r.date, agence: r.agence, commercial: r.commercial || '', rdv: r.rdv, tarif: vals.prixUnitaire, reporte: r.reporte || false };
                 bilanEditModal.open = true;
             };
 
@@ -37704,7 +37720,7 @@ let prefixTitre = '';
                 cols.push('Note');
                 let body = data.map(r => {
                     const v = getBilanLineVals(r);
-                    let row = [formatBilanDate(r.periodDate || r.date), r.agence, r.commercial||'', r.rdv, formatBilanPrice(r.tarif)];
+                    let row = [formatBilanDate(r.periodDate || r.date), r.agence, r.commercial||'', r.rdv, formatBilanPrice(getBilanLineVals(r).prixUnitaire)];
                     if(bilanConfig.tvaActive) {
                         if(v.applicable) row.push(formatBilanPrice(v.ht), formatBilanPrice(v.tva), formatBilanPrice(v.ttc));
                         else row.push(formatBilanPrice(v.ht), "-", formatBilanPrice(v.ht));
@@ -37948,7 +37964,7 @@ let prefixTitre = '';
                             formatBilanDate(r.periodDate || r.date),
                             comm.length > 18 ? comm.substring(0, 16) + '..' : comm,
                             String(r.rdv),
-                            formatBilanPrice(r.tarif) + ' €'
+                            formatBilanPrice(v.prixUnitaire) + ' €'
                         ];
                         if(bilanConfig.tvaActive) {
                             row.push(formatBilanPrice(v.ht) + ' €', formatBilanPrice(v.tva) + ' €', formatBilanPrice(v.ttc) + ' €');
