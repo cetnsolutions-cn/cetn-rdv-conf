@@ -11332,8 +11332,7 @@ setInterval(() => {
                         prix: parseFloat(agence.prix) || 0,
                         created: new Date(),
                         createdBy: user.name,
-                        source: quickRdvModal.source.toUpperCase(),
-                        rappelFait: false,
+source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (ex: Leboncoin)                        rappelFait: false,
                         dansAgenda: false,
                         enAttenteAgenda: false
                     };
