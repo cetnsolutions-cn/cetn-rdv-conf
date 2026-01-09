@@ -4273,7 +4273,7 @@
                             <span class="text-4xl">🔗</span>
                             <span class="font-bold text-slate-700 text-sm">Sources</span>
                     </button>
-                        <button @click.stop="settingsModal.tab='Motifs'; settingsModal.view='page'" class="bg-white p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg transition flex flex-col items-center gap-3 group cursor-pointer">
+                        <button @click="openMotifsSettings" class="bg-white p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg transition flex flex-col items-center gap-3 group cursor-pointer">
                             <span class="text-4xl">🏷️</span>
                             <span class="font-bold text-slate-700 text-sm">Motifs</span>
                     </button>
@@ -4694,7 +4694,6 @@
                                         <div class="flex flex-wrap gap-1.5 mb-2">
                                             <button @click="insertVariable('{{DATE_LONG}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">📅 {{DATE_LONG}}</button>
                                             <button @click="insertVariable('{{HEURE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🕐 {{HEURE}}</button>
-                                            <button @click="insertVariable('{{HEURE_PROPOSEE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">⏰ {{HEURE_PROPOSEE}}</button>
                                             <button @click="insertVariable('{{MODELE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🚗 {{MODELE}}</button>
                                             <button @click="insertVariable('{{AGENCE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🏢 {{AGENCE}}</button>
                                         </div>
@@ -4705,15 +4704,6 @@
                                             class="w-full p-3 text-sm border-2 border-purple-200 rounded-lg text-slate-700 outline-none focus:border-purple-500 resize-none font-medium" 
                                             rows="4"
                                         ></textarea>
-                                    </div>
-                                    
-                                    <!-- Case à cocher pour proposer un créneau -->
-                                    <div class="mb-3 mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" v-model="rescheduleMotifsProposeCreneau[motifType]" class="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500">
-                                            <span class="text-xs font-bold text-purple-700">Proposer automatiquement un créneau dans le message</span>
-                                        </label>
-                                        <p class="text-xs text-purple-600 mt-1 ml-6">Si coché, un bouton "Proposer un créneau" apparaîtra lors du report avec ce motif</p>
                                     </div>
                                     
                                     <!-- Aperçu -->
@@ -4742,17 +4732,10 @@
                                 <div class="flex flex-wrap gap-1.5 mb-3">
                                     <button @click="copyToClipboard('{{DATE_LONG}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">📅 {{DATE_LONG}}</button>
                                     <button @click="copyToClipboard('{{HEURE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🕐 {{HEURE}}</button>
-                                    <button @click="copyToClipboard('{{HEURE_PROPOSEE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">⏰ {{HEURE_PROPOSEE}}</button>
                                     <button @click="copyToClipboard('{{MODELE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🚗 {{MODELE}}</button>
                                     <button @click="copyToClipboard('{{AGENCE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🏢 {{AGENCE}}</button>
                                 </div>
                                 <textarea v-model="newRescheduleMotifInterne.message" placeholder="Message SMS..." class="w-full p-3 text-sm border-2 border-purple-200 rounded-lg text-slate-700 outline-none focus:border-purple-500 resize-none" rows="3"></textarea>
-                                <div class="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" v-model="newRescheduleMotifInterne.proposeCreneau" class="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500">
-                                        <span class="text-xs font-bold text-purple-700">Proposer automatiquement un créneau dans le message</span>
-                                    </label>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -6222,22 +6205,6 @@
                             <p class="text-xs text-slate-500 italic">Aucun message SMS automatique configuré pour ce motif.</p>
                         </div>
                         
-                        <!-- Bouton pour proposer un créneau (demande interne) -->
-                        <div v-if="rescheduleModal.demandePar === 'interne' && rescheduleModal.motifType" class="mt-3 space-y-2">
-                            <button 
-                                @click="rescheduleModal.proposeCreneau = !rescheduleModal.proposeCreneau" 
-                                :class="rescheduleModal.proposeCreneau ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'" 
-                                class="w-full p-3 border-2 rounded-xl font-bold transition flex items-center justify-center gap-2">
-                                <i :class="rescheduleModal.proposeCreneau ? 'fa-solid fa-check-circle' : 'fa-solid fa-clock'" class="text-lg"></i>
-                                <span>{{ rescheduleModal.proposeCreneau ? 'Créneau proposé' : 'Proposer un créneau' }}</span>
-                            </button>
-                            <div v-if="rescheduleModal.proposeCreneau" class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-3 animate-fadeIn">
-                                <label class="text-xs font-bold text-blue-700 uppercase block">Heure proposée :</label>
-                                <input type="time" v-model="rescheduleModal.heureProposee" class="w-full px-3 py-2 border-2 border-blue-300 rounded-lg font-bold text-blue-900 text-center outline-none focus:border-blue-500 bg-white">
-                                <p class="text-xs text-blue-600 italic">Cette heure sera insérée dans le message SMS à l'endroit indiqué par "erreur"</p>
-                            </div>
-                        </div>
-                        
                         <!-- Aperçu déroulable pour demande client (motif pour Google Agenda) -->
                         <div v-else-if="rescheduleModal.demandePar === 'client' && rescheduleModal.motifType && rescheduleModal.motif" class="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-xl mt-3 shadow-sm overflow-hidden">
                             <button @click="openMotifs['motif_preview_client'] = !openMotifs['motif_preview_client']" class="w-full flex items-center justify-between p-4 hover:bg-purple-100/50 transition">
@@ -7064,7 +7031,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 spaceBetween: true 
             });
             const cancelModal = reactive({ open:false, rdv:null, motif:'', motifCustom:'', selectedMotif:'', sendSMS:false, who:'' });
-            const rescheduleModal = reactive({ open:false, step:1, date:'', heure:'', rdv:null, oldDate:null, oldHeure:null, motif:'', motifType:'', demandePar:'', autoSMS:false, smsMessage:'', proposeCreneau:false, heureProposee:'' });
+            const rescheduleModal = reactive({ open:false, step:1, date:'', heure:'', rdv:null, oldDate:null, oldHeure:null, motif:'', motifType:'', demandePar:'', autoSMS:false, smsMessage:'' });
             const motifSelectionModal = reactive({ open: false });
             const messagePreviewModal = reactive({ open: false, message: '', title: 'Aperçu du message' });
             const rescheduleSMSMessages = reactive({ meteo_route_dangereuse: '', vehicule_immobilise: '', contrainte_pro: '', contrainte_personnelle: '', documents_manquants: '', empechement_medical: '', agence_fermee: '', commercial_retard: '', agence_retard: '', intemperie: '', absence_imprevue: '' });
@@ -7081,9 +7048,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 absence_imprevue: '🚫 Absence imprévue'
             });
             const newRescheduleMotif = reactive({ label: '', key: '', message: '' });
-            // Stocker quels motifs doivent proposer des créneaux automatiquement
-            const rescheduleMotifsProposeCreneau = reactive({});
-            const newRescheduleMotifInterne = reactive({ label: '', key: '', message: '', proposeCreneau: false });
+            const newRescheduleMotifInterne = reactive({ label: '', key: '', message: '' });
             const fermetureModal = reactive({ open:false, dateDebut:'', dateFin:'', motif:'', professionnels:[], tousProfessionnels:false, editingId:null });
             const fermetureDeleteConfirmModal = reactive({ open:false, fermetureId:null });
             const fermeturesList = ref([]);
@@ -8760,12 +8725,6 @@ if (user.role === 'admin') {
                         }
                     });
                     
-                    // Charger les paramètres de proposition de créneaux pour les motifs internes
-                    const proposeCreneauSettings = globalMessages.rescheduleMotifsProposeCreneau || {};
-                    Object.keys(proposeCreneauSettings).forEach(key => {
-                        rescheduleMotifsProposeCreneau[key] = proposeCreneauSettings[key] || false;
-                    });
-                    
                     // Charger les messages SMS pour les motifs internes (utiliser les personnalisés ou les défauts)
                     Object.keys(rescheduleMotifsListInterne).forEach(key => {
                         // Vérifier d'abord dans les messages personnalisés
@@ -8788,8 +8747,7 @@ if (user.role === 'admin') {
                         rescheduleSMSMessages: { ...rescheduleSMSMessages },
                         rescheduleSMSMessagesClient: { ...rescheduleSMSMessagesClient },
                         rescheduleMotifsList: { ...rescheduleMotifsList },
-                        rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne },
-                        rescheduleMotifsProposeCreneau: { ...rescheduleMotifsProposeCreneau }
+                        rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne }
                     }, { merge: true });
                     showNotification('✅ Messages de report sauvegardés pour toutes les agences', 'success', 'fa-check-circle');
                 } catch (err) {
@@ -8860,7 +8818,6 @@ if (user.role === 'admin') {
                 return message
                     .replace(/{{DATE_LONG}}/g, 'mardi 6 janvier')
                     .replace(/{{HEURE}}/g, '14:30')
-                        .replace(/{{HEURE_PROPOSEE}}/g, '15:00')
                     .replace(/{{MODELE}}/g, 'Peugeot 308')
                     .replace(/{{AGENCE}}/g, 'Notre agence');
                 } catch (err) {
@@ -8895,12 +8852,21 @@ if (user.role === 'admin') {
                 if (!confirm(`Êtes-vous sûr de vouloir supprimer le motif "${rescheduleMotifsList[motifType]}" ?`)) return;
                 delete rescheduleMotifsList[motifType];
                 delete rescheduleSMSMessages[motifType];
-                // Sauvegarder immédiatement dans Firebase
+                // Sauvegarder immédiatement dans Firebase en utilisant set sans merge pour supprimer vraiment les champs
                 try {
-                    await db.collection('settings').doc('rescheduleMessages').set({
+                    // Récupérer les données existantes pour préserver les autres sections
+                    const settingsDoc = await db.collection('settings').doc('rescheduleMessages').get();
+                    const existingData = settingsDoc.exists ? settingsDoc.data() : {};
+                    
+                    // Construire les nouvelles données en excluant le motif supprimé
+                    const updateData = {
+                        ...existingData,
                         rescheduleMotifsList: { ...rescheduleMotifsList },
                         rescheduleSMSMessages: { ...rescheduleSMSMessages }
-                    }, { merge: true });
+                    };
+                    
+                    // Utiliser set sans merge pour forcer la mise à jour complète
+                    await db.collection('settings').doc('rescheduleMessages').set(updateData, { merge: false });
                     showNotification('✅ Motif supprimé définitivement', 'success', 'fa-check-circle');
                 } catch (err) {
                     console.error('Erreur suppression motif:', err);
@@ -8920,11 +8886,9 @@ if (user.role === 'admin') {
                 }
                 rescheduleMotifsListInterne[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.label;
                 rescheduleSMSMessages[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.message || '';
-                rescheduleMotifsProposeCreneau[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.proposeCreneau || false;
                 newRescheduleMotifInterne.label = '';
                 newRescheduleMotifInterne.key = '';
                 newRescheduleMotifInterne.message = '';
-                newRescheduleMotifInterne.proposeCreneau = false;
                 showNotification('✅ Motif interne ajouté (pensez à enregistrer)', 'success', 'fa-check-circle');
             };
             
@@ -8932,14 +8896,21 @@ if (user.role === 'admin') {
                 if (!confirm(`Êtes-vous sûr de vouloir supprimer le motif "${rescheduleMotifsListInterne[motifType]}" ?`)) return;
                 delete rescheduleMotifsListInterne[motifType];
                 delete rescheduleSMSMessages[motifType];
-                delete rescheduleMotifsProposeCreneau[motifType];
-                // Sauvegarder immédiatement dans Firebase
+                // Sauvegarder immédiatement dans Firebase en utilisant set sans merge pour supprimer vraiment les champs
                 try {
-                    await db.collection('settings').doc('rescheduleMessages').set({
+                    // Récupérer les données existantes pour préserver les autres sections
+                    const settingsDoc = await db.collection('settings').doc('rescheduleMessages').get();
+                    const existingData = settingsDoc.exists ? settingsDoc.data() : {};
+                    
+                    // Construire les nouvelles données en excluant le motif supprimé
+                    const updateData = {
+                        ...existingData,
                         rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne },
-                        rescheduleSMSMessages: { ...rescheduleSMSMessages },
-                        rescheduleMotifsProposeCreneau: { ...rescheduleMotifsProposeCreneau }
-                    }, { merge: true });
+                        rescheduleSMSMessages: { ...rescheduleSMSMessages }
+                    };
+                    
+                    // Utiliser set sans merge pour forcer la mise à jour complète
+                    await db.collection('settings').doc('rescheduleMessages').set(updateData, { merge: false });
                     showNotification('✅ Motif interne supprimé définitivement', 'success', 'fa-check-circle');
                 } catch (err) {
                     console.error('Erreur suppression motif interne:', err);
@@ -12418,8 +12389,6 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
                 rescheduleModal.motifType = ''; 
                 rescheduleModal.demandePar = ''; 
                 rescheduleModal.autoSMS = false; 
-                rescheduleModal.proposeCreneau = false;
-                rescheduleModal.heureProposee = '';
                 rescheduleModal.step = 1; 
                 rescheduleModal.open = true; 
             };
@@ -12493,11 +12462,6 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
                                     .replace(/{{HEURE}}/g, heureStr)
                                     .replace(/{{MODELE}}/g, baseModele)
                                     .replace(/{{AGENCE}}/g, ag.nom || '');
-                                // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                                if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                    const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                    message = message.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                                }
                                 return message;
                             }
                             // Sinon utiliser les messages par défaut pour motifs internes
@@ -12557,24 +12521,13 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
                             
                             // Charger les messages personnalisés de façon asynchrone mais mettre à jour immédiatement avec le défaut
                             let smsMsgText = defaultMessagesInterne[rescheduleModal.motifType] || '';
-                            // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                            if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                smsMsgText = smsMsgText.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                            }
                             rescheduleModal.smsMessage = smsMsgText;
                             rescheduleModal.autoSMS = !!rescheduleModal.smsMessage;
                             
                             // Ensuite charger depuis Firebase si disponible (mise à jour en arrière-plan)
                             getSMSMessage(rescheduleModal.motifType).then(smsMsg => {
                                 if (smsMsg && smsMsg.trim()) {
-                                    // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                                    let finalMsg = smsMsg;
-                                    if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                        const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                        finalMsg = finalMsg.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                                    }
-                                    rescheduleModal.smsMessage = finalMsg;
+                                    rescheduleModal.smsMessage = smsMsg;
                                 }
                             });
                         }
@@ -12590,12 +12543,6 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
             const selectMotif = (motifType) => {
                 rescheduleModal.motifType = motifType;
                 motifSelectionModal.open = false;
-                // Si c'est une demande interne et que le motif a proposeCreneau activé, activer automatiquement
-                if (rescheduleModal.demandePar === 'interne' && rescheduleMotifsProposeCreneau[motifType]) {
-                    rescheduleModal.proposeCreneau = true;
-                } else if (rescheduleModal.demandePar !== 'interne') {
-                    rescheduleModal.proposeCreneau = false;
-                }
                 handleMotifTypeChange();
             };
             
@@ -13713,6 +13660,12 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
                         loadRescheduleSMSMessages();
                     }
                 }
+            };
+            
+            const openMotifsSettings = () => {
+                settingsModal.open = true;
+                settingsModal.tab = 'Motifs';
+                settingsModal.view = 'page';
             };
             const openAgencyEdit = async (ag) => { 
                 if(ag) { 
@@ -19823,7 +19776,7 @@ let prefixTitre = '';
                 currentFilter, listFilters, resetListFilters, displayLimit,
                 startWizard, finalizeRdv, selectSource, validateAndSendSMS, finalizeRdvWithSMS, parseAndFormatFacebookCaracteristiques, handleFacebookPaste, updateModeleFromFacebook, getBaseModele, formatCaracteristiquesForDisplay, updateEditModalModele, addNewCaracteristique, removeCaracteristique, getFormatagePreview, saveFormatageSettings, formatageSettings, formatPrixInput, handlePrixPaste, formatModeleName, googleCalendarDisconnectedModal,
                 openRdvFiche, updateRdv, toggleOkM, resendReminder, sendManualRappel, openCancelChoice, confirmCancel, quickCancel, updateStatus, rdvMenuOpen,
-                openSettings, openAgencyEdit, saveEditingAgency, editingAgency, saveAgency, deleteAgency, addSource, removeSource, changeSourceLogo, getLogo,
+                openSettings, openMotifsSettings, openAgencyEdit, saveEditingAgency, editingAgency, saveAgency, deleteAgency, addSource, removeSource, changeSourceLogo, getLogo,
                 editingAgencyCommerciaux, addAgencyCommercial, removeAgencyCommercial,
                 editingAgencyFermetures, addAgencyFermeture, removeAgencyFermeture, saveFermetureIndividuelle, isFermetureValide,
                 newSource, motifsList, newMotif, addMotif, removeMotif, cancelMotifsList, newCancelMotif, addCancelMotif, removeCancelMotif, editingMsgAgence, editingMsgType, clientExists, insertTag, msgLabels, getMessagePreview,
@@ -24148,7 +24101,7 @@ let prefixTitre = '';
                             <span class="text-4xl">🔗</span>
                             <span class="font-bold text-slate-700 text-sm">Sources</span>
                     </button>
-                        <button @click.stop="settingsModal.tab='Motifs'; settingsModal.view='page'" class="bg-white p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg transition flex flex-col items-center gap-3 group cursor-pointer">
+                        <button @click="openMotifsSettings" class="bg-white p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg transition flex flex-col items-center gap-3 group cursor-pointer">
                             <span class="text-4xl">🏷️</span>
                             <span class="font-bold text-slate-700 text-sm">Motifs</span>
                     </button>
@@ -24569,7 +24522,6 @@ let prefixTitre = '';
                                         <div class="flex flex-wrap gap-1.5 mb-2">
                                             <button @click="insertVariable('{{DATE_LONG}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">📅 {{DATE_LONG}}</button>
                                             <button @click="insertVariable('{{HEURE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🕐 {{HEURE}}</button>
-                                            <button @click="insertVariable('{{HEURE_PROPOSEE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">⏰ {{HEURE_PROPOSEE}}</button>
                                             <button @click="insertVariable('{{MODELE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🚗 {{MODELE}}</button>
                                             <button @click="insertVariable('{{AGENCE}}', motifType)" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🏢 {{AGENCE}}</button>
                                         </div>
@@ -24580,15 +24532,6 @@ let prefixTitre = '';
                                             class="w-full p-3 text-sm border-2 border-purple-200 rounded-lg text-slate-700 outline-none focus:border-purple-500 resize-none font-medium" 
                                             rows="4"
                                         ></textarea>
-                                    </div>
-                                    
-                                    <!-- Case à cocher pour proposer un créneau -->
-                                    <div class="mb-3 mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" v-model="rescheduleMotifsProposeCreneau[motifType]" class="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500">
-                                            <span class="text-xs font-bold text-purple-700">Proposer automatiquement un créneau dans le message</span>
-                                        </label>
-                                        <p class="text-xs text-purple-600 mt-1 ml-6">Si coché, un bouton "Proposer un créneau" apparaîtra lors du report avec ce motif</p>
                                     </div>
                                     
                                     <!-- Aperçu -->
@@ -24617,17 +24560,10 @@ let prefixTitre = '';
                                 <div class="flex flex-wrap gap-1.5 mb-3">
                                     <button @click="copyToClipboard('{{DATE_LONG}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">📅 {{DATE_LONG}}</button>
                                     <button @click="copyToClipboard('{{HEURE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🕐 {{HEURE}}</button>
-                                    <button @click="copyToClipboard('{{HEURE_PROPOSEE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">⏰ {{HEURE_PROPOSEE}}</button>
                                     <button @click="copyToClipboard('{{MODELE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🚗 {{MODELE}}</button>
                                     <button @click="copyToClipboard('{{AGENCE}}')" class="px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-[10px] font-medium transition">🏢 {{AGENCE}}</button>
                                 </div>
                                 <textarea v-model="newRescheduleMotifInterne.message" placeholder="Message SMS..." class="w-full p-3 text-sm border-2 border-purple-200 rounded-lg text-slate-700 outline-none focus:border-purple-500 resize-none" rows="3"></textarea>
-                                <div class="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" v-model="newRescheduleMotifInterne.proposeCreneau" class="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500">
-                                        <span class="text-xs font-bold text-purple-700">Proposer automatiquement un créneau dans le message</span>
-                                    </label>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -26075,22 +26011,6 @@ let prefixTitre = '';
                             <p class="text-xs text-slate-500 italic">Aucun message SMS automatique configuré pour ce motif.</p>
                         </div>
                         
-                        <!-- Bouton pour proposer un créneau (demande interne) -->
-                        <div v-if="rescheduleModal.demandePar === 'interne' && rescheduleModal.motifType" class="mt-3 space-y-2">
-                            <button 
-                                @click="rescheduleModal.proposeCreneau = !rescheduleModal.proposeCreneau" 
-                                :class="rescheduleModal.proposeCreneau ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'" 
-                                class="w-full p-3 border-2 rounded-xl font-bold transition flex items-center justify-center gap-2">
-                                <i :class="rescheduleModal.proposeCreneau ? 'fa-solid fa-check-circle' : 'fa-solid fa-clock'" class="text-lg"></i>
-                                <span>{{ rescheduleModal.proposeCreneau ? 'Créneau proposé' : 'Proposer un créneau' }}</span>
-                            </button>
-                            <div v-if="rescheduleModal.proposeCreneau" class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-3 animate-fadeIn">
-                                <label class="text-xs font-bold text-blue-700 uppercase block">Heure proposée :</label>
-                                <input type="time" v-model="rescheduleModal.heureProposee" class="w-full px-3 py-2 border-2 border-blue-300 rounded-lg font-bold text-blue-900 text-center outline-none focus:border-blue-500 bg-white">
-                                <p class="text-xs text-blue-600 italic">Cette heure sera insérée dans le message SMS à l'endroit indiqué par "erreur"</p>
-                            </div>
-                        </div>
-                        
                         <!-- Aperçu déroulable pour demande client (motif pour Google Agenda) -->
                         <div v-else-if="rescheduleModal.demandePar === 'client' && rescheduleModal.motifType && rescheduleModal.motif" class="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-xl mt-3 shadow-sm overflow-hidden">
                             <button @click="openMotifs['motif_preview_client'] = !openMotifs['motif_preview_client']" class="w-full flex items-center justify-between p-4 hover:bg-purple-100/50 transition">
@@ -26917,7 +26837,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 spaceBetween: true 
             });
             const cancelModal = reactive({ open:false, rdv:null, motif:'', motifCustom:'', selectedMotif:'', sendSMS:false, who:'' });
-            const rescheduleModal = reactive({ open:false, step:1, date:'', heure:'', rdv:null, oldDate:null, oldHeure:null, motif:'', motifType:'', demandePar:'', autoSMS:false, smsMessage:'', proposeCreneau:false, heureProposee:'' });
+            const rescheduleModal = reactive({ open:false, step:1, date:'', heure:'', rdv:null, oldDate:null, oldHeure:null, motif:'', motifType:'', demandePar:'', autoSMS:false, smsMessage:'' });
             const motifSelectionModal = reactive({ open: false });
             const messagePreviewModal = reactive({ open: false, message: '', title: 'Aperçu du message' });
             const rescheduleSMSMessages = reactive({ meteo_route_dangereuse: '', vehicule_immobilise: '', contrainte_pro: '', contrainte_personnelle: '', documents_manquants: '', empechement_medical: '', agence_fermee: '', commercial_retard: '', agence_retard: '', intemperie: '', absence_imprevue: '' });
@@ -26934,9 +26854,7 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
                 absence_imprevue: '🚫 Absence imprévue'
             });
             const newRescheduleMotif = reactive({ label: '', key: '', message: '' });
-            // Stocker quels motifs doivent proposer des créneaux automatiquement
-            const rescheduleMotifsProposeCreneau = reactive({});
-            const newRescheduleMotifInterne = reactive({ label: '', key: '', message: '', proposeCreneau: false });
+            const newRescheduleMotifInterne = reactive({ label: '', key: '', message: '' });
             const fermetureModal = reactive({ open:false, dateDebut:'', dateFin:'', motif:'', professionnels:[], tousProfessionnels:false, editingId:null });
             const fermetureDeleteConfirmModal = reactive({ open:false, fermetureId:null });
             const fermeturesList = ref([]);
@@ -28613,12 +28531,6 @@ if (user.role === 'admin') {
                         }
                     });
                     
-                    // Charger les paramètres de proposition de créneaux pour les motifs internes
-                    const proposeCreneauSettings = globalMessages.rescheduleMotifsProposeCreneau || {};
-                    Object.keys(proposeCreneauSettings).forEach(key => {
-                        rescheduleMotifsProposeCreneau[key] = proposeCreneauSettings[key] || false;
-                    });
-                    
                     // Charger les messages SMS pour les motifs internes (utiliser les personnalisés ou les défauts)
                     Object.keys(rescheduleMotifsListInterne).forEach(key => {
                         // Vérifier d'abord dans les messages personnalisés
@@ -28641,8 +28553,7 @@ if (user.role === 'admin') {
                         rescheduleSMSMessages: { ...rescheduleSMSMessages },
                         rescheduleSMSMessagesClient: { ...rescheduleSMSMessagesClient },
                         rescheduleMotifsList: { ...rescheduleMotifsList },
-                        rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne },
-                        rescheduleMotifsProposeCreneau: { ...rescheduleMotifsProposeCreneau }
+                        rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne }
                     }, { merge: true });
                     showNotification('✅ Messages de report sauvegardés pour toutes les agences', 'success', 'fa-check-circle');
                 } catch (err) {
@@ -28713,7 +28624,6 @@ if (user.role === 'admin') {
                 return message
                     .replace(/{{DATE_LONG}}/g, 'mardi 6 janvier')
                     .replace(/{{HEURE}}/g, '14:30')
-                        .replace(/{{HEURE_PROPOSEE}}/g, '15:00')
                     .replace(/{{MODELE}}/g, 'Peugeot 308')
                     .replace(/{{AGENCE}}/g, 'Notre agence');
                 } catch (err) {
@@ -28748,12 +28658,21 @@ if (user.role === 'admin') {
                 if (!confirm(`Êtes-vous sûr de vouloir supprimer le motif "${rescheduleMotifsList[motifType]}" ?`)) return;
                 delete rescheduleMotifsList[motifType];
                 delete rescheduleSMSMessages[motifType];
-                // Sauvegarder immédiatement dans Firebase
+                // Sauvegarder immédiatement dans Firebase en utilisant set sans merge pour supprimer vraiment les champs
                 try {
-                    await db.collection('settings').doc('rescheduleMessages').set({
+                    // Récupérer les données existantes pour préserver les autres sections
+                    const settingsDoc = await db.collection('settings').doc('rescheduleMessages').get();
+                    const existingData = settingsDoc.exists ? settingsDoc.data() : {};
+                    
+                    // Construire les nouvelles données en excluant le motif supprimé
+                    const updateData = {
+                        ...existingData,
                         rescheduleMotifsList: { ...rescheduleMotifsList },
                         rescheduleSMSMessages: { ...rescheduleSMSMessages }
-                    }, { merge: true });
+                    };
+                    
+                    // Utiliser set sans merge pour forcer la mise à jour complète
+                    await db.collection('settings').doc('rescheduleMessages').set(updateData, { merge: false });
                     showNotification('✅ Motif supprimé définitivement', 'success', 'fa-check-circle');
                 } catch (err) {
                     console.error('Erreur suppression motif:', err);
@@ -28773,11 +28692,9 @@ if (user.role === 'admin') {
                 }
                 rescheduleMotifsListInterne[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.label;
                 rescheduleSMSMessages[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.message || '';
-                rescheduleMotifsProposeCreneau[newRescheduleMotifInterne.key] = newRescheduleMotifInterne.proposeCreneau || false;
                 newRescheduleMotifInterne.label = '';
                 newRescheduleMotifInterne.key = '';
                 newRescheduleMotifInterne.message = '';
-                newRescheduleMotifInterne.proposeCreneau = false;
                 showNotification('✅ Motif interne ajouté (pensez à enregistrer)', 'success', 'fa-check-circle');
             };
             
@@ -28785,14 +28702,21 @@ if (user.role === 'admin') {
                 if (!confirm(`Êtes-vous sûr de vouloir supprimer le motif "${rescheduleMotifsListInterne[motifType]}" ?`)) return;
                 delete rescheduleMotifsListInterne[motifType];
                 delete rescheduleSMSMessages[motifType];
-                delete rescheduleMotifsProposeCreneau[motifType];
-                // Sauvegarder immédiatement dans Firebase
+                // Sauvegarder immédiatement dans Firebase en utilisant set sans merge pour supprimer vraiment les champs
                 try {
-                    await db.collection('settings').doc('rescheduleMessages').set({
+                    // Récupérer les données existantes pour préserver les autres sections
+                    const settingsDoc = await db.collection('settings').doc('rescheduleMessages').get();
+                    const existingData = settingsDoc.exists ? settingsDoc.data() : {};
+                    
+                    // Construire les nouvelles données en excluant le motif supprimé
+                    const updateData = {
+                        ...existingData,
                         rescheduleMotifsListInterne: { ...rescheduleMotifsListInterne },
-                        rescheduleSMSMessages: { ...rescheduleSMSMessages },
-                        rescheduleMotifsProposeCreneau: { ...rescheduleMotifsProposeCreneau }
-                    }, { merge: true });
+                        rescheduleSMSMessages: { ...rescheduleSMSMessages }
+                    };
+                    
+                    // Utiliser set sans merge pour forcer la mise à jour complète
+                    await db.collection('settings').doc('rescheduleMessages').set(updateData, { merge: false });
                     showNotification('✅ Motif interne supprimé définitivement', 'success', 'fa-check-circle');
                 } catch (err) {
                     console.error('Erreur suppression motif interne:', err);
@@ -32148,8 +32072,6 @@ setInterval(() => {
                 rescheduleModal.motifType = ''; 
                 rescheduleModal.demandePar = ''; 
                 rescheduleModal.autoSMS = false; 
-                rescheduleModal.proposeCreneau = false;
-                rescheduleModal.heureProposee = '';
                 rescheduleModal.step = 1; 
                 rescheduleModal.open = true; 
             };
@@ -32223,11 +32145,6 @@ setInterval(() => {
                                     .replace(/{{HEURE}}/g, heureStr)
                                     .replace(/{{MODELE}}/g, baseModele)
                                     .replace(/{{AGENCE}}/g, ag.nom || '');
-                                // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                                if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                    const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                    message = message.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                                }
                                 return message;
                             }
                             // Sinon utiliser les messages par défaut pour motifs internes
@@ -32287,24 +32204,13 @@ setInterval(() => {
                             
                             // Charger les messages personnalisés de façon asynchrone mais mettre à jour immédiatement avec le défaut
                             let smsMsgText = defaultMessagesInterne[rescheduleModal.motifType] || '';
-                            // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                            if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                smsMsgText = smsMsgText.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                            }
                             rescheduleModal.smsMessage = smsMsgText;
                             rescheduleModal.autoSMS = !!rescheduleModal.smsMessage;
                             
                             // Ensuite charger depuis Firebase si disponible (mise à jour en arrière-plan)
                             getSMSMessage(rescheduleModal.motifType).then(smsMsg => {
                                 if (smsMsg && smsMsg.trim()) {
-                                    // Si proposition de créneau activée, remplacer "erreur" ou {{HEURE_PROPOSEE}} par l'heure proposée
-                                    let finalMsg = smsMsg;
-                                    if (rescheduleModal.proposeCreneau && rescheduleModal.heureProposee) {
-                                        const heureProposeeFormatted = rescheduleModal.heureProposee.substring(0, 5); // Format HH:MM
-                                        finalMsg = finalMsg.replace(/erreur/gi, heureProposeeFormatted).replace(/{{HEURE_PROPOSEE}}/g, heureProposeeFormatted);
-                                    }
-                                    rescheduleModal.smsMessage = finalMsg;
+                                    rescheduleModal.smsMessage = smsMsg;
                                 }
                             });
                         }
@@ -32320,12 +32226,6 @@ setInterval(() => {
             const selectMotif = (motifType) => {
                 rescheduleModal.motifType = motifType;
                 motifSelectionModal.open = false;
-                // Si c'est une demande interne et que le motif a proposeCreneau activé, activer automatiquement
-                if (rescheduleModal.demandePar === 'interne' && rescheduleMotifsProposeCreneau[motifType]) {
-                    rescheduleModal.proposeCreneau = true;
-                } else if (rescheduleModal.demandePar !== 'interne') {
-                    rescheduleModal.proposeCreneau = false;
-                }
                 handleMotifTypeChange();
             };
             
@@ -33443,6 +33343,12 @@ setInterval(() => {
                         loadRescheduleSMSMessages();
                     }
                 }
+            };
+            
+            const openMotifsSettings = () => {
+                settingsModal.open = true;
+                settingsModal.tab = 'Motifs';
+                settingsModal.view = 'page';
             };
             const openAgencyEdit = async (ag) => { 
                 if(ag) { 
@@ -39553,7 +39459,7 @@ let prefixTitre = '';
                 currentFilter, listFilters, resetListFilters, displayLimit,
                 startWizard, finalizeRdv, selectSource, validateAndSendSMS, finalizeRdvWithSMS, parseAndFormatFacebookCaracteristiques, handleFacebookPaste, updateModeleFromFacebook, getBaseModele, formatCaracteristiquesForDisplay, updateEditModalModele, addNewCaracteristique, removeCaracteristique, getFormatagePreview, saveFormatageSettings, formatageSettings, formatPrixInput, handlePrixPaste, formatModeleName, googleCalendarDisconnectedModal,
                 openRdvFiche, updateRdv, toggleOkM, resendReminder, sendManualRappel, openCancelChoice, confirmCancel, quickCancel, updateStatus, rdvMenuOpen,
-                openSettings, openAgencyEdit, saveEditingAgency, editingAgency, saveAgency, deleteAgency, addSource, removeSource, changeSourceLogo, getLogo,
+                openSettings, openMotifsSettings, openAgencyEdit, saveEditingAgency, editingAgency, saveAgency, deleteAgency, addSource, removeSource, changeSourceLogo, getLogo,
                 editingAgencyCommerciaux, addAgencyCommercial, removeAgencyCommercial,
                 editingAgencyFermetures, addAgencyFermeture, removeAgencyFermeture, saveFermetureIndividuelle, isFermetureValide,
                 newSource, motifsList, newMotif, addMotif, removeMotif, cancelMotifsList, newCancelMotif, addCancelMotif, removeCancelMotif, editingMsgAgence, editingMsgType, clientExists, insertTag, msgLabels, getMessagePreview,
