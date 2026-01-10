@@ -4728,6 +4728,14 @@
                             <i class="fa-solid fa-chart-line text-4xl text-blue-600"></i>
                             <span class="font-bold text-slate-700 text-sm">Stats</span>
                     </button>
+                        <button v-if="user.role==='admin'" @click="settingsModal.tab='MiseEnOrdre'; settingsModal.view='page'" class="bg-white p-6 rounded-2xl border-2 border-green-200 hover:border-green-400 hover:shadow-lg transition flex flex-col items-center gap-3 group">
+                            <i class="fa-solid fa-wand-magic-sparkles text-4xl text-green-600"></i>
+                            <span class="font-bold text-slate-700 text-sm">Mise en ordre</span>
+                    </button>
+                        <button v-if="user.role==='admin'" @click="settingsModal.tab='Suppression'; settingsModal.view='page'" class="bg-white p-6 rounded-2xl border-2 border-red-200 hover:border-red-400 hover:shadow-lg transition flex flex-col items-center gap-3 group">
+                            <i class="fa-solid fa-trash-can text-4xl text-red-600"></i>
+                            <span class="font-bold text-slate-700 text-sm">Suppression</span>
+                    </button>
                     </div>
                 </div>
             </div>
@@ -5665,6 +5673,164 @@
                                     </div>
                                     <span class="text-xs text-slate-500">{{ day.date }}</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION SUPPRESSION EN MASSE -->
+                <!-- ONGLET MISE EN ORDRE -->
+                <div v-if="settingsModal.tab==='MiseEnOrdre' && user.role==='admin'" class="space-y-4 md:space-y-6">
+                    <div class="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 md:p-8 border-2 border-green-200">
+                        <h3 class="font-bold text-xl mb-4 text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-green-600"></i>
+                            Mise en ordre des rendez-vous
+                        </h3>
+                        <p class="text-sm text-slate-600 mb-6">Corrige automatiquement les statuts des rendez-vous selon leurs données réelles dans Firebase.</p>
+                        
+                        <div class="bg-white rounded-xl p-6 border-2 border-green-200 mb-6">
+                            <div class="flex items-center gap-2 mb-4">
+                                <i class="fa-solid fa-info-circle text-green-600"></i>
+                                <span class="font-bold text-green-700">Rendez-vous à corriger :</span>
+                                <span class="font-black text-green-800 text-2xl">{{ rdvsToFixCount }}</span>
+                            </div>
+                            <p class="text-sm text-slate-600 mb-6">Les rendez-vous avec des statuts incorrects seront automatiquement corrigés selon les données réelles Firebase.</p>
+                            
+                            <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 mb-6">
+                                <h5 class="font-bold text-sm mb-3 text-yellow-800">Ce qui sera corrigé :</h5>
+                                <ul class="text-xs text-slate-700 space-y-2 ml-4 list-disc">
+                                    <li><strong>Rendez-vous honorés facturés</strong> sans le statut "honoré"</li>
+                                    <li><strong>Rendez-vous dans le bilan</strong> sans le statut "honoré"</li>
+                                    <li><strong>Rendez-vous passés</strong> depuis plus de 24h sans statut final</li>
+                                    <li><strong>Rendez-vous pas venus</strong> vérifiés dans Firebase (si présents dans le bilan, corrigés en honoré)</li>
+                                    <li><strong>Rendez-vous annulés</strong> vérifiés dans Firebase</li>
+                                    <li><strong>Rendez-vous à venir</strong> avec statuts finaux incorrects</li>
+                                </ul>
+                            </div>
+                            
+                            <button @click="fixAllRdvsStatus" :disabled="rdvsToFixCount === 0" class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-4 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-3 text-lg mb-4">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                Remettre en ordre {{ rdvsToFixCount > 0 ? `(${rdvsToFixCount} RDV)` : '' }}
+                            </button>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t border-green-200">
+                                <div class="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                                    <h5 class="font-bold text-sm mb-2 text-blue-800 flex items-center gap-2">
+                                        <i class="fa-solid fa-calendar-check text-blue-600"></i>
+                                        Rendez-vous à venir
+                                    </h5>
+                                    <p class="text-xs text-slate-600 mb-3">Remet automatiquement tous les rendez-vous avec une date supérieure à aujourd'hui en statut "à venir" (confirmé).</p>
+                                    <button @click="fixRdvsAVenir" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2 text-sm">
+                                        <i class="fa-solid fa-calendar-check"></i>
+                                        Corriger les rendez-vous à venir
+                                    </button>
+                                </div>
+                                
+                                <div class="bg-red-50 rounded-xl p-4 border-2 border-red-200">
+                                    <h5 class="font-bold text-sm mb-2 text-red-800 flex items-center gap-2">
+                                        <i class="fa-solid fa-user-xmark text-red-600"></i>
+                                        Rendez-vous pas venus
+                                    </h5>
+                                    <p class="text-xs text-slate-600 mb-3">Remet automatiquement tous les rendez-vous passés (finis depuis plus d'1h) sans statut honoré en statut "pas venu".</p>
+                                    <button @click="fixRdvsPasVenus" class="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-3 rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2 text-sm">
+                                        <i class="fa-solid fa-user-xmark"></i>
+                                        Corriger les rendez-vous pas venus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ONGLET SUPPRESSION -->
+                <div v-if="settingsModal.tab==='Suppression' && user.role==='admin'" class="space-y-4 md:space-y-6">
+                    <div class="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl p-6 md:p-8 border-2 border-red-200">
+                        <h3 class="font-bold text-xl mb-4 text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-trash-can text-red-600"></i>
+                            Suppression en masse des rendez-vous
+                        </h3>
+                        <p class="text-sm text-red-600 mb-6 font-bold">⚠️ ATTENTION : Cette action est irréversible. Tous les rendez-vous correspondant aux critères seront définitivement supprimés.</p>
+                        
+                        <div class="bg-white rounded-xl p-6 border-2 border-red-200 mb-6">
+                            <h4 class="font-bold text-lg mb-4 text-slate-800">Filtres de sélection</h4>
+                            
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 block mb-2">Année</label>
+                                        <select v-model="bulkDeleteFilters.annee" class="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:border-red-500 outline-none text-sm font-bold">
+                                            <option value="">Toutes les années</option>
+                                            <option v-for="y in dashboardYearOptions" :key="y" :value="y">{{ y }}</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 block mb-2">Mois</label>
+                                        <select v-model="bulkDeleteFilters.mois" class="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:border-red-500 outline-none text-sm font-bold">
+                                            <option value="">Tous les mois</option>
+                                            <option value="01">Janvier</option>
+                                            <option value="02">Février</option>
+                                            <option value="03">Mars</option>
+                                            <option value="04">Avril</option>
+                                            <option value="05">Mai</option>
+                                            <option value="06">Juin</option>
+                                            <option value="07">Juillet</option>
+                                            <option value="08">Août</option>
+                                            <option value="09">Septembre</option>
+                                            <option value="10">Octobre</option>
+                                            <option value="11">Novembre</option>
+                                            <option value="12">Décembre</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 block mb-2">Date précise (optionnel)</label>
+                                        <input type="date" v-model="bulkDeleteFilters.date" class="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:border-red-500 outline-none text-sm font-bold">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 block mb-2">Agence</label>
+                                        <select v-model="bulkDeleteFilters.agenceId" class="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:border-red-500 outline-none text-sm font-bold">
+                                            <option value="">Toutes les agences</option>
+                                            <option v-for="ag in agences" :key="ag.id" :value="ag.id">{{ ag.nom }}</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 block mb-2">Statut</label>
+                                        <select v-model="bulkDeleteFilters.statut" class="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:border-red-500 outline-none text-sm font-bold">
+                                            <option value="">Tous les statuts</option>
+                                            <option value="confirme">Confirmé</option>
+                                            <option value="a_confirmer">À Confirmer</option>
+                                            <option value="honore">Honoré</option>
+                                            <option value="pas_venu">Pas Venu</option>
+                                            <option value="annule">Annulé</option>
+                                            <option value="report_a_confirmer">Report à Confirmer</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 p-4 bg-red-50 rounded-xl border border-red-200">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-info-circle text-red-600"></i>
+                                    <span class="font-bold text-red-700">Rendez-vous correspondants :</span>
+                                    <span class="font-black text-red-800 text-xl">{{ matchingRdvsCount }}</span>
+                                </div>
+                                <p class="text-xs text-red-600">Ces rendez-vous seront définitivement supprimés si vous confirmez l'action.</p>
+                            </div>
+                            
+                            <div class="mt-6 flex flex-col md:flex-row gap-4">
+                                <button @click="resetBulkDeleteFilters" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold transition">
+                                    <i class="fa-solid fa-rotate-left mr-2"></i>
+                                    Réinitialiser les filtres
+                                </button>
+                                <button @click="confirmBulkDelete" :disabled="matchingRdvsCount === 0" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
+                                    <i class="fa-solid fa-trash-can mr-2"></i>
+                                    Supprimer {{ matchingRdvsCount }} rendez-vous
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -7824,6 +7990,8 @@ const appUrl = window.location.origin + window.location.pathname; // L'URL de ba
             const historyModal = reactive({ open:false, rdv:null });
             const settingsModal = reactive({ open:false, tab:'Agences', view:'menu' });
             const rappelConfirmModal = reactive({ open:false, rdv:null, smsLink:'' });
+            const bulkDeleteFilters = reactive({ annee: '', mois: '', date: '', agenceId: '', statut: '' });
+            const bulkDeleteConfirmModal = reactive({ open: false, count: 0, filters: null });
             const quickRdvModal = reactive({ open:false, nom:'', modele:'', note:'', agenceId:'', commercialId:'', date:'', heure:'', source:'', honore:false });
             const formatageSettings = reactive({ 
                 autoTranslate: true, 
@@ -15352,8 +15520,40 @@ source: quickRdvModal.source, // <--- CORRECTION : On garde le format original (
                         });
                     }
                 }
-                else if (currentFilter.value === 'noshow') l = l.filter(r => r.statut === 'pas_venu');
-                else if (currentFilter.value === 'cancelled') l = l.filter(r => r.statut === 'annule');
+                else if (currentFilter.value === 'noshow') {
+                    l = l.filter(r => r.statut === 'pas_venu');
+                    // Filtrer par mois actuel par défaut (utiliser les filtres du dashboard si on vient du dashboard)
+                    const moisFilter = fromDashboard.value && dashboardFilters.mois ? dashboardFilters.mois : null;
+                    const anneeFilter = fromDashboard.value && dashboardFilters.annee ? dashboardFilters.annee : null;
+                    if (!listFilters.date) {
+                        // Si on vient du dashboard, utiliser ses filtres, sinon utiliser le mois/année actuels
+                        const targetDate = new Date();
+                        const targetMonth = moisFilter ? parseInt(moisFilter) - 1 : targetDate.getMonth();
+                        const targetYear = anneeFilter ? parseInt(anneeFilter) : targetDate.getFullYear();
+                        l = l.filter(r => {
+                            if (!r.date) return false;
+                            const d = new Date(r.date);
+                            return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+                        });
+                    }
+                }
+                else if (currentFilter.value === 'cancelled') {
+                    l = l.filter(r => r.statut === 'annule');
+                    // Filtrer par mois actuel par défaut (utiliser les filtres du dashboard si on vient du dashboard)
+                    const moisFilter = fromDashboard.value && dashboardFilters.mois ? dashboardFilters.mois : null;
+                    const anneeFilter = fromDashboard.value && dashboardFilters.annee ? dashboardFilters.annee : null;
+                    if (!listFilters.date) {
+                        // Si on vient du dashboard, utiliser ses filtres, sinon utiliser le mois/année actuels
+                        const targetDate = new Date();
+                        const targetMonth = moisFilter ? parseInt(moisFilter) - 1 : targetDate.getMonth();
+                        const targetYear = anneeFilter ? parseInt(anneeFilter) : targetDate.getFullYear();
+                        l = l.filter(r => {
+                            if (!r.date) return false;
+                            const d = new Date(r.date);
+                            return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+                        });
+                    }
+                }
                 if (search.value) { const s = search.value.toLowerCase(); const sDigits = normalizePhone(search.value); l = l.filter(r => (r.nom || '').toLowerCase().includes(s) || (r.modele || '').toLowerCase().includes(s) || (sDigits && normalizePhone(r.telephone).includes(sDigits))); } 
                 const noBaseFilter = currentFilter.value === 'all' && !listFilters.agenceId && !listFilters.prospecteur && !listFilters.date && !search.value;
                 if (noBaseFilter) return [];
@@ -19688,8 +19888,9 @@ let prefixTitre = '';
                 }).length;
 
                 // CA BRUT (Tout le monde compte pour le CA) - avec filtres - SEULEMENT CE MOIS
+                // Utiliser la même logique que le bilan : honorBilling === 'facture' ET statut === 'honore'
                 const ca = filteredRdvs.filter(r => {
-                    if (r.honorBilling !== 'facture' || !r.date) return false;
+                    if (r.honorBilling !== 'facture' || !r.date || r.statut !== 'honore') return false;
                     const d = new Date(r.date);
                     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                 }).reduce((acc,r) => { 
@@ -19699,7 +19900,11 @@ let prefixTitre = '';
                 }, 0);
 
                 // CA Journalier - avec filtres
-                const ca_daily = filteredRdvs.filter(r => r.honorBilling==='facture' && r.date === nowStr).reduce((acc,r) => { 
+                // Utiliser la même logique que le bilan : honorBilling === 'facture' ET statut === 'honore'
+                const ca_daily = filteredRdvs.filter(r => {
+                    if (r.honorBilling !== 'facture' || !r.date || r.statut !== 'honore') return false;
+                    return r.date === nowStr;
+                }).reduce((acc,r) => { 
                     const price = getAgencePrice(r); 
                     const discount = parseFloat(r.geste_commercial) || 0; 
                     return acc + (price - discount); 
@@ -19768,9 +19973,10 @@ let prefixTitre = '';
                 const caMoyenParRdv = honored > 0 ? (ca / honored).toFixed(2) : 0; // CA moyen par RDV honoré
                 
                 // CA par jour (7 derniers jours) - avec filtres - SEULEMENT CE MOIS
+                // Utiliser la même logique que le bilan : honorBilling === 'facture' ET statut === 'honore'
                 const caParJour = {};
                 const honoredRdv = filteredRdvs.filter(r => {
-                    if (r.honorBilling !== 'facture' || !r.date) return false;
+                    if (r.honorBilling !== 'facture' || !r.date || r.statut !== 'honore') return false;
                     const d = new Date(r.date);
                     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                 });
@@ -20088,7 +20294,33 @@ let prefixTitre = '';
             const isLateAndNoStatus = (r) => { if(!r.date || !r.heure) return false; const start = new Date(r.date+'T'+r.heure); const end = new Date(start.getTime() + 60*60*1000); return now.value >= end && ['confirme','a_confirmer'].includes(r.statut); };
             const getProgressPercent = (r) => { if(!r.date || !r.heure) return 0; const start = new Date(r.date+'T'+r.heure).getTime(); const end = start + 3600000; const current = now.value.getTime(); if(current < start) return 0; if(current > end) return 100; return ((current - start) / (end - start)) * 100; };
             const getRdvTimeStatus = (r) => { if(!r.date || !r.heure) return 'futur'; const start = new Date(r.date+'T'+r.heure).getTime(); const current = now.value.getTime(); if(current >= start && current < start + 3600000) return 'en_cours'; if(current < start && (start - current) < 172800000) return 'bientot'; return 'futur'; };
-            const getRelativeRdvLabel = (r) => { if (!r.date || !r.heure || r.statut === 'annule') return ''; const nowDate = now.value ? new Date(now.value) : new Date(); const start = new Date(r.date + 'T' + r.heure); const dureeRdvMs = 60 * 60 * 1000; const diffMs = start - nowDate; if (diffMs <= -dureeRdvMs) return ''; if (diffMs < 0 && diffMs > -dureeRdvMs) { return 'RDV en cours'; } const diffMin = Math.round(diffMs / 60000); if (diffMin < 1) { return "RDV dans moins d'1 minute"; } if (diffMin < 60) { return `RDV dans ${diffMin} min`; } const diffHours = Math.floor(diffMin / 60); const restMin = diffMin % 60; if (diffHours < 24) { if (restMin === 0) { return `RDV dans ${diffHours}h`; } return `RDV dans ${diffHours}h ${restMin}min`; } const diffDays = Math.round(diffMin / (24 * 60)); if (diffDays === 1) { return 'RDV dans 1 jour'; } return `RDV dans ${diffDays} jours`; };
+            const getRelativeRdvLabel = (r) => { 
+                // Ne pas afficher le badge si le rendez-vous n'est plus à venir (statut final)
+                if (!r.date || !r.heure) return ''; 
+                // Si le statut est final (honoré, pas venu, annulé), ne pas afficher le badge
+                if (r.statut === 'annule' || r.statut === 'honore' || r.statut === 'pas_venu') return ''; 
+                // Ne pas afficher si le statut n'est pas "à venir" (confirmé ou à confirmer)
+                if (!['confirme', 'a_confirmer', 'report_a_confirmer'].includes(r.statut)) return '';
+                
+                const nowDate = now.value ? new Date(now.value) : new Date(); 
+                const start = new Date(r.date + 'T' + r.heure); 
+                const dureeRdvMs = 60 * 60 * 1000; 
+                const diffMs = start - nowDate; 
+                if (diffMs <= -dureeRdvMs) return ''; 
+                if (diffMs < 0 && diffMs > -dureeRdvMs) { return 'RDV en cours'; } 
+                const diffMin = Math.round(diffMs / 60000); 
+                if (diffMin < 1) { return "RDV dans moins d'1 minute"; } 
+                if (diffMin < 60) { return `RDV dans ${diffMin} min`; } 
+                const diffHours = Math.floor(diffMin / 60); 
+                const restMin = diffMin % 60; 
+                if (diffHours < 24) { 
+                    if (restMin === 0) { return `RDV dans ${diffHours}h`; } 
+                    return `RDV dans ${diffHours}h ${restMin}min`; 
+                } 
+                const diffDays = Math.round(diffMin / (24 * 60)); 
+                if (diffDays === 1) { return 'RDV dans 1 jour'; } 
+                return `RDV dans ${diffDays} jours`; 
+            };
             const nextRdvLabel = computed(() => { if (!rdvList.value || rdvList.value.length === 0) return ''; const todayStr = new Date().toISOString().split('T')[0]; const nowDate = now.value ? new Date(now.value) : new Date(); const candidates = rdvList.value.filter(r => r.date === todayStr && r.statut !== 'poubelle' && r.heure).map(r => ({ rdv: r, start: new Date(r.date + 'T' + r.heure) })).filter(o => o.start > nowDate); if (candidates.length === 0) return ''; candidates.sort((a, b) => a.start - b.start); return getRelativeRdvLabel(candidates[0].rdv); });
             const pendingStatusList = computed(() => { return rdvList.value.filter(r => { if(!['confirme', 'a_confirmer'].includes(r.statut)) return false; if(!r.date || !r.heure) return false; const end = new Date(r.date+'T'+r.heure).getTime() + 3600000; return now.value.getTime() > end; }); });
             const pendingStatusCount = computed(() => pendingStatusList.value.length);
@@ -20505,7 +20737,7 @@ let prefixTitre = '';
 
             const buildBilanMonthOptions = () => {
                 const now = new Date();
-                const endY = now.getFullYear();
+                const endY = now.getFullYear() + 1; // Inclure l'année suivante pour permettre la sélection de 2026
                 const startY = 2024;
                 
                 // Générer les options d'années (en strings pour la compatibilité avec v-model)
@@ -20547,7 +20779,7 @@ let prefixTitre = '';
             // Initialiser les options d'année au démarrage pour le dashboard et le bilan
             const initDashboardYearOptions = () => {
                 const now = new Date();
-                const endY = now.getFullYear();
+                const endY = now.getFullYear() + 1; // Inclure l'année suivante pour permettre la sélection de 2026
                 const startY = 2024;
                 const years = [];
                 for(let y = startY; y <= endY; y++) {
@@ -20888,6 +21120,650 @@ let prefixTitre = '';
                 });
                 await batch.commit();
                 selectedBilanIds.value = [];
+            };
+
+            // Fonctions pour la suppression en masse des rendez-vous
+            const matchingRdvsCount = computed(() => {
+                let filtered = rdvList.value.filter(r => r.statut !== 'poubelle');
+                
+                // Filtrer par date précise si spécifiée
+                if (bulkDeleteFilters.date) {
+                    filtered = filtered.filter(r => r.date === bulkDeleteFilters.date);
+                } else {
+                    // Filtrer par année si spécifiée
+                    if (bulkDeleteFilters.annee) {
+                        filtered = filtered.filter(r => {
+                            if (!r.date) return false;
+                            const d = new Date(r.date);
+                            return d.getFullYear().toString() === bulkDeleteFilters.annee;
+                        });
+                    }
+                    
+                    // Filtrer par mois si spécifié (seulement si année aussi spécifiée)
+                    if (bulkDeleteFilters.mois && bulkDeleteFilters.annee) {
+                        filtered = filtered.filter(r => {
+                            if (!r.date) return false;
+                            const d = new Date(r.date);
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            return month === bulkDeleteFilters.mois;
+                        });
+                    }
+                }
+                
+                // Filtrer par agence si spécifiée
+                if (bulkDeleteFilters.agenceId) {
+                    filtered = filtered.filter(r => r.agenceId === bulkDeleteFilters.agenceId);
+                }
+                
+                // Filtrer par statut si spécifié
+                if (bulkDeleteFilters.statut) {
+                    filtered = filtered.filter(r => r.statut === bulkDeleteFilters.statut);
+                }
+                
+                return filtered.length;
+            });
+
+            const resetBulkDeleteFilters = () => {
+                bulkDeleteFilters.annee = '';
+                bulkDeleteFilters.mois = '';
+                bulkDeleteFilters.date = '';
+                bulkDeleteFilters.agenceId = '';
+                bulkDeleteFilters.statut = '';
+            };
+
+            // Fonction pour détecter les rendez-vous avec des statuts incorrects
+            // Vérifie les données réelles dans Firebase pour tous les statuts
+            const rdvsToFixCount = computed(() => {
+                const now = new Date();
+                let count = 0;
+                
+                rdvList.value.forEach(r => {
+                    if (r.statut === 'poubelle') return;
+                    
+                    // Normaliser le statut pour gérer les accents et variations
+                    let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                    statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    
+                    // Vérifier si le rendez-vous est dans le bilan (données réelles Firebase)
+                    const isInBilan = bilanRows.value.some(b => {
+                        if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                            return b.rdvIds.includes(r.id);
+                        }
+                        return b.rdvId === r.id;
+                    });
+                    
+                    // Cas 1 : Rendez-vous avec honorBilling='facture' mais statut !== 'honore'
+                    // Si facturé dans Firebase, doit être honoré
+                    if (r.honorBilling === 'facture' && statutNormalized !== 'honore') {
+                        count++;
+                        return;
+                    }
+                    
+                    // Cas 2 : Rendez-vous dans le bilan mais sans statut honoré
+                    // Vérifier dans les données réelles du bilan Firebase
+                    if (isInBilan && statutNormalized !== 'honore') {
+                        count++;
+                        return;
+                    }
+                    
+                    // Cas 3 : Rendez-vous pas venu - vérifier si vraiment pas venu dans Firebase
+                    // Si le statut indique "pas venu" mais le RDV est dans le bilan, c'est incorrect
+                    if ((statutNormalized === 'pas_venu' || statutNormalized === 'pas venu' || statutNormalized === 'pasvenu') && isInBilan) {
+                        count++;
+                        return;
+                    }
+                    
+                    // Si le statut indique "pas venu" mais le RDV est facturé, c'est incorrect
+                    if ((statutNormalized === 'pas_venu' || statutNormalized === 'pas venu' || statutNormalized === 'pasvenu') && r.honorBilling === 'facture') {
+                        count++;
+                        return;
+                    }
+                    
+                    // Cas 4 : Rendez-vous annulé - vérifier si vraiment annulé dans Firebase
+                    // Si le statut indique "annulé" mais le RDV est dans le bilan ou facturé, c'est incorrect
+                    if ((statutNormalized === 'annule' || statutNormalized === 'annulé') && (isInBilan || r.honorBilling === 'facture')) {
+                        count++;
+                        return;
+                    }
+                    
+                    // Cas 5 : Rendez-vous passé ou à venir - vérifier selon la date
+                    if (r.date) {
+                        // Comparer uniquement les dates (sans l'heure) pour déterminer si c'est à venir
+                        const rdvDate = new Date(r.date);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        rdvDate.setHours(0, 0, 0, 0);
+                        
+                        // Si la date du rendez-vous est supérieure à aujourd'hui, c'est un rendez-vous à venir
+                        const isRdvInFuture = rdvDate > today;
+                        
+                        if (isRdvInFuture) {
+                            // Cas 6 : Rendez-vous à venir avec statut final incorrect
+                            // Si le rendez-vous est à venir mais a un statut final (honoré, pas venu, annulé)
+                            // Vérifier si c'est vraiment le cas dans Firebase
+                            if (['honore', 'pas_venu', 'annule'].includes(statutNormalized)) {
+                                // Si pas dans le bilan et pas facturé, le statut est incorrect - doit être "à venir"
+                                if (!isInBilan && r.honorBilling !== 'facture') {
+                                    count++;
+                                }
+                            }
+                        } else {
+                            // Rendez-vous passé - vérifier s'il a un statut final
+                            if (r.heure) {
+                                const rdvDateTime = new Date(r.date + 'T' + r.heure);
+                                const rdvEndTime = new Date(rdvDateTime.getTime() + 60 * 60 * 1000); // +1h
+                                
+                                // Si le rendez-vous est passé (fini depuis plus d'1h)
+                                if (rdvEndTime < now) {
+                                    // Si le statut n'est pas final (honoré, pas venu, annulé)
+                                    if (!['honore', 'pas_venu', 'annule'].includes(statutNormalized)) {
+                                        // Si pas dans le bilan et statut "à venir", il faut définir un statut
+                                        if (!isInBilan && ['confirme', 'a_confirmer', 'report_a_confirmer'].includes(statutNormalized)) {
+                                            const hoursSinceRdv = (now - rdvEndTime) / (1000 * 60 * 60);
+                                            if (hoursSinceRdv > 24) {
+                                                count++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                return count;
+            });
+
+            const fixAllRdvsStatus = async () => {
+                const count = rdvsToFixCount.value;
+                if (count === 0) {
+                    showNotification('✅ Tous les rendez-vous sont déjà en ordre !', 'success', 'fa-check-circle');
+                    return;
+                }
+                
+                if (!confirm(`Corriger automatiquement ${count} rendez-vous avec des statuts incorrects ?\n\nCette action va mettre à jour les statuts pour qu'ils correspondent à leur état réel dans Firebase.`)) {
+                    return;
+                }
+                
+                try {
+                    showNotification(`⏳ Correction de ${count} rendez-vous en cours...`, 'info', 'fa-spinner fa-spin');
+                    
+                    const now = new Date();
+                    const updates = [];
+                    let currentBatch = db.batch();
+                    let batchCount = 0;
+                    let fixed = 0;
+                    
+                    rdvList.value.forEach(r => {
+                        if (r.statut === 'poubelle') return;
+                        
+                        let needsUpdate = false;
+                        let newStatut = r.statut;
+                        let newHonorBilling = r.honorBilling;
+                        
+                        // Normaliser le statut pour gérer les accents et variations
+                        let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                        statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                        
+                        // Vérifier si le rendez-vous est dans le bilan (données réelles Firebase)
+                        const isInBilan = bilanRows.value.some(b => {
+                            if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                                return b.rdvIds.includes(r.id);
+                            }
+                            return b.rdvId === r.id;
+                        });
+                        
+                        // Cas 1 : Rendez-vous avec honorBilling='facture' mais statut !== 'honore'
+                        // Vérification dans les données réelles Firebase
+                        if (r.honorBilling === 'facture' && statutNormalized !== 'honore') {
+                            newStatut = 'honore';
+                            needsUpdate = true;
+                        }
+                        // Cas 2 : Rendez-vous dans le bilan mais sans statut honoré
+                        // Vérification dans les données réelles du bilan Firebase
+                        else if (isInBilan && statutNormalized !== 'honore') {
+                            newStatut = 'honore';
+                            newHonorBilling = 'facture';
+                            needsUpdate = true;
+                        }
+                        // Cas 3 : Rendez-vous pas venu mais dans le bilan ou facturé (contradiction)
+                        // Vérification dans les données réelles Firebase
+                        else if ((statutNormalized === 'pas_venu' || statutNormalized === 'pas venu' || statutNormalized === 'pasvenu') && (isInBilan || r.honorBilling === 'facture')) {
+                            // Si dans le bilan ou facturé, c'est qu'il a été honoré
+                            newStatut = 'honore';
+                            newHonorBilling = 'facture';
+                            needsUpdate = true;
+                        }
+                        // Cas 4 : Rendez-vous annulé mais dans le bilan ou facturé (contradiction)
+                        // Vérification dans les données réelles Firebase
+                        else if ((statutNormalized === 'annule' || statutNormalized === 'annulé') && (isInBilan || r.honorBilling === 'facture')) {
+                            // Si dans le bilan ou facturé, c'est qu'il a été honoré
+                            newStatut = 'honore';
+                            newHonorBilling = 'facture';
+                            needsUpdate = true;
+                        }
+                        // Cas 5 : Rendez-vous passé ou à venir - vérifier selon la date
+                        else if (r.date) {
+                            // Comparer uniquement les dates (sans l'heure) pour déterminer si c'est à venir
+                            const rdvDate = new Date(r.date);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            rdvDate.setHours(0, 0, 0, 0);
+                            
+                            // Si la date du rendez-vous est supérieure à aujourd'hui, c'est un rendez-vous à venir
+                            const isRdvInFuture = rdvDate > today;
+                            
+                            if (isRdvInFuture) {
+                                // Cas 6 : Rendez-vous à venir avec statut final incorrect
+                                // Si le rendez-vous est à venir mais a un statut final (honoré, pas venu, annulé)
+                                // Vérifier dans les données réelles Firebase
+                                if (['honore', 'pas_venu', 'annule'].includes(statutNormalized)) {
+                                    // Si pas dans le bilan et pas facturé, remettre en "confirmé" (à venir)
+                                    if (!isInBilan && r.honorBilling !== 'facture') {
+                                        newStatut = 'confirme';
+                                        newHonorBilling = null;
+                                        needsUpdate = true;
+                                    }
+                                }
+                            } else {
+                                // Rendez-vous passé - vérifier s'il a un statut final
+                                if (r.heure) {
+                                    const rdvDateTime = new Date(r.date + 'T' + r.heure);
+                                    const rdvEndTime = new Date(rdvDateTime.getTime() + 60 * 60 * 1000);
+                                    
+                                    // Si le rendez-vous est passé
+                                    if (rdvEndTime < now) {
+                                        // Si le statut n'est pas final
+                                        if (!['honore', 'pas_venu', 'annule'].includes(statutNormalized)) {
+                                            // Si pas dans le bilan et passé depuis plus de 24h, considérer comme "pas venu"
+                                            if (!isInBilan) {
+                                                const hoursSinceRdv = (now - rdvEndTime) / (1000 * 60 * 60);
+                                                if (hoursSinceRdv > 24) {
+                                                    newStatut = 'pas_venu';
+                                                    newHonorBilling = null;
+                                                    needsUpdate = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (needsUpdate) {
+                            const ref = db.collection('rendezvous').doc(r.id);
+                            currentBatch.update(ref, { 
+                                statut: newStatut,
+                                honorBilling: newHonorBilling
+                            });
+                            
+                            // Mettre à jour localement
+                            r.statut = newStatut;
+                            r.honorBilling = newHonorBilling;
+                            
+                            batchCount++;
+                            fixed++;
+                            
+                            if (batchCount >= 500) {
+                                updates.push(currentBatch.commit());
+                                currentBatch = db.batch();
+                                batchCount = 0;
+                            }
+                        }
+                    });
+                    
+                    if (batchCount > 0) {
+                        updates.push(currentBatch.commit());
+                    }
+                    
+                    if (updates.length > 0) {
+                        await Promise.all(updates);
+                    }
+                    
+                    showNotification(`✅ ${fixed} rendez-vous corrigés avec succès`, 'success', 'fa-check-circle');
+                } catch (error) {
+                    console.error('Erreur lors de la correction des statuts:', error);
+                    showNotification('❌ Erreur lors de la correction', 'error', 'fa-exclamation-circle');
+                }
+            };
+
+            // Fonction pour corriger tous les rendez-vous à venir
+            const fixRdvsAVenir = async () => {
+                try {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    // Compter tous les rendez-vous à venir qui ne sont pas déjà "confirmé"
+                    let count = 0;
+                    rdvList.value.forEach(r => {
+                        if (r.statut === 'poubelle' || !r.date) return;
+                        
+                        const rdvDate = new Date(r.date);
+                        rdvDate.setHours(0, 0, 0, 0);
+                        
+                        // Si la date est supérieure à aujourd'hui, c'est un rendez-vous à venir
+                        if (rdvDate > today) {
+                            // Normaliser le statut
+                            let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                            statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            
+                            // Vérifier si le rendez-vous est dans le bilan
+                            const isInBilan = bilanRows.value.some(b => {
+                                if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                                    return b.rdvIds.includes(r.id);
+                                }
+                                return b.rdvId === r.id;
+                            });
+                            
+                            // Si le rendez-vous n'est pas déjà "confirmé" et n'est pas dans le bilan ni facturé
+                            if (statutNormalized !== 'confirme' && !isInBilan && r.honorBilling !== 'facture') {
+                                count++;
+                            }
+                        }
+                    });
+                    
+                    if (count === 0) {
+                        showNotification('✅ Tous les rendez-vous à venir sont déjà en ordre !', 'success', 'fa-check-circle');
+                        return;
+                    }
+                    
+                    if (!confirm(`Corriger ${count} rendez-vous à venir en les remettant en statut "confirmé" ?\n\nTous les rendez-vous avec une date supérieure à aujourd'hui seront remis en statut "à venir" (confirmé).`)) {
+                        return;
+                    }
+                    
+                    showNotification(`⏳ Correction de ${count} rendez-vous à venir en cours...`, 'info', 'fa-spinner fa-spin');
+                    
+                    const updates = [];
+                    let currentBatch = db.batch();
+                    let batchCount = 0;
+                    let fixed = 0;
+                    
+                    rdvList.value.forEach(r => {
+                        if (r.statut === 'poubelle' || !r.date) return;
+                        
+                        const rdvDate = new Date(r.date);
+                        rdvDate.setHours(0, 0, 0, 0);
+                        
+                        // Si la date est supérieure à aujourd'hui, c'est un rendez-vous à venir
+                        if (rdvDate > today) {
+                            // Normaliser le statut
+                            let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                            statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            
+                            // Vérifier si le rendez-vous est dans le bilan
+                            const isInBilan = bilanRows.value.some(b => {
+                                if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                                    return b.rdvIds.includes(r.id);
+                                }
+                                return b.rdvId === r.id;
+                            });
+                            
+                            // Si le rendez-vous n'est pas déjà "confirmé" et n'est pas dans le bilan ni facturé, remettre en "confirmé"
+                            if (statutNormalized !== 'confirme' && !isInBilan && r.honorBilling !== 'facture') {
+                                const ref = db.collection('rendezvous').doc(r.id);
+                                currentBatch.update(ref, { 
+                                    statut: 'confirme',
+                                    honorBilling: null
+                                });
+                                
+                                // Mettre à jour localement
+                                r.statut = 'confirme';
+                                r.honorBilling = null;
+                                
+                                batchCount++;
+                                fixed++;
+                                
+                                if (batchCount >= 500) {
+                                    updates.push(currentBatch.commit());
+                                    currentBatch = db.batch();
+                                    batchCount = 0;
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (batchCount > 0) {
+                        updates.push(currentBatch.commit());
+                    }
+                    
+                    if (updates.length > 0) {
+                        await Promise.all(updates);
+                    }
+                    
+                    showNotification(`✅ ${fixed} rendez-vous à venir corrigés avec succès`, 'success', 'fa-check-circle');
+                } catch (error) {
+                    console.error('Erreur lors de la correction des rendez-vous à venir:', error);
+                    showNotification('❌ Erreur lors de la correction', 'error', 'fa-exclamation-circle');
+                }
+            };
+
+            // Fonction pour corriger tous les rendez-vous pas venus
+            const fixRdvsPasVenus = async () => {
+                try {
+                    const now = new Date();
+                    
+                    // Compter les rendez-vous passés sans statut final
+                    let count = 0;
+                    rdvList.value.forEach(r => {
+                        if (r.statut === 'poubelle' || !r.date || !r.heure) return;
+                        
+                        const rdvDateTime = new Date(r.date + 'T' + r.heure);
+                        const rdvEndTime = new Date(rdvDateTime.getTime() + 60 * 60 * 1000); // +1h
+                        
+                        // Si le rendez-vous est passé (fini depuis plus d'1h)
+                        if (rdvEndTime < now) {
+                            // Normaliser le statut
+                            let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                            statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            
+                            // Vérifier si le rendez-vous est dans le bilan
+                            const isInBilan = bilanRows.value.some(b => {
+                                if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                                    return b.rdvIds.includes(r.id);
+                                }
+                                return b.rdvId === r.id;
+                            });
+                            
+                            // Si le statut n'est pas final (honoré, pas venu, annulé) et pas dans le bilan
+                            if (!['honore', 'pas_venu', 'annule'].includes(statutNormalized) && !isInBilan && r.honorBilling !== 'facture') {
+                                count++;
+                            }
+                        }
+                    });
+                    
+                    if (count === 0) {
+                        showNotification('✅ Tous les rendez-vous passés ont déjà un statut final !', 'success', 'fa-check-circle');
+                        return;
+                    }
+                    
+                    if (!confirm(`Corriger ${count} rendez-vous pas venus en les remettant en statut "pas venu" ?\n\nTous les rendez-vous passés (finis depuis plus d'1h) sans statut honoré seront remis en statut "pas venu".`)) {
+                        return;
+                    }
+                    
+                    showNotification(`⏳ Correction de ${count} rendez-vous pas venus en cours...`, 'info', 'fa-spinner fa-spin');
+                    
+                    const updates = [];
+                    let currentBatch = db.batch();
+                    let batchCount = 0;
+                    let fixed = 0;
+                    
+                    rdvList.value.forEach(r => {
+                        if (r.statut === 'poubelle' || !r.date || !r.heure) return;
+                        
+                        const rdvDateTime = new Date(r.date + 'T' + r.heure);
+                        const rdvEndTime = new Date(rdvDateTime.getTime() + 60 * 60 * 1000); // +1h
+                        
+                        // Si le rendez-vous est passé (fini depuis plus d'1h)
+                        if (rdvEndTime < now) {
+                            // Normaliser le statut
+                            let statutNormalized = String(r.statut || '').toLowerCase().trim();
+                            statutNormalized = statutNormalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            
+                            // Vérifier si le rendez-vous est dans le bilan
+                            const isInBilan = bilanRows.value.some(b => {
+                                if (b.rdvIds && Array.isArray(b.rdvIds)) {
+                                    return b.rdvIds.includes(r.id);
+                                }
+                                return b.rdvId === r.id;
+                            });
+                            
+                            // Si le statut n'est pas final et pas dans le bilan ni facturé, remettre en "pas venu"
+                            if (!['honore', 'pas_venu', 'annule'].includes(statutNormalized) && !isInBilan && r.honorBilling !== 'facture') {
+                                const ref = db.collection('rendezvous').doc(r.id);
+                                currentBatch.update(ref, { 
+                                    statut: 'pas_venu',
+                                    honorBilling: null
+                                });
+                                
+                                // Mettre à jour localement
+                                r.statut = 'pas_venu';
+                                r.honorBilling = null;
+                                
+                                batchCount++;
+                                fixed++;
+                                
+                                if (batchCount >= 500) {
+                                    updates.push(currentBatch.commit());
+                                    currentBatch = db.batch();
+                                    batchCount = 0;
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (batchCount > 0) {
+                        updates.push(currentBatch.commit());
+                    }
+                    
+                    if (updates.length > 0) {
+                        await Promise.all(updates);
+                    }
+                    
+                    showNotification(`✅ ${fixed} rendez-vous pas venus corrigés avec succès`, 'success', 'fa-check-circle');
+                } catch (error) {
+                    console.error('Erreur lors de la correction des rendez-vous pas venus:', error);
+                    showNotification('❌ Erreur lors de la correction', 'error', 'fa-exclamation-circle');
+                }
+            };
+
+            const confirmBulkDelete = () => {
+                const count = matchingRdvsCount.value;
+                if (count === 0) return;
+                
+                // Double confirmation pour sécurité
+                const filtersDesc = [];
+                if (bulkDeleteFilters.date) filtersDesc.push(`Date: ${bulkDeleteFilters.date}`);
+                if (bulkDeleteFilters.annee) filtersDesc.push(`Année: ${bulkDeleteFilters.annee}`);
+                if (bulkDeleteFilters.mois) filtersDesc.push(`Mois: ${bulkDeleteFilters.mois}`);
+                if (bulkDeleteFilters.agenceId) {
+                    const agence = agences.value.find(a => a.id === bulkDeleteFilters.agenceId);
+                    filtersDesc.push(`Agence: ${agence?.nom || bulkDeleteFilters.agenceId}`);
+                }
+                if (bulkDeleteFilters.statut) filtersDesc.push(`Statut: ${bulkDeleteFilters.statut}`);
+                
+                const message = `⚠️ ATTENTION : Vous êtes sur le point de supprimer DÉFINITIVEMENT ${count} rendez-vous.\n\n` +
+                               `Critères : ${filtersDesc.join(', ') || 'Tous les rendez-vous'}\n\n` +
+                               `Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr ?\n\n` +
+                               `Tapez "SUPPRIMER" pour confirmer.`;
+                
+                const confirmation = prompt(message);
+                if (confirmation !== 'SUPPRIMER') {
+                    showNotification('❌ Suppression annulée', 'info', 'fa-info-circle');
+                    return;
+                }
+                
+                // Deuxième confirmation
+                if (!confirm(`Dernière confirmation : Supprimer définitivement ${count} rendez-vous ?\n\nCette action ne peut PAS être annulée !`)) {
+                    showNotification('❌ Suppression annulée', 'info', 'fa-info-circle');
+                    return;
+                }
+                
+                executeBulkDelete();
+            };
+
+            const executeBulkDelete = async () => {
+                try {
+                    // Récupérer les rendez-vous correspondants
+                    let filtered = rdvList.value.filter(r => r.statut !== 'poubelle');
+                    
+                    // Appliquer les mêmes filtres que dans matchingRdvsCount
+                    if (bulkDeleteFilters.date) {
+                        filtered = filtered.filter(r => r.date === bulkDeleteFilters.date);
+                    } else {
+                        if (bulkDeleteFilters.annee) {
+                            filtered = filtered.filter(r => {
+                                if (!r.date) return false;
+                                const d = new Date(r.date);
+                                return d.getFullYear().toString() === bulkDeleteFilters.annee;
+                            });
+                        }
+                        
+                        if (bulkDeleteFilters.mois && bulkDeleteFilters.annee) {
+                            filtered = filtered.filter(r => {
+                                if (!r.date) return false;
+                                const d = new Date(r.date);
+                                const month = String(d.getMonth() + 1).padStart(2, '0');
+                                return month === bulkDeleteFilters.mois;
+                            });
+                        }
+                    }
+                    
+                    if (bulkDeleteFilters.agenceId) {
+                        filtered = filtered.filter(r => r.agenceId === bulkDeleteFilters.agenceId);
+                    }
+                    
+                    if (bulkDeleteFilters.statut) {
+                        filtered = filtered.filter(r => r.statut === bulkDeleteFilters.statut);
+                    }
+                    
+                    const idsToDelete = filtered.map(r => r.id);
+                    const count = idsToDelete.length;
+                    
+                    if (idsToDelete.length === 0) {
+                        showNotification('ℹ️ Aucun rendez-vous à supprimer', 'info', 'fa-info-circle');
+                        return;
+                    }
+                    
+                    showNotification(`⏳ Suppression de ${count} rendez-vous en cours...`, 'info', 'fa-spinner fa-spin');
+                    
+                    // Supprimer par batch (Firestore limite à 500 opérations par batch)
+                    const batchSize = 500;
+                    for (let i = 0; i < idsToDelete.length; i += batchSize) {
+                        const batch = db.batch();
+                        const batchIds = idsToDelete.slice(i, i + batchSize);
+                        
+                        batchIds.forEach(id => {
+                            const rdv = rdvList.value.find(r => r.id === id);
+                            
+                            // Supprimer de Google Calendar si présent
+                            if (rdv && rdv.dansAgenda && rdv.googleCalendarEventId) {
+                                if (googleCalendarConnected.value || prospecteurGoogleCalendarConnected.value) {
+                                    deleteGoogleCalendarEvent(rdv).catch(err => console.error('Erreur suppression Google Calendar:', err));
+                                }
+                            }
+                            
+                            // Retirer du bilan
+                            removeRdvFromBilan(id).catch(err => console.error('Erreur retrait du bilan:', err));
+                            
+                            // Supprimer définitivement de Firestore
+                            const ref = db.collection('rendezvous').doc(id);
+                            batch.delete(ref);
+                        });
+                        
+                        await batch.commit();
+                    }
+                    
+                    // Mettre à jour la liste locale
+                    rdvList.value = rdvList.value.filter(r => !idsToDelete.includes(r.id));
+                    
+                    // Réinitialiser les filtres
+                    resetBulkDeleteFilters();
+                    
+                    showNotification(`✅ ${count} rendez-vous supprimés avec succès`, 'success', 'fa-check-circle');
+                } catch (error) {
+                    console.error('Erreur lors de la suppression en masse:', error);
+                    showNotification('❌ Erreur lors de la suppression', 'error', 'fa-exclamation-circle');
+                }
             };
 
             const isAllBilanSelected = computed(() => {
@@ -22566,6 +23442,10 @@ let prefixTitre = '';
                 loadBilanConfig, loadBilanData, buildBilanMonthOptions, handleBilanLogo, handleBilanSignature, saveBilanSettings,
                 bilanTab, urgentBilanRows, urgentBilanCount, prospecteurUrgentRows, prospecteurUrgentCount, openUrgentCommercialModal, saveUrgentCommercial, getUrgentRdvClient, getUrgentRdvPhone, urgentCommercialModal, getUrgentCommerciaux,
                 bilanMonthOptions, bilanYearOptions, dashboardYearOptions, syncAllHonoredRdv, hasBilanCommerciaux, cleanAndRegroupBilan, billingSummaryModal, openBillingSummary, billingStatsGrouped, billingSummarySearch, filteredBillingStatsGrouped,
+                
+                // SUPPRESSION EN MASSE
+                bulkDeleteFilters, matchingRdvsCount, resetBulkDeleteFilters, confirmBulkDelete, executeBulkDelete,
+                rdvsToFixCount, fixAllRdvsStatus, fixRdvsAVenir, fixRdvsPasVenus,
                 
                 // OBJECTIFS
                 objectifsFilters, objectifsStats, objectifModal, tarifPersonnaliseModal,
